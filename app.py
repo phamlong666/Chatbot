@@ -1,47 +1,48 @@
-
 from flask import Flask, request, jsonify
 import gspread
 from google.oauth2.service_account import Credentials
+import openai
 
+# Cấu hình Flask
 app = Flask(__name__)
 
 # Kết nối Google Sheets
-scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = Credentials.from_service_account_file("sotaygpt-fba5e9b3e6fd.json", scopes=scopes)
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_file("sotaygpt-fba5e9b3e6fd.json", scopes=SCOPES)
 client = gspread.authorize(creds)
-spreadsheet = client.open_by_url("https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit")
+sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/13MqQzv3MF9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit").worksheet("CBCNV")
+
+# Cấu hình OpenAI (nếu có, để trả lời các câu hỏi khác)
+openai.api_key = "YOUR_OPENAI_API_KEY"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
     user_msg = data.get("message", "").lower()
 
-    try:
-        sheet = spreadsheet.worksheet("CBCNV")
+    # Kiểm tra nếu câu hỏi liên quan đến CBCNV
+    if "danh sách" in user_msg or "cbcnv" in user_msg:
         records = sheet.get_all_records()
-    except Exception as e:
-        return jsonify({"reply": f"Lỗi: Không thể mở sheet CBCNV. Chi tiết: {e}"})
-
-    # Tìm nhân viên nếu tên trong câu hỏi
-    matched_records = []
-    for r in records:
-        name = r.get("Họ và tên", "").lower()
-        if name and name in user_msg:
-            matched_records.append(r)
-
-    if matched_records:
         reply_list = []
-        for r in matched_records:
+        for r in records:
             reply_list.append(
-                f"{r.get('Họ và tên', '')} | Ngày sinh: {r.get('Ngày sinh CBCNV', '')} | Trình độ: {r.get('Trình độ chuyên môn', '')} | "
-                f"Năm công tác: {r.get('Năm bắt đầu công tác', '')} | Bậc lương: {r.get('Bậc lương đang hưởng', '')} | Bộ phận: {r.get('Bộ phận công tác', '')} | "
-                f"Chức danh: {r.get('Chức danh', '')}"
+                f"{r['Họ và tên']} - {r['Ngày sinh CBCNV']} - {r['Trình độ chuyên môn']} - "
+                f"{r['Tháng năm vào ngành']} - {r['Bậc lương đang hưởng']} - "
+                f"{r['Bộ phận công tác']} - {r['Chức danh']}"
             )
-        reply_text = "\n\n".join(reply_list)
+        reply_text = "\n".join(reply_list)
         return jsonify({"reply": reply_text})
+
+    # Nếu không phải, gửi sang GPT
     else:
-        # Nếu không tìm thấy, giả lập gọi GPT (ở đây trả câu mặc định demo)
-        gpt_reply = "Câu hỏi của anh chưa có trong dữ liệu CBCNV. Đây là câu trả lời từ GPT: Anh vui lòng cung cấp thêm thông tin chi tiết nhé!"
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Bạn là trợ lý EVN hỗ trợ mọi câu hỏi."},
+                {"role": "user", "content": data.get("message", "")}
+            ]
+        )
+        gpt_reply = response.choices[0].message.content
         return jsonify({"reply": gpt_reply})
 
 if __name__ == '__main__':
