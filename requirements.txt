@@ -1,0 +1,3 @@
+Flask
+gspread
+google-auth
