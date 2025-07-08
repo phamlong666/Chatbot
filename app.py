@@ -100,14 +100,30 @@ if st.button("Gửi"):
         else:
             st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
-    # Xử lý truy vấn liên quan đến sheet "Tên các TBA" (ĐÃ SỬA TÊN SHEET)
+    # Xử lý truy vấn liên quan đến sheet "Tên các TBA" (ĐÃ SỬA TÊN SHEET VÀ THÊM LỌC)
     elif "tba" in user_msg_lower or "thông tin tba" in user_msg_lower:
         records = get_sheet_data("Tên các TBA") # SỬA TÊN SHEET TỪ "TBA" SANG "Tên các TBA"
         if records:
             df_tba = pd.DataFrame(records)
-            if not df_tba.empty:
-                st.subheader("Dữ liệu từ sheet 'Tên các TBA':")
-                st.dataframe(df_tba) # Hiển thị toàn bộ dữ liệu từ sheet TBA
+            
+            # Logic để tìm tên đường dây trong câu hỏi của người dùng
+            line_name = None
+            line_match = re.search(r"đường dây\s+([a-zA-Z0-9\.]+)", user_msg_lower)
+            if line_match:
+                line_name = line_match.group(1).upper() # Lấy tên đường dây và chuyển thành chữ hoa để khớp
+
+            filtered_df_tba = df_tba
+            if line_name and 'Tên đường dây' in df_tba.columns:
+                # Lọc DataFrame theo tên đường dây
+                filtered_df_tba = df_tba[df_tba['Tên đường dây'].str.upper() == line_name]
+                
+                if filtered_df_tba.empty:
+                    st.warning(f"⚠️ Không tìm thấy TBA nào cho đường dây '{line_name}'.")
+                    st.dataframe(df_tba) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
+            
+            if not filtered_df_tba.empty:
+                st.subheader(f"Dữ liệu từ sheet 'Tên các TBA' {'cho đường dây ' + line_name if line_name else ''}:")
+                st.dataframe(filtered_df_tba) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
                 
                 # Bạn có thể thêm logic vẽ biểu đồ cho TBA tại đây nếu cần
                 # Ví dụ: if "biểu đồ" in user_msg_lower: ...
