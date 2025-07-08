@@ -6,8 +6,6 @@ import openai
 # Kết nối Google Sheets bằng secrets
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-st.write("Available secrets keys:", list(st.secrets.keys()))
-
 if "google_service_account" in st.secrets:
     info = st.secrets["google_service_account"]
     creds = Credentials.from_service_account_info(info, scopes=SCOPES)
@@ -17,8 +15,9 @@ else:
 
 if "openai_api_key" in st.secrets:
     client_ai = openai.OpenAI(api_key=st.secrets["openai_api_key"])
+    st.success("✅ Đã kết nối OpenAI API key.")
 else:
-    st.warning("Chưa cấu hình openai_api_key. Chỉ chạy chức năng Google Sheets.")
+    st.warning("⚠️ Chưa cấu hình openai_api_key. Chỉ chạy chức năng Google Sheets.")
     client_ai = None
 
 try:
@@ -55,4 +54,4 @@ if st.button("Gửi"):
             )
             st.write(response.choices[0].message.content)
         else:
-            st.warning("Không có API key OpenAI. Vui lòng thêm để sử dụng chức năng chat.")
+            st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm để sử dụng chức năng chat.")
