@@ -13,8 +13,11 @@ if "google_service_account" in st.secrets:
 else:
     st.error("❌ Không tìm thấy google_service_account trong secrets.")
 
-# Lấy API key OpenAI từ secrets
-openai_api_key_direct = st.secrets.get("openai_api_key")
+# Lấy API key OpenAI từ secrets (ĐÃ SỬA ĐỂ GÁN TRỰC TIẾP)
+# KHUYẾN NGHỊ: KHÔNG NÊN ĐẶT KEY TRỰC TIẾP NHƯ THẾ NÀY TRONG MÃ NGUỒN CÔNG KHAI HOẶC MÔI TRƯỜNG SẢN XUẤT.
+# HÃY DÙNG st.secrets HOẶC BIẾN MÔI TRƯỜNG ĐỂ BẢO MẬT.
+openai_api_key_direct = "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"
+
 
 if openai_api_key_direct:
     client_ai = OpenAI(api_key=openai_api_key_direct)
