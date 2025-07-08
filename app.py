@@ -63,7 +63,7 @@ if st.button("Gửi"):
         if client_ai:
             try:
                 response = client_ai.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-4o", # Kiểm tra lại quyền truy cập mô hình này
                     messages=[
                         {"role": "system", "content": "Bạn là trợ lý EVN hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng."},
                         {"role": "user", "content": user_msg}
