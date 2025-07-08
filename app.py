@@ -5,6 +5,7 @@ from openai import OpenAI
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
+import re # Thêm thư viện regex để trích xuất tên sheet
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
 plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
@@ -135,7 +136,7 @@ if st.button("Gửi"):
                         ax.set_title("Biểu đồ số lượng CBCNV theo Bộ phận")
                         plt.xticks(rotation=45, ha='right')
                         plt.tight_layout()
-                        st.pyplot(fig)
+                        st.pyplot(fig, dpi=300) # Tăng DPI để biểu đồ nét hơn
                     else:
                         st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
             else:
@@ -179,7 +180,7 @@ if st.button("Gửi"):
                         ax.set_title("Biểu đồ Doanh thu thực tế theo tháng")
                         plt.xticks(rotation=45, ha='right')
                         plt.tight_layout()
-                        st.pyplot(fig)
+                        st.pyplot(fig, dpi=300) # Tăng DPI để biểu đồ nét hơn
                     except Exception as e:
                         st.error(f"❌ Lỗi khi vẽ biểu đồ doanh thu: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet.")
                 else:
@@ -189,15 +190,41 @@ if st.button("Gửi"):
         else:
             st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
-    # Thêm các điều kiện 'elif' khác để xử lý các sheet khác
-    # Ví dụ:
-    # elif "chi phí" in user_msg_lower or "biểu đồ chi phí" in user_msg_lower:
-    #     records = get_sheet_data("ChiPhi") # Tên sheet ChiPhi
-    #     if records:
-    #         df_chi_phi = pd.DataFrame(records)
-    #         st.subheader("Dữ liệu Chi phí")
-    #         st.dataframe(df_chi_phi)
-    #         # Thêm logic vẽ biểu đồ chi phí tương tự như doanh thu
+    # Xử lý truy vấn liên quan đến sheet "TBA" (VÍ DỤ MỚI BỔ SUNG)
+    elif "tba" in user_msg_lower or "thông tin tba" in user_msg_lower:
+        records = get_sheet_data("TBA") # Tên sheet TBA
+        if records:
+            df_tba = pd.DataFrame(records)
+            if not df_tba.empty:
+                st.subheader("Dữ liệu từ sheet TBA:")
+                st.dataframe(df_tba) # Hiển thị toàn bộ dữ liệu từ sheet TBA
+                
+                # Bạn có thể thêm logic vẽ biểu đồ cho TBA tại đây nếu cần
+                # Ví dụ: if "biểu đồ" in user_msg_lower: ...
+            else:
+                st.warning("⚠️ Dữ liệu từ sheet TBA rỗng.")
+        else:
+            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet TBA. Vui lòng kiểm tra tên sheet và quyền truy cập.")
+
+    # Xử lý truy vấn để lấy dữ liệu từ BẤT KỲ sheet nào
+    elif "lấy dữ liệu sheet" in user_msg_lower:
+        # Sử dụng regex để trích xuất tên sheet
+        match = re.search(r"lấy dữ liệu sheet\s+['\"]?([^'\"]+)['\"]?", user_msg_lower)
+        if match:
+            sheet_name_from_query = match.group(1).strip()
+            st.info(f"Đang cố gắng lấy dữ liệu từ sheet: **{sheet_name_from_query}**")
+            records = get_sheet_data(sheet_name_from_query)
+            if records:
+                df_any_sheet = pd.DataFrame(records)
+                if not df_any_sheet.empty:
+                    st.subheader(f"Dữ liệu từ sheet '{sheet_name_from_query}':")
+                    st.dataframe(df_any_sheet)
+                    st.success(f"✅ Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
+                else:
+                    st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
+            # Thông báo lỗi đã được xử lý trong get_sheet_data
+        else:
+            st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
 
     # Xử lý các câu hỏi chung bằng OpenAI
     else:
