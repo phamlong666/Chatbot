@@ -1,3 +1,4 @@
-Flask
+streamlit
 gspread
 google-auth
+openai

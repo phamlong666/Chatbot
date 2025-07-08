@@ -1,23 +1,20 @@
+# 📊 EVN Streamlit Chatbot
 
-# Hướng dẫn chạy bot Flask "Trợ lý Điện lực"
+Chatbot nội bộ hỗ trợ xem thông tin CBCNV từ Google Sheets, trả lời tự động qua GPT.  
+Triển khai nhanh bằng Streamlit, dễ dàng chỉnh sửa và quản lý.
 
-## Bước 1: Cài thư viện
-```
+---
+
+## 💡 Các file chính
+
+- `app.py`: Code chính chạy chatbot.
+- `requirements.txt`: Các thư viện cần cài (streamlit, gspread, openai).
+- `README.md`: Hướng dẫn.
+
+---
+
+## ⚙️ Cách chạy trên local
+
+```bash
 pip install -r requirements.txt
-```
-
-## Bước 2: Đặt file JSON key Google (sotaygpt-fba5e9b3e6fd.json) vào cùng thư mục
-
-## Bước 3: Chạy bot
-```
-python app.py
-```
-
-## Bước 4: Test
-Gửi POST request tới `http://localhost:5000/webhook` với JSON:
-```
-{
-  "message": "Danh sách CBCNV bộ phận Kinh doanh"
-}
-```
-Bot sẽ trả danh sách nhân viên Kinh doanh.
+streamlit run app.py
