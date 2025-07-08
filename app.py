@@ -11,22 +11,22 @@ if "google_service_account" in st.secrets:
     creds = Credentials.from_service_account_info(info, scopes=SCOPES)
     client = gspread.authorize(creds)
 else:
-    st.error("Không tìm thấy google_service_account trong secrets.")
+    st.error("❌ Không tìm thấy google_service_account trong secrets.")
 
-# Lấy API key OpenAI từ secrets (anh cần thêm key vào st.secrets["openai_api_key"])
-openai_api_key_direct = st.secrets.get("openai_api_key", "")
+# Lấy API key OpenAI từ secrets
+openai_api_key_direct = st.secrets.get("openai_api_key")
 
 if openai_api_key_direct:
     client_ai = OpenAI(api_key=openai_api_key_direct)
-    st.success("✅ Đã kết nối OpenAI API key trực tiếp.")
+    st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
-    st.warning("⚠️ Chưa cấu hình API key OpenAI.")
+    st.warning("⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot.")
 
 try:
     sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit").worksheet("CBCNV")
 except Exception as e:
-    st.error(f"Không mở được Google Sheet: {e}")
+    st.error(f"❌ Không mở được Google Sheet: {e}")
 
 st.title("🤖 Trợ lý Điện lực Định Hóa")
 
@@ -44,15 +44,12 @@ if st.button("Gửi"):
                 break
 
         for r in records:
-            try:
-                if bo_phan and bo_phan not in r['Bộ phận công tác'].lower():
-                    continue
-                reply_list.append(
-                    f"{r['Họ và tên']} - {r['Ngày sinh CBCNV']} - {r['Trình độ chuyên môn']} - "
-                    f"{r['Tháng năm vào ngành']} - {r['Bộ phận công tác']} - {r['Chức danh']}"
-                )
-            except KeyError:
+            if bo_phan and bo_phan not in r.get('Bộ phận công tác', '').lower():
                 continue
+            reply_list.append(
+                f"{r.get('Họ và tên', '')} - {r.get('Ngày sinh CBCNV', '')} - {r.get('Trình độ chuyên môn', '')} - "
+                f"{r.get('Tháng năm vào ngành', '')} - {r.get('Bộ phận công tác', '')} - {r.get('Chức danh', '')}"
+            )
 
         if reply_list:
             reply_text = "\n".join(reply_list)
@@ -71,6 +68,6 @@ if st.button("Gửi"):
                 )
                 st.write(response.choices[0].message.content)
             except Exception as e:
-                st.error(f"Lỗi khi gọi OpenAI: {e}")
+                st.error(f"❌ Lỗi khi gọi OpenAI: {e}")
         else:
             st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot.")
