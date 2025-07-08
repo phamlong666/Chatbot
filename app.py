@@ -16,7 +16,7 @@ else:
 # Lấy API key OpenAI từ secrets (ĐÃ SỬA ĐỂ GÁN TRỰC TIẾP)
 # KHUYẾN NGHỊ: KHÔNG NÊN ĐẶT KEY TRỰC TIẾP NHƯ THẾ NÀY TRONG MÃ NGUỒN CÔNG KHAI HOẶC MÔI TRƯỜNG SẢN XUẤT.
 # HÃY DÙNG st.secrets HOẶC BIẾN MÔI TRƯỜNG ĐỂ BẢO MẬT.
-openai_api_key_direct = "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"
+openai_api_key_direct = "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"
 
 
 if openai_api_key_direct:
