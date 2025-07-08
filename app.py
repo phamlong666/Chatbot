@@ -189,7 +189,7 @@ if st.button("Gửi"):
                         ax.set_title("Biểu đồ Doanh thu thực tế theo tháng")
                         plt.xticks(rotation=45, ha='right')
                         plt.tight_layout()
-                        st.pyplot(fig, dpi=300) # Tăng DPI để biểu đồ nét hơn
+                        st.pyplot(fig, dpi=400) # Tăng DPI để biểu đồ nét hơn
                     except Exception as e:
                         st.error(f"❌ Lỗi khi vẽ biểu đồ doanh thu: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet.")
                 else:
@@ -272,7 +272,7 @@ if st.button("Gửi"):
                         ax.set_title("Biểu đồ số lượng CBCNV theo Bộ phận")
                         plt.xticks(rotation=45, ha='right') # Xoay nhãn trục hoành 45 độ
                         plt.tight_layout() # Tự động điều chỉnh layout để tránh chồng chéo
-                        st.pyplot(fig, dpi=300) # Tăng DPI để biểu đồ nét hơn
+                        st.pyplot(fig, dpi=400) # Tăng DPI để biểu đồ nét hơn
                     else:
                         st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
             else:
@@ -289,7 +289,7 @@ if st.button("Gửi"):
                     model="gpt-3.5-turbo", # Thử với gpt-3.5-turbo nếu gpt-4o không hoạt động
                     messages=[
                         {"role": "system", "content": "Bạn là trợ lý ảo của Tổng Công ty Điện lực, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
-                        {"role": "user", "content": user_msg}
+                        {"role: "user", "content": user_msg}
                     ]
                 )
                 st.write(response.choices[0].message.content)
