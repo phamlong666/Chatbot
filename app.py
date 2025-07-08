@@ -84,21 +84,37 @@ if st.button("Gửi"):
         else:
             st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
 
-    # Xử lý truy vấn liên quan đến sheet "TBA" (Ưu tiên cao hơn CBCNV chung)
+    # Xử lý truy vấn liên quan đến sheet "Danh sách lãnh đạo xã, phường" (Ưu tiên cao)
+    elif any(k in user_msg_lower for k in ["lãnh đạo xã", "lãnh đạo phường", "lãnh đạo định hóa", "danh sách lãnh đạo"]):
+        records = get_sheet_data("Danh sách lãnh đạo xã, phường") # Tên sheet chính xác từ hình ảnh
+        if records:
+            df_lanhdao = pd.DataFrame(records)
+            if not df_lanhdao.empty:
+                st.subheader("Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường':")
+                st.dataframe(df_lanhdao) # Hiển thị toàn bộ dữ liệu
+                
+                # Bạn có thể thêm logic vẽ biểu đồ cho lãnh đạo xã/phường tại đây nếu cần
+                # Ví dụ: if "biểu đồ" in user_msg_lower: ...
+            else:
+                st.warning("⚠️ Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường' rỗng.")
+        else:
+            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
+
+    # Xử lý truy vấn liên quan đến sheet "Tên các TBA" (ĐÃ SỬA TÊN SHEET)
     elif "tba" in user_msg_lower or "thông tin tba" in user_msg_lower:
-        records = get_sheet_data("TBA") # Tên sheet TBA
+        records = get_sheet_data("Tên các TBA") # SỬA TÊN SHEET TỪ "TBA" SANG "Tên các TBA"
         if records:
             df_tba = pd.DataFrame(records)
             if not df_tba.empty:
-                st.subheader("Dữ liệu từ sheet TBA:")
+                st.subheader("Dữ liệu từ sheet 'Tên các TBA':")
                 st.dataframe(df_tba) # Hiển thị toàn bộ dữ liệu từ sheet TBA
                 
                 # Bạn có thể thêm logic vẽ biểu đồ cho TBA tại đây nếu cần
                 # Ví dụ: if "biểu đồ" in user_msg_lower: ...
             else:
-                st.warning("⚠️ Dữ liệu từ sheet TBA rỗng.")
+                st.warning("⚠️ Dữ liệu từ sheet 'Tên các TBA' rỗng.")
         else:
-            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet TBA. Vui lòng kiểm tra tên sheet và quyền truy cập.")
+            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Tên các TBA'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
     # Xử lý truy vấn liên quan đến doanh thu và biểu đồ
     elif "doanh thu" in user_msg_lower or "báo cáo tài chính" in user_msg_lower or "biểu đồ doanh thu" in user_msg_lower:
