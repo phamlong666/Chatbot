@@ -29,16 +29,18 @@ st.title("🤖 Trợ lý Điện lực Định Hóa")
 user_msg = st.text_input("Bạn muốn hỏi gì?")
 
 if st.button("Gửi"):
-    if "cbcnv" in user_msg.lower() or "danh sách" in user_msg.lower() or "tổ" in user_msg.lower():
+    if "cbcnv" in user_msg.lower() or "danh sách" in user_msg.lower() or "tổ" in user_msg.lower() or "phòng" in user_msg.lower() or "đội" in user_msg.lower():
         records = sheet.get_all_records()
         reply_list = []
 
         # Lấy bộ phận được nhắc trong câu hỏi (nếu có)
         bo_phan = None
-        if "tổ " in user_msg.lower():
-            parts = user_msg.lower().split("tổ ")
-            if len(parts) > 1:
-                bo_phan = parts[1].strip()
+        for keyword in ["tổ ", "phòng ", "đội "]:
+            if keyword in user_msg.lower():
+                parts = user_msg.lower().split(keyword)
+                if len(parts) > 1:
+                    bo_phan = parts[1].strip()
+                    break
 
         for r in records:
             try:
@@ -58,13 +60,16 @@ if st.button("Gửi"):
             st.warning("⚠️ Không tìm thấy dữ liệu phù hợp.")
     else:
         if client_ai:
-            response = client_ai.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "Bạn là trợ lý EVN hỗ trợ trả lời mọi câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng."},
-                    {"role": "user", "content": user_msg}
-                ]
-            )
-            st.write(response.choices[0].message.content)
+            try:
+                response = client_ai.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "Bạn là trợ lý EVN hỗ trợ trả lời mọi câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng."},
+                        {"role": "user", "content": user_msg}
+                    ]
+                )
+                st.write(response.choices[0].message.content)
+            except Exception as e:
+                st.error(f"Lỗi khi gọi OpenAI: {e}")
         else:
             st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm để trả lời các câu hỏi tự do.")
