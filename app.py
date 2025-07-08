@@ -64,8 +64,90 @@ user_msg = st.text_input("Bạn muốn hỏi gì?")
 if st.button("Gửi"):
     user_msg_lower = user_msg.lower()
 
-    # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV)
-    if "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự"]):
+    # Xử lý truy vấn để lấy dữ liệu từ BẤT KỲ sheet nào (ƯU TIÊN HÀNG ĐẦU)
+    if "lấy dữ liệu sheet" in user_msg_lower:
+        # Sử dụng regex để trích xuất tên sheet
+        match = re.search(r"lấy dữ liệu sheet\s+['\"]?([^'\"]+)['\"]?", user_msg_lower)
+        if match:
+            sheet_name_from_query = match.group(1).strip()
+            st.info(f"Đang cố gắng lấy dữ liệu từ sheet: **{sheet_name_from_query}**")
+            records = get_sheet_data(sheet_name_from_query)
+            if records:
+                df_any_sheet = pd.DataFrame(records)
+                if not df_any_sheet.empty:
+                    st.subheader(f"Dữ liệu từ sheet '{sheet_name_from_query}':")
+                    st.dataframe(df_any_sheet)
+                    st.success(f"✅ Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
+                else:
+                    st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
+            # Thông báo lỗi đã được xử lý trong get_sheet_data
+        else:
+            st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
+
+    # Xử lý truy vấn liên quan đến sheet "TBA" (Ưu tiên cao hơn CBCNV chung)
+    elif "tba" in user_msg_lower or "thông tin tba" in user_msg_lower:
+        records = get_sheet_data("TBA") # Tên sheet TBA
+        if records:
+            df_tba = pd.DataFrame(records)
+            if not df_tba.empty:
+                st.subheader("Dữ liệu từ sheet TBA:")
+                st.dataframe(df_tba) # Hiển thị toàn bộ dữ liệu từ sheet TBA
+                
+                # Bạn có thể thêm logic vẽ biểu đồ cho TBA tại đây nếu cần
+                # Ví dụ: if "biểu đồ" in user_msg_lower: ...
+            else:
+                st.warning("⚠️ Dữ liệu từ sheet TBA rỗng.")
+        else:
+            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet TBA. Vui lòng kiểm tra tên sheet và quyền truy cập.")
+
+    # Xử lý truy vấn liên quan đến doanh thu và biểu đồ
+    elif "doanh thu" in user_msg_lower or "báo cáo tài chính" in user_msg_lower or "biểu đồ doanh thu" in user_msg_lower:
+        records = get_sheet_data("DoanhThu") # Tên sheet DoanhThu
+        if records:
+            df = pd.DataFrame(records)
+            if not df.empty:
+                st.subheader("Dữ liệu Doanh thu")
+                st.dataframe(df) # Hiển thị dữ liệu thô
+
+                # Thử vẽ biểu đồ nếu có các cột cần thiết (ví dụ: 'Tháng', 'Doanh thu')
+                # Bạn cần đảm bảo tên cột trong Google Sheet của bạn khớp với code
+                if 'Tháng' in df.columns and 'Doanh thu' in df.columns:
+                    try:
+                        # Chuyển đổi cột 'Doanh thu' sang dạng số
+                        df['Doanh thu'] = pd.to_numeric(df['Doanh thu'], errors='coerce')
+                        df = df.dropna(subset=['Doanh thu']) # Loại bỏ các hàng có giá trị NaN sau chuyển đổi
+
+                        st.subheader("Biểu đồ Doanh thu theo tháng")
+                        fig, ax = plt.subplots(figsize=(12, 7)) # Tăng kích thước figure
+                        
+                        # Tạo danh sách màu sắc duy nhất cho mỗi tháng
+                        colors = cm.get_cmap('viridis', len(df['Tháng'].unique()))
+                        
+                        # Vẽ biểu đồ cột với màu sắc riêng cho từng cột
+                        bars = ax.bar(df['Tháng'], df['Doanh thu'], color=colors.colors)
+                        
+                        # Hiển thị giá trị trên đỉnh mỗi cột với màu đen
+                        for bar in bars:
+                            yval = bar.get_height()
+                            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval, 2), ha='center', va='bottom', color='black') # Màu chữ đen
+
+                        ax.set_xlabel("Tháng")
+                        ax.set_ylabel("Doanh thu (Đơn vị)") # Thay "Đơn vị" bằng đơn vị thực tế
+                        ax.set_title("Biểu đồ Doanh thu thực tế theo tháng")
+                        plt.xticks(rotation=45, ha='right')
+                        plt.tight_layout()
+                        st.pyplot(fig, dpi=300) # Tăng DPI để biểu đồ nét hơn
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi vẽ biểu đồ doanh thu: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet.")
+                else:
+                    st.warning("⚠️ Không tìm thấy các cột 'Tháng' hoặc 'Doanh thu' trong sheet DoanhThu để vẽ biểu đồ.")
+            else:
+                st.warning("⚠️ Dữ liệu doanh thu rỗng, không thể hiển thị hoặc vẽ biểu đồ.")
+        else:
+            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
+
+    # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV) - Đặt sau các sheet cụ thể khác
+    elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự"]):
         records = get_sheet_data("CBCNV") # Tên sheet CBCNV
         if records:
             df_cbcnv = pd.DataFrame(records) # Chuyển đổi thành DataFrame
@@ -118,7 +200,8 @@ if st.button("Gửi"):
                         st.subheader("Biểu đồ số lượng nhân viên theo Bộ phận công tác")
                         bo_phan_counts = filtered_df['Bộ phận công tác'].value_counts()
 
-                        fig, ax = plt.subplots(figsize=(10, 6))
+                        # Tăng kích thước figure để có thêm không gian cho nhãn trục hoành
+                        fig, ax = plt.subplots(figsize=(12, 7)) 
                         
                         # Tạo danh sách màu sắc duy nhất cho mỗi bộ phận
                         colors = cm.get_cmap('tab10', len(bo_phan_counts.index)) # Sử dụng colormap 'tab10'
@@ -126,16 +209,16 @@ if st.button("Gửi"):
                         # Vẽ biểu đồ cột với màu sắc riêng cho từng cột
                         bars = ax.bar(bo_phan_counts.index, bo_phan_counts.values, color=colors.colors)
                         
-                        # Hiển thị giá trị trên đỉnh mỗi cột
+                        # Hiển thị giá trị trên đỉnh mỗi cột với màu đen
                         for bar in bars:
                             yval = bar.get_height()
-                            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom')
+                            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black') # Màu chữ đen
 
                         ax.set_xlabel("Bộ phận công tác")
                         ax.set_ylabel("Số lượng nhân viên")
                         ax.set_title("Biểu đồ số lượng CBCNV theo Bộ phận")
-                        plt.xticks(rotation=45, ha='right')
-                        plt.tight_layout()
+                        plt.xticks(rotation=45, ha='right') # Xoay nhãn trục hoành 45 độ
+                        plt.tight_layout() # Tự động điều chỉnh layout để tránh chồng chéo
                         st.pyplot(fig, dpi=300) # Tăng DPI để biểu đồ nét hơn
                     else:
                         st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
@@ -143,88 +226,6 @@ if st.button("Gửi"):
                 st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn. Vui lòng kiểm tra tên bộ phận hoặc từ khóa.")
         else:
             st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet CBCNV.")
-
-    # Xử lý truy vấn liên quan đến doanh thu và biểu đồ (ví dụ: giả sử có sheet "DoanhThu")
-    elif "doanh thu" in user_msg_lower or "báo cáo tài chính" in user_msg_lower or "biểu đồ doanh thu" in user_msg_lower:
-        records = get_sheet_data("DoanhThu") # Tên sheet DoanhThu
-        if records:
-            df = pd.DataFrame(records)
-            if not df.empty:
-                st.subheader("Dữ liệu Doanh thu")
-                st.dataframe(df) # Hiển thị dữ liệu thô
-
-                # Thử vẽ biểu đồ nếu có các cột cần thiết (ví dụ: 'Tháng', 'Doanh thu')
-                # Bạn cần đảm bảo tên cột trong Google Sheet của bạn khớp với code
-                if 'Tháng' in df.columns and 'Doanh thu' in df.columns:
-                    try:
-                        # Chuyển đổi cột 'Doanh thu' sang dạng số
-                        df['Doanh thu'] = pd.to_numeric(df['Doanh thu'], errors='coerce')
-                        df = df.dropna(subset=['Doanh thu']) # Loại bỏ các hàng có giá trị NaN sau chuyển đổi
-
-                        st.subheader("Biểu đồ Doanh thu theo tháng")
-                        fig, ax = plt.subplots(figsize=(10, 6))
-                        
-                        # Tạo danh sách màu sắc duy nhất cho mỗi tháng
-                        colors = cm.get_cmap('viridis', len(df['Tháng'].unique()))
-                        
-                        # Vẽ biểu đồ cột với màu sắc riêng cho từng cột
-                        bars = ax.bar(df['Tháng'], df['Doanh thu'], color=colors.colors)
-                        
-                        # Hiển thị giá trị trên đỉnh mỗi cột
-                        for bar in bars:
-                            yval = bar.get_height()
-                            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval, 2), ha='center', va='bottom') # Làm tròn 2 chữ số thập phân
-
-                        ax.set_xlabel("Tháng")
-                        ax.set_ylabel("Doanh thu (Đơn vị)") # Thay "Đơn vị" bằng đơn vị thực tế
-                        ax.set_title("Biểu đồ Doanh thu thực tế theo tháng")
-                        plt.xticks(rotation=45, ha='right')
-                        plt.tight_layout()
-                        st.pyplot(fig, dpi=300) # Tăng DPI để biểu đồ nét hơn
-                    except Exception as e:
-                        st.error(f"❌ Lỗi khi vẽ biểu đồ doanh thu: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet.")
-                else:
-                    st.warning("⚠️ Không tìm thấy các cột 'Tháng' hoặc 'Doanh thu' trong sheet DoanhThu để vẽ biểu đồ.")
-            else:
-                st.warning("⚠️ Dữ liệu doanh thu rỗng, không thể hiển thị hoặc vẽ biểu đồ.")
-        else:
-            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
-
-    # Xử lý truy vấn liên quan đến sheet "TBA" (VÍ DỤ MỚI BỔ SUNG)
-    elif "tba" in user_msg_lower or "thông tin tba" in user_msg_lower:
-        records = get_sheet_data("TBA") # Tên sheet TBA
-        if records:
-            df_tba = pd.DataFrame(records)
-            if not df_tba.empty:
-                st.subheader("Dữ liệu từ sheet TBA:")
-                st.dataframe(df_tba) # Hiển thị toàn bộ dữ liệu từ sheet TBA
-                
-                # Bạn có thể thêm logic vẽ biểu đồ cho TBA tại đây nếu cần
-                # Ví dụ: if "biểu đồ" in user_msg_lower: ...
-            else:
-                st.warning("⚠️ Dữ liệu từ sheet TBA rỗng.")
-        else:
-            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet TBA. Vui lòng kiểm tra tên sheet và quyền truy cập.")
-
-    # Xử lý truy vấn để lấy dữ liệu từ BẤT KỲ sheet nào
-    elif "lấy dữ liệu sheet" in user_msg_lower:
-        # Sử dụng regex để trích xuất tên sheet
-        match = re.search(r"lấy dữ liệu sheet\s+['\"]?([^'\"]+)['\"]?", user_msg_lower)
-        if match:
-            sheet_name_from_query = match.group(1).strip()
-            st.info(f"Đang cố gắng lấy dữ liệu từ sheet: **{sheet_name_from_query}**")
-            records = get_sheet_data(sheet_name_from_query)
-            if records:
-                df_any_sheet = pd.DataFrame(records)
-                if not df_any_sheet.empty:
-                    st.subheader(f"Dữ liệu từ sheet '{sheet_name_from_query}':")
-                    st.dataframe(df_any_sheet)
-                    st.success(f"✅ Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
-                else:
-                    st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
-            # Thông báo lỗi đã được xử lý trong get_sheet_data
-        else:
-            st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
 
     # Xử lý các câu hỏi chung bằng OpenAI
     else:
