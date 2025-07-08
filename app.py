@@ -13,12 +13,14 @@ if "google_service_account" in st.secrets:
 else:
     st.error("Không tìm thấy google_service_account trong secrets. Vui lòng kiểm tra lại.")
 
-if "openai_api_key" in st.secrets:
-    client_ai = openai.OpenAI(api_key=st.secrets["openai_api_key"])
-    st.success("✅ Đã kết nối OpenAI API key.")
-else:
-    st.warning("⚠️ Chưa cấu hình openai_api_key. Chỉ chạy chức năng Google Sheets.")
-    client_ai = None
+# Khởi tạo biến client_ai = None mặc định
+client_ai = None
+
+# Gán trực tiếp API key OpenAI từ key mà anh đưa
+openai_api_key_direct = "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"
+
+client_ai = openai.OpenAI(api_key=openai_api_key_direct)
+st.success("✅ Đã kết nối OpenAI API key trực tiếp.")
 
 try:
     sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit").worksheet("CBCNV")
@@ -48,10 +50,10 @@ if st.button("Gửi"):
             response = client_ai.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": "Bạn là trợ lý EVN hỗ trợ mọi câu hỏi."},
+                    {"role": "system", "content": "Bạn là trợ lý EVN hỗ trợ trả lời mọi câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng."},
                     {"role": "user", "content": user_msg}
                 ]
             )
             st.write(response.choices[0].message.content)
         else:
-            st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm để sử dụng chức năng chat.")
+            st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm để trả lời các câu hỏi tự do.")
