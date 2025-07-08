@@ -89,9 +89,30 @@ if st.button("Gửi"):
         records = get_sheet_data("Danh sách lãnh đạo xã, phường") # Tên sheet chính xác từ hình ảnh
         if records:
             df_lanhdao = pd.DataFrame(records)
-            if not df_lanhdao.empty:
-                st.subheader("Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường':")
-                st.dataframe(df_lanhdao) # Hiển thị toàn bộ dữ liệu
+            
+            # Logic để tìm tên xã/phường/địa điểm trong câu hỏi của người dùng
+            location_name = None
+            # Regex để bắt "xã/phường [Tên Xã/Phường]" hoặc "Định Hóa"
+            match_xa_phuong = re.search(r"(xã|phường)\s+([a-zA-Z0-9\s]+)", user_msg_lower)
+            if match_xa_phuong:
+                location_name = match_xa_phuong.group(2).strip()
+            elif "định hóa" in user_msg_lower: # Ưu tiên "Định Hóa" nếu được nhắc đến cụ thể
+                location_name = "định hóa"
+            
+            filtered_df_lanhdao = df_lanhdao
+            # Đảm bảo cột 'Thuộc xã/phường' tồn tại và lọc dữ liệu
+            if location_name and 'Thuộc xã/phường' in df_lanhdao.columns:
+                # Sử dụng str.contains để tìm kiếm linh hoạt hơn (không cần khớp chính xác)
+                # asType(str) để đảm bảo cột là kiểu chuỗi trước khi dùng str.lower()
+                filtered_df_lanhdao = df_lanhdao[df_lanhdao['Thuộc xã/phường'].astype(str).str.lower().str.contains(location_name.lower(), na=False)]
+                
+                if filtered_df_lanhdao.empty:
+                    st.warning(f"⚠️ Không tìm thấy lãnh đạo nào cho '{location_name.title()}'.")
+                    st.dataframe(df_lanhdao) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
+            
+            if not filtered_df_lanhdao.empty:
+                st.subheader(f"Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường' {'cho ' + location_name.title() if location_name else ''}:")
+                st.dataframe(filtered_df_lanhdao) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
                 
                 # Bạn có thể thêm logic vẽ biểu đồ cho lãnh đạo xã/phường tại đây nếu cần
                 # Ví dụ: if "biểu đồ" in user_msg_lower: ...
@@ -100,9 +121,9 @@ if st.button("Gửi"):
         else:
             st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
-    # Xử lý truy vấn liên quan đến sheet "Tên các TBA" (ĐÃ SỬA TÊN SHEET VÀ THÊM LỌC)
+    # Xử lý truy vấn liên quan đến sheet "Tên các TBA"
     elif "tba" in user_msg_lower or "thông tin tba" in user_msg_lower:
-        records = get_sheet_data("Tên các TBA") # SỬA TÊN SHEET TỪ "TBA" SANG "Tên các TBA"
+        records = get_sheet_data("Tên các TBA")
         if records:
             df_tba = pd.DataFrame(records)
             
@@ -115,7 +136,7 @@ if st.button("Gửi"):
             filtered_df_tba = df_tba
             if line_name and 'Tên đường dây' in df_tba.columns:
                 # Lọc DataFrame theo tên đường dây
-                filtered_df_tba = df_tba[df_tba['Tên đường dây'].str.upper() == line_name]
+                filtered_df_tba = df_tba[df_tba['Tên đường dây'].astype(str).str.upper() == line_name]
                 
                 if filtered_df_tba.empty:
                     st.warning(f"⚠️ Không tìm thấy TBA nào cho đường dây '{line_name}'.")
@@ -178,7 +199,7 @@ if st.button("Gửi"):
         else:
             st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
-    # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV) - Đặt sau các sheet cụ thể khác
+    # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV)
     elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự"]):
         records = get_sheet_data("CBCNV") # Tên sheet CBCNV
         if records:
