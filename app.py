@@ -21,7 +21,7 @@ if openai_api_key_direct:
     st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
-    st.warning("⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot.")
+    st.warning("⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
 
 try:
     sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit").worksheet("CBCNV")
@@ -33,7 +33,7 @@ st.title("🤖 Trợ lý Điện lực Định Hóa")
 user_msg = st.text_input("Bạn muốn hỏi gì?")
 
 if st.button("Gửi"):
-    if any(keyword in user_msg.lower() for keyword in ["cbcnv", "danh sách", "tổ", "phòng", "đội"]):
+    if "cbcnv" in user_msg.lower() or "danh sách" in user_msg.lower() or any(k in user_msg.lower() for k in ["tổ", "phòng", "đội"]):
         records = sheet.get_all_records()
         reply_list = []
 
