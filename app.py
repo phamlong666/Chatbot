@@ -1,7 +1,7 @@
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-import openai
+from openai import OpenAI
 
 # Kết nối Google Sheets bằng secrets
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -13,13 +13,10 @@ if "google_service_account" in st.secrets:
 else:
     st.error("Không tìm thấy google_service_account trong secrets. Vui lòng kiểm tra lại.")
 
-# Khởi tạo biến client_ai = None mặc định
-client_ai = None
-
 # Gán trực tiếp API key OpenAI từ key mà anh đưa
 openai_api_key_direct = "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"
 
-client_ai = openai.OpenAI(api_key=openai_api_key_direct)
+client_ai = OpenAI(api_key=openai_api_key_direct)
 st.success("✅ Đã kết nối OpenAI API key trực tiếp.")
 
 try:
@@ -32,19 +29,33 @@ st.title("🤖 Trợ lý Điện lực Định Hóa")
 user_msg = st.text_input("Bạn muốn hỏi gì?")
 
 if st.button("Gửi"):
-    if "cbcnv" in user_msg.lower() or "danh sách" in user_msg.lower():
+    if "cbcnv" in user_msg.lower() or "danh sách" in user_msg.lower() or "tổ" in user_msg.lower():
         records = sheet.get_all_records()
         reply_list = []
+
+        # Lấy bộ phận được nhắc trong câu hỏi (nếu có)
+        bo_phan = None
+        if "tổ " in user_msg.lower():
+            parts = user_msg.lower().split("tổ ")
+            if len(parts) > 1:
+                bo_phan = parts[1].strip()
+
         for r in records:
             try:
+                if bo_phan and bo_phan not in r['Bộ phận công tác'].lower():
+                    continue
                 reply_list.append(
                     f"{r['Họ và tên']} - {r['Ngày sinh CBCNV']} - {r['Trình độ chuyên môn']} - "
                     f"{r['Tháng năm vào ngành']} - {r['Bộ phận công tác']} - {r['Chức danh']}"
                 )
             except KeyError:
                 continue
-        reply_text = "\n".join(reply_list)
-        st.text_area("Kết quả", value=reply_text, height=300)
+
+        if reply_list:
+            reply_text = "\n".join(reply_list)
+            st.text_area("Kết quả", value=reply_text, height=300)
+        else:
+            st.warning("⚠️ Không tìm thấy dữ liệu phù hợp.")
     else:
         if client_ai:
             response = client_ai.chat.completions.create(
