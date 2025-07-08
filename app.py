@@ -2,7 +2,6 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 from openai import OpenAI
-import matplotlib.pyplot as plt
 
 # Kết nối Google Sheets
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -14,17 +13,21 @@ if "google_service_account" in st.secrets:
 else:
     st.error("❌ Không tìm thấy google_service_account trong secrets.")
 
-# Lấy API key OpenAI từ secrets hoặc gán trực tiếp (nên dùng secrets để bảo mật)
+# Lấy API key OpenAI từ secrets
 openai_api_key_direct = st.secrets.get("openai_api_key", "")
 
 if openai_api_key_direct:
-    client_ai = OpenAI(api_key=openai_api_key_direct)
-    st.success("✅ Đã kết nối OpenAI API key.")
+    try:
+        client_ai = OpenAI(api_key=openai_api_key_direct)
+        st.success("✅ Đã kết nối OpenAI API key.")
+    except Exception as e:
+        client_ai = None
+        st.error(f"❌ Lỗi khi khởi tạo OpenAI: {e}")
 else:
     client_ai = None
     st.warning("⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
 
-# Hàm chọn sheet động dựa vào câu hỏi
+# Hàm chọn sheet động
 def get_sheet_name(msg):
     msg_lower = msg.lower()
     if "tổn thất" in msg_lower:
@@ -51,44 +54,32 @@ if st.button("Gửi") and user_msg:
         sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit").worksheet(sheet_name)
         records = sheet.get_all_records()
 
-        if "biểu đồ" in user_msg.lower():
-            bp_count = {}
-            for r in records:
-                bp = r.get("Bộ phận công tác", "Khác")
-                bp_count[bp] = bp_count.get(bp, 0) + 1
+        reply_list = []
+        bo_phan = None
 
-            fig, ax = plt.subplots()
-            ax.bar(bp_count.keys(), bp_count.values())
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
+        for keyword in ["tổ ", "phòng ", "đội "]:
+            if keyword in user_msg.lower():
+                bo_phan = user_msg.lower().split(keyword, 1)[1].strip()
+                break
 
+        for r in records:
+            if bo_phan and bo_phan not in r.get('Bộ phận công tác', '').lower():
+                continue
+            reply_list.append(
+                f"{r.get('Họ và tên', '')} - {r.get('Ngày sinh CBCNV', '')} - {r.get('Trình độ chuyên môn', '')} - "
+                f"{r.get('Tháng năm vào ngành', '')} - {r.get('Bộ phận công tác', '')} - {r.get('Chức danh', '')}"
+            )
+
+        if reply_list:
+            reply_text = "\n".join(reply_list)
+            st.text_area("Kết quả", value=reply_text, height=300)
         else:
-            reply_list = []
-            bo_phan = None
-
-            for keyword in ["tổ ", "phòng ", "đội "]:
-                if keyword in user_msg.lower():
-                    bo_phan = user_msg.lower().split(keyword, 1)[1].strip()
-                    break
-
-            for r in records:
-                if bo_phan and bo_phan not in r.get('Bộ phận công tác', '').lower():
-                    continue
-                reply_list.append(
-                    f"{r.get('Họ và tên', '')} - {r.get('Ngày sinh CBCNV', '')} - {r.get('Trình độ chuyên môn', '')} - "
-                    f"{r.get('Tháng năm vào ngành', '')} - {r.get('Bộ phận công tác', '')} - {r.get('Chức danh', '')}"
-                )
-
-            if reply_list:
-                reply_text = "\n".join(reply_list)
-                st.text_area("Kết quả", value=reply_text, height=300)
-            else:
-                st.warning("⚠️ Không tìm thấy dữ liệu phù hợp. Kiểm tra tên bộ phận hoặc từ khóa.")
+            st.warning("⚠️ Không tìm thấy dữ liệu phù hợp. Kiểm tra tên bộ phận hoặc từ khóa.")
 
     except Exception as e:
         st.error(f"❌ Lỗi khi truy cập sheet '{sheet_name}': {e}")
 
-    if client_ai and (not 'reply_list' in locals() or not reply_list):
+    if client_ai and (not reply_list):
         try:
             response = client_ai.chat.completions.create(
                 model="gpt-4o",
