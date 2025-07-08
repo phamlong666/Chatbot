@@ -4,6 +4,7 @@ from google.oauth2.service_account import Credentials
 from openai import OpenAI
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
 plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
@@ -117,7 +118,18 @@ if st.button("Gửi"):
                         bo_phan_counts = filtered_df['Bộ phận công tác'].value_counts()
 
                         fig, ax = plt.subplots(figsize=(10, 6))
-                        ax.bar(bo_phan_counts.index, bo_phan_counts.values, color='lightgreen')
+                        
+                        # Tạo danh sách màu sắc duy nhất cho mỗi bộ phận
+                        colors = cm.get_cmap('tab10', len(bo_phan_counts.index)) # Sử dụng colormap 'tab10'
+                        
+                        # Vẽ biểu đồ cột với màu sắc riêng cho từng cột
+                        bars = ax.bar(bo_phan_counts.index, bo_phan_counts.values, color=colors.colors)
+                        
+                        # Hiển thị giá trị trên đỉnh mỗi cột
+                        for bar in bars:
+                            yval = bar.get_height()
+                            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom')
+
                         ax.set_xlabel("Bộ phận công tác")
                         ax.set_ylabel("Số lượng nhân viên")
                         ax.set_title("Biểu đồ số lượng CBCNV theo Bộ phận")
@@ -150,7 +162,18 @@ if st.button("Gửi"):
 
                         st.subheader("Biểu đồ Doanh thu theo tháng")
                         fig, ax = plt.subplots(figsize=(10, 6))
-                        ax.bar(df['Tháng'], df['Doanh thu'], color='skyblue')
+                        
+                        # Tạo danh sách màu sắc duy nhất cho mỗi tháng
+                        colors = cm.get_cmap('viridis', len(df['Tháng'].unique()))
+                        
+                        # Vẽ biểu đồ cột với màu sắc riêng cho từng cột
+                        bars = ax.bar(df['Tháng'], df['Doanh thu'], color=colors.colors)
+                        
+                        # Hiển thị giá trị trên đỉnh mỗi cột
+                        for bar in bars:
+                            yval = bar.get_height()
+                            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval, 2), ha='center', va='bottom') # Làm tròn 2 chữ số thập phân
+
                         ax.set_xlabel("Tháng")
                         ax.set_ylabel("Doanh thu (Đơn vị)") # Thay "Đơn vị" bằng đơn vị thực tế
                         ax.set_title("Biểu đồ Doanh thu thực tế theo tháng")
