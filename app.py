@@ -13,8 +13,8 @@ if "google_service_account" in st.secrets:
 else:
     st.error("Không tìm thấy google_service_account trong secrets.")
 
-# API key OpenAI (nên thêm vào secrets)
-openai_api_key_direct = ""
+# Lấy API key OpenAI từ secrets (anh cần thêm key vào st.secrets["openai_api_key"])
+openai_api_key_direct = st.secrets.get("openai_api_key", "")
 
 if openai_api_key_direct:
     client_ai = OpenAI(api_key=openai_api_key_direct)
@@ -73,4 +73,4 @@ if st.button("Gửi"):
             except Exception as e:
                 st.error(f"Lỗi khi gọi OpenAI: {e}")
         else:
-            st.warning("⚠️ Không có API key OpenAI. Vui lòng cấu hình để sử dụng chatbot.")
+            st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot.")
