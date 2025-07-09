@@ -57,7 +57,7 @@ def get_sheet_data(sheet_name):
         st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}")
         return None
 
-st.title("🤖 Trợ lý Điện lực Định Hóa")
+st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
 
 user_msg = st.text_input("Bạn muốn hỏi gì?")
 
@@ -294,7 +294,7 @@ if st.button("Gửi"):
                     # model="gpt-4o", # Kiểm tra lại quyền truy cập mô hình này
                     model="gpt-3.5-turbo", # Thử với gpt-3.5-turbo nếu gpt-4o không hoạt động
                     messages=[
-                        {"role": "system", "content": "Bạn là trợ lý ảo của Tổng Công ty Điện lực, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
+                        {"role": "system", "content": "Bạn là trợ lý ảo của Đội QLĐLKV Định Hóa, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
                         {"role": "user", "content": user_msg}
                     ]
                 )
