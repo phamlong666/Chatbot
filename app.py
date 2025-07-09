@@ -60,19 +60,31 @@ def get_sheet_data(sheet_name):
         return None
 
 # Thêm logo vào giao diện chính
-# URL trực tiếp của logo từ GitHub
-public_logo_url = "https://raw.githubusercontent.com/phamlong666/Chatbot/main/logo_hinh_tron.png"
+# RẤT QUAN TRỌNG: Bạn cần thay thế URL dưới đây bằng URL TRỰC TIẾP của logo của bạn.
+# Hãy tải ảnh "logo_hinh_tron.png" lên một dịch vụ lưu trữ ảnh công khai như GitHub (khuyến nghị),
+# hoặc Imgur.com (nếu không quá tải).
+#
+# CÁCH LẤY URL TRỰC TIẾP TỪ GITHUB:
+# 1. Tạo một kho lưu trữ (repository) công khai trên GitHub.
+# 2. Tải file "logo_hinh_tron.png" của bạn lên kho lưu trữ đó.
+# 3. Điều hướng đến file ảnh trong kho lưu trữ, sau đó nhấp vào nút "Raw".
+# 4. Sao chép địa chỉ liên kết từ trang "Raw" đó. URL sẽ có dạng:
+#    https://raw.githubusercontent.com/your_username/your_repo_name/main/logo_hinh_tron.png
+#
+# Các liên kết từ Google Drive (ví dụ: https://drive.google.com/file/d/...)
+# thường KHÔNG phải là URL trực tiếp và sẽ không hoạt động ổn định.
+public_logo_url = "https://raw.githubusercontent.com/phamlong666/Chatbot/main/logo_hinh_tron.png" # <= Đã cập nhật URL logo của bạn
 
 try:
-    # Cố gắng hiển thị ảnh từ URL công khai
-    st.image(public_logo_url, width=75)
+    # Cố gắng hiển thị ảnh từ URL công khai với kích thước 100px
+    st.image(public_logo_url, width=100) # Đã thay đổi kích thước thành 100
 except Exception as e_public_url:
     st.error(f"❌ Lỗi khi hiển thị logo từ URL: {e_public_url}. Vui lòng đảm bảo URL là liên kết TRỰC TIẾP đến file ảnh (kết thúc bằng .jpg, .png, v.v.) và kiểm tra kết nối internet.")
     # Fallback về file cục bộ (chỉ để dự phòng, có thể vẫn gặp lỗi nếu file không được triển khai đúng)
     logo_path = Path(__file__).parent / "logo_hinh_tron.jpg"
     try:
         if logo_path.exists():
-            st.image(str(logo_path), width=75)
+            st.image(str(logo_path), width=100) # Đã thay đổi kích thước thành 100
         else:
             st.error(f"❌ Không tìm thấy file ảnh logo tại: {logo_path}. Vui lòng đảm bảo file 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py của bạn khi triển khai.")
     except Exception as e_local_file:
