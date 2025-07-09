@@ -69,6 +69,10 @@ try:
         st.image(str(logo_path), width=75) # Chuyển đổi đối tượng Path thành chuỗi cho st.image
     else:
         st.warning(f"⚠️ Không tìm thấy file ảnh logo tại: {logo_path}. Vui lòng đảm bảo file 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py của bạn khi triển khai.")
+        # --- Giải pháp thay thế: Sử dụng URL công khai cho ảnh (nếu không tìm thấy file cục bộ) ---
+        # Nếu bạn đã tải ảnh lên một dịch vụ lưu trữ ảnh công khai, bạn có thể uncomment dòng dưới đây
+        # và thay thế URL bằng URL thực tế của ảnh.
+        # st.image("https://example.com/your_public_logo_url.jpg", width=75)
 except Exception as e:
     st.error(f"❌ Lỗi khi hiển thị ảnh logo: {e}. Vui lòng kiểm tra lại đường dẫn và quyền truy cập file.")
 
