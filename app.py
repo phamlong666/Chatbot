@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import re
 import os
-from PIL import Image
 
+# Cấu hình Matplotlib
 plt.rcParams['font.family'] = 'DejaVu Sans'
 plt.rcParams['font.size'] = 10
 plt.rcParams['axes.labelsize'] = 12
@@ -36,6 +36,21 @@ else:
     client_ai = None
     st.warning("(Warning) Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
 
+# Xử lý logo
+logo_path = "logo_hinh_tron.jpg"
+
+if os.path.exists(logo_path):
+    with open(logo_path, "rb") as f:
+        st.sidebar.image(f.read(), width=75)
+else:
+    uploaded_logo = st.sidebar.file_uploader("Tải logo (jpg/png)", type=["jpg", "png"])
+    if uploaded_logo:
+        with open(logo_path, "wb") as f:
+            f.write(uploaded_logo.read())
+        st.sidebar.image(logo_path, width=75)
+    else:
+        st.sidebar.warning(f"(Warning) Không tìm thấy file logo tại đường dẫn: {logo_path}. Vui lòng tải lên.")
+
 def get_sheet_data(sheet_name):
     try:
         spreadsheet_url = "https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit"
@@ -47,19 +62,6 @@ def get_sheet_data(sheet_name):
     except Exception as e:
         st.error(f"(Error) Lỗi khi mở Google Sheet '{sheet_name}': {e}")
         return None
-
-logo_path = "logo_hinh_tron.jpg"
-
-uploaded_logo = st.sidebar.file_uploader("Tải logo (jpg/png)", type=["jpg", "png"])
-if uploaded_logo:
-    st.sidebar.image(uploaded_logo, width=75)
-    with open(logo_path, "wb") as f:
-        f.write(uploaded_logo.read())
-elif os.path.exists(logo_path):
-    with open(logo_path, "rb") as f:
-        st.sidebar.image(f.read(), width=75)
-else:
-    st.sidebar.warning(f"(Warning) Không tìm thấy file logo tại đường dẫn: {logo_path}. Vui lòng tải lên.")
 
 st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
 
