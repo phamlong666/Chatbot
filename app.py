@@ -60,17 +60,18 @@ def get_sheet_data(sheet_name):
         return None
 
 # Thêm logo vào giao diện chính
-# Sử dụng URL ảnh placeholder đáng tin cậy để đảm bảo hiển thị.
-# Nếu bạn muốn sử dụng logo thực tế của mình, vui lòng tải nó lên một dịch vụ lưu trữ ảnh công khai
-# (ví dụ: Imgur.com) và thay thế URL dưới đây bằng URL trực tiếp của ảnh đó.
-# Các liên kết từ Google Drive thường không phải là URL trực tiếp và có thể không hoạt động ổn định.
-public_logo_url = "https://placehold.co/75x75/000000/FFFFFF/png?text=LOGO" # URL ảnh placeholder
+# RẤT QUAN TRỌNG: Bạn cần thay thế URL dưới đây bằng URL TRỰC TIẾP của logo của bạn.
+# Hãy tải ảnh "logo_hinh_tron.jpg" lên một dịch vụ lưu trữ ảnh công khai (ví dụ: Imgur.com)
+# và dán URL trực tiếp của ảnh đó vào biến public_logo_url.
+# Các liên kết từ Google Drive (ví dụ: https://drive.google.com/file/d/...)
+# thường KHÔNG phải là URL trực tiếp và sẽ không hoạt động ổn định.
+public_logo_url = "https://placehold.co/75x75/000000/FFFFFF/png?text=LOGO" # <= THAY THẾ URL NÀY BẰNG URL LOGO THỰC TẾ CỦA BẠN
 
 try:
     # Cố gắng hiển thị ảnh từ URL công khai
     st.image(public_logo_url, width=75)
 except Exception as e_public_url:
-    st.error(f"❌ Lỗi khi hiển thị logo từ URL: {e_public_url}. Vui lòng kiểm tra URL hoặc kết nối internet.")
+    st.error(f"❌ Lỗi khi hiển thị logo từ URL: {e_public_url}. Vui lòng đảm bảo URL là liên kết TRỰC TIẾP đến file ảnh (kết thúc bằng .jpg, .png, v.v.) và kiểm tra kết nối internet.")
     # Fallback về file cục bộ (chỉ để dự phòng, có thể vẫn gặp lỗi nếu file không được triển khai đúng)
     logo_path = Path(__file__).parent / "logo_hinh_tron.jpg"
     try:
@@ -196,7 +197,7 @@ if st.button("Gửi"):
                         df = df.dropna(subset=['Doanh thu']) # Loại bỏ các hàng có giá trị NaN sau chuyển đổi
 
                         st.subheader("Biểu đồ Doanh thu theo tháng")
-                        fig, ax = plt.subplots(figsize=(12, 7)) # Tăng kích thước figure
+                        fig, ax = plt.subplots(figsize=(12, 7)) 
                         
                         # Tạo danh sách màu sắc duy nhất cho mỗi tháng
                         colors = cm.get_cmap('viridis', len(df['Tháng'].unique()))
