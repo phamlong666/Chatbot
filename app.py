@@ -127,20 +127,44 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     if year_match:
                         target_year = year_match.group(1)
 
+                    target_month = None
+                    month_year_match = re.search(r"tháng\s+(\d{1,2})/?(\d{4})?", user_msg_lower)
+                    if month_year_match:
+                        target_month = month_year_match.group(1)
+                        if not target_year: # Nếu năm chưa được trích xuất từ "năm YYYY"
+                            target_year = month_year_match.group(2) # Lấy năm từ "tháng MM/YYYY" nếu có
+
                     filtered_df_suco = df_suco
+
+                    # Lọc theo năm trước (nếu có)
                     if target_year and 'Năm sự cố' in df_suco.columns:
-                        # Lọc DataFrame theo năm sự cố
-                        # Đảm bảo cột 'Năm sự cố' là chuỗi và chứa năm mục tiêu
-                        filtered_df_suco = df_suco[df_suco['Năm sự cố'].astype(str).str.contains(target_year, na=False)]
+                        filtered_df_suco = filtered_df_suco[filtered_df_suco['Năm sự cố'].astype(str).str.contains(target_year, na=False)]
+                    
+                    # Lọc theo tháng (nếu có và cột 'Tháng/Năm' tồn tại)
+                    if target_month and 'Tháng/Năm' in filtered_df_suco.columns:
+                        # Tạo định dạng tháng/năm để so sánh
+                        month_year_str = f"{int(target_month):02d}/{target_year}" if target_year else f"{int(target_month):02d}"
                         
-                        if filtered_df_suco.empty:
-                            st.warning(f"⚠️ Không tìm thấy sự cố nào trong năm '{target_year}'.")
-                            # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc theo năm nhưng có dữ liệu chung
-                            if not df_suco.empty:
-                                st.dataframe(df_suco) 
+                        # Lọc chính xác theo tháng/năm (hoặc chỉ tháng nếu không có năm)
+                        filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm'].astype(str).str.contains(month_year_str, na=False)]
+
+
+                    if filtered_df_suco.empty:
+                        st.warning(f"⚠️ Không tìm thấy sự cố nào {'trong tháng ' + target_month if target_month else ''} {'năm ' + target_year if target_year else ''}.")
+                        # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc nhưng có dữ liệu chung
+                        if not df_suco.empty and not (target_month or target_year): # Chỉ hiển thị toàn bộ nếu không có tiêu chí lọc tháng/năm
+                            st.dataframe(df_suco) 
                     
                     if not filtered_df_suco.empty:
-                        st.subheader(f"Dữ liệu từ sheet 'Quản lý sự cố' {'năm ' + target_year if target_year else ''}:")
+                        subheader_text = "Dữ liệu từ sheet 'Quản lý sự cố'"
+                        if target_month and target_year:
+                            subheader_text += f" tháng {target_month} năm {target_year}"
+                        elif target_year:
+                            subheader_text += f" năm {target_year}"
+                        elif target_month:
+                            subheader_text += f" tháng {target_month}"
+                        
+                        st.subheader(subheader_text + ":")
                         st.dataframe(filtered_df_suco) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
 
                         # --- Bổ sung logic vẽ biểu đồ cho sheet "Quản lý sự cố" ---
