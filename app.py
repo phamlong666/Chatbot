@@ -41,7 +41,8 @@ if openai_api_key_direct:
     st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
-    st.warning(⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
+    # Đã sửa lỗi: Xóa ký tự emoji '⚠️' vì gây lỗi SyntaxError
+    st.warning("Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
@@ -521,4 +522,4 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     except Exception as e:
                         st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
                 else:
-                    st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
+                    st.warning("Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
