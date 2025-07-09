@@ -298,7 +298,7 @@ if st.button("Gửi"):
                     model="gpt-3.5-turbo", # Thử với gpt-3.5-turbo nếu gpt-4o không hoạt động
                     messages=[
                         {"role": "system", "content": "Bạn là trợ lý ảo của Đội QLĐLKV Định Hóa, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
-                        {"role: \"user\", \"content\": user_msg}
+                        {"role": "user", "content": user_msg} # Đã sửa lỗi cú pháp tại đây
                     ]
                 )
                 st.write(response.choices[0].message.content)
