@@ -60,12 +60,8 @@ def get_sheet_data(sheet_name):
         return None
 
 # Thêm logo vào giao diện chính
-# RẤT QUAN TRỌNG: Bạn cần thay thế URL dưới đây bằng URL TRỰC TIẾP của logo của bạn.
-# Hãy tải ảnh "logo_hinh_tron.jpg" lên một dịch vụ lưu trữ ảnh công khai (ví dụ: Imgur.com)
-# và dán URL trực tiếp của ảnh đó vào biến public_logo_url.
-# Các liên kết từ Google Drive (ví dụ: https://drive.google.com/file/d/...)
-# thường KHÔNG phải là URL trực tiếp và sẽ không hoạt động ổn định.
-public_logo_url = "https://placehold.co/75x75/000000/FFFFFF/png?text=LOGO" # <= THAY THẾ URL NÀY BẰNG URL LOGO THỰC TẾ CỦA BẠN
+# URL trực tiếp của logo từ GitHub
+public_logo_url = "https://raw.githubusercontent.com/phamlong666/Chatbot/main/logo_hinh_tron.png"
 
 try:
     # Cố gắng hiển thị ảnh từ URL công khai
