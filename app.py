@@ -6,9 +6,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
 import re # Thêm thư thư viện regex để trích xuất tên sheet
+import os # Thêm thư viện os để kiểm tra đường dẫn tệp
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
-plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
+plt.rcParams['font.family'] = 'DejaVu Sans'] # Hoặc 'Arial', 'Times New Roman' nếu có
 plt.rcParams['font.size'] = 10
 plt.rcParams['axes.labelsize'] = 12
 plt.rcParams['axes.titlesize'] = 14
@@ -27,11 +28,8 @@ else:
     st.error("❌ Không tìm thấy google_service_account trong secrets. Vui lòng cấu hình.")
     st.stop() # Dừng ứng dụng nếu không có secrets
 
-# Lấy API key OpenAI từ secrets (ĐÃ SỬA ĐỂ GÁN TRỰC TIẾP)
-# KHUYẾN NGHỊ: KHÔNG NÊN ĐẶT KEY TRỰC TIẾP NHƯ THẾ NÀY TRONG MÃ NGUỒN!
-# NÊN SỬ DỤNG st.secrets HOẶC BIẾN MÔI TRƯỜNG ĐỂ BẢO MẬT.
-# Ví dụ: openai_api_key = st.secrets.get("OPENAI_API_KEY")
-openai_api_key = st.secrets.get("OPENAI_API_KEY") # Lấy API key từ st.secrets
+# Lấy API key OpenAI từ secrets
+openai_api_key = st.secrets.get("OPENAI_API_KEY")
 
 client_ai = None
 if openai_api_key:
@@ -44,8 +42,18 @@ st.set_page_config(layout="wide")
 
 # Sidebar
 with st.sidebar:
-    # Thay thế logo cũ bằng logo_hinh_tron.jpg
-    st.image("logo_hinh_tron.jpg", caption="Logo Đội QLĐLKV Định Hóa", width=150)
+    # Sửa lỗi tải logo và giảm kích thước 50%
+    logo_path = "logo_hinh_tron.jpg"
+    if os.path.exists(logo_path):
+        try:
+            with open(logo_path, "rb") as f:
+                logo_bytes = f.read()
+            st.image(logo_bytes, caption="Logo Đội QLĐLKV Định Hóa", width=75) # Giảm width từ 150 xuống 75
+        except Exception as e:
+            st.error(f"❌ Lỗi khi đọc tệp logo: {e}")
+    else:
+        st.warning(f"⚠️ Không tìm thấy tệp logo tại đường dẫn: {logo_path}")
+
     st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
     st.write("Chào mừng bạn đến với trợ lý ảo của chúng tôi!")
     st.write("Bạn có thể hỏi về các vấn đề kỹ thuật, nghiệp vụ, nhân sự, hoặc các câu hỏi chung.")
