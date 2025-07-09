@@ -324,9 +324,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                         filtered_df_tba = df_tba.copy() # Bắt đầu với bản sao của toàn bộ DataFrame
 
-                        # Debug: Hiển thị giá trị công suất được trích xuất
-                        # st.write(f"Debug: Công suất được trích xuất từ câu hỏi: {power_capacity}KVA")
-                        
                         # Lọc theo tên đường dây nếu có
                         if line_name and 'Tên đường dây' in filtered_df_tba.columns:
                             filtered_df_tba = filtered_df_tba[filtered_df_tba['Tên đường dây'].astype(str).str.upper() == line_name]
@@ -340,11 +337,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             # Clean the 'Công suất' column by removing "KVA" and then convert to numeric
                             # Áp dụng regex để trích xuất chỉ phần số trước khi chuyển đổi
                             # Sử dụng .loc để tránh SettingWithCopyWarning
-                            filtered_df_tba.loc[:, 'Công suất_numeric'] = filtered_df_tba['Công suất'].astype(str).str.extract(r'(\d+)').astype(float)
+                            filtered_df_tba.loc[:, 'Công suất_numeric'] = pd.to_numeric(
+                                filtered_df_tba['Công suất'].astype(str).str.extract(r'(\d+)')[0], # Lấy cột đầu tiên của DataFrame được trích xuất
+                                errors='coerce' # Chuyển đổi các giá trị không phải số thành NaN
+                            )
                             
-                            # Debug: Hiển thị cột 'Công suất_numeric' trước khi lọc
-                            # st.write("Debug: Cột 'Công suất_numeric' trước khi lọc:")
-                            # st.dataframe(filtered_df_tba[['Tên TBA', 'Công suất', 'Công suất_numeric']])
+                            # Loại bỏ các hàng có giá trị NaN trong cột 'Công suất_numeric'
+                            filtered_df_tba = filtered_df_tba.dropna(subset=['Công suất_numeric'])
 
                             # Lọc các hàng có công suất khớp
                             filtered_df_tba = filtered_df_tba[filtered_df_tba['Công suất_numeric'] == power_capacity]
@@ -356,10 +355,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.warning(f"⚠️ Không tìm thấy TBA nào có công suất {power_capacity}KVA.")
                                 # filtered_df_tba vẫn rỗng ở đây
                         
-                        # Debug: Hiển thị filtered_df_tba cuối cùng
-                        # st.write("Debug: DataFrame TBA cuối cùng sau tất cả các bộ lọc:")
-                        # st.dataframe(filtered_df_tba)
-
                         if not filtered_df_tba.empty:
                             subheader_parts = ["Dữ liệu từ sheet 'Tên các TBA'"]
                             if line_name:
