@@ -26,7 +26,7 @@ if "google_service_account" in st.secrets:
     creds = Credentials.from_service_account_info(info, scopes=SCOPES)
     client = gspread.authorize(creds)
 else:
-    st.error("❌ Không tìm thấy google_service_account trong secrets. Vui lòng cấu hình.")
+    st.error("(Error) Không tìm thấy google_service_account trong secrets. Vui lòng cấu hình.")
     st.stop() # Dừng ứng dụng nếu không có secrets
 
 # Lấy API key OpenAI từ secrets (ĐÃ SỬA ĐỂ GÁN TRỰC TIẾP)
@@ -40,10 +40,10 @@ openai_api_key_direct = "sk-proj-3SkFtE-6W2yUYFL2wj3kxlD6epI7ZIeDaInlwYfjwLjBzbr
 
 if openai_api_key_direct:
     client_ai = OpenAI(api_key=openai_api_key_direct)
-    st.success("✅ Đã kết nối OpenAI API key.")
+    st.success("(Success) Đã kết nối OpenAI API key.")
 else:
     client_ai = None
-    st.warning(⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
+    st.warning("(Warning) Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
@@ -53,10 +53,10 @@ def get_sheet_data(sheet_name):
         sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
         return sheet.get_all_records()
     except gspread.exceptions.WorksheetNotFound:
-        st.error(f"❌ Không tìm thấy sheet '{sheet_name}'. Vui lòng kiểm tra tên sheet.")
+        st.error(f"(Error) Không tìm thấy sheet '{sheet_name}'. Vui lòng kiểm tra tên sheet.")
         return None
     except Exception as e:
-        st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}")
+        st.error(f"(Error) Lỗi khi mở Google Sheet '{sheet_name}': {e}")
         return None
 
 # Thêm logo vào sidebar
@@ -68,9 +68,9 @@ if os.path.exists(logo_path):
             logo_bytes = f.read()
         st.sidebar.image(logo_bytes, width=75)
     except Exception as e:
-        st.sidebar.error(f"❌ Lỗi khi tải logo: {e}. Vui lòng kiểm tra quyền truy cập file.")
+        st.sidebar.error(f"(Error) Lỗi khi tải logo: {e}. Vui lòng kiểm tra quyền truy cập file.")
 else:
-    st.sidebar.warning(f"⚠️ Không tìm thấy file logo tại đường dẫn: {logo_path}. Vui lòng đảm bảo file nằm cùng thư mục với app.py.")
+    st.sidebar.warning(f"(Warning) Không tìm thấy file logo tại đường dẫn: {logo_path}. Vui lòng đảm bảo file nằm cùng thư mục với app.py.")
 
 
 st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
@@ -93,12 +93,12 @@ if st.button("Gửi"):
                 if not df_any_sheet.empty:
                     st.subheader(f"Dữ liệu từ sheet '{sheet_name_from_query}':")
                     st.dataframe(df_any_sheet)
-                    st.success(f"✅ Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
+                    st.success(f"(Success) Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
                 else:
-                    st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
+                    st.warning(f"(Warning) Sheet '{sheet_name_from_query}' không có dữ liệu.")
             # Thông báo lỗi đã được xử lý trong get_sheet_data
         else:
-            st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
+            st.warning("(Warning) Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
 
     # Xử lý truy vấn liên quan đến sheet "Danh sách lãnh đạo xã, phường" (Ưu tiên cao)
     elif any(k in user_msg_lower for k in ["lãnh đạo xã", "lãnh đạo phường", "lãnh đạo định hóa", "danh sách lãnh đạo"]):
@@ -123,7 +123,7 @@ if st.button("Gửi"):
                 filtered_df_lanhdao = df_lanhdao[df_lanhdao['Thuộc xã/phường'].astype(str).str.lower().str.contains(location_name.lower(), na=False)]
                 
                 if filtered_df_lanhdao.empty:
-                    st.warning(f"⚠️ Không tìm thấy lãnh đạo nào cho '{location_name.title()}'.")
+                    st.warning(f"(Warning) Không tìm thấy lãnh đạo nào cho '{location_name.title()}'.")
                     st.dataframe(df_lanhdao) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
             
             if not filtered_df_lanhdao.empty:
@@ -133,9 +133,9 @@ if st.button("Gửi"):
                 # Bạn có thể thêm logic vẽ biểu đồ cho lãnh đạo xã/phường tại đây nếu cần
                 # Ví dụ: if "biểu đồ" in user_msg_lower: ...
             else:
-                st.warning("⚠️ Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường' rỗng.")
+                st.warning("(Warning) Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường' rỗng.")
         else:
-            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
+            st.warning("(Warning) Không thể truy xuất dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
     # Xử lý truy vấn liên quan đến sheet "Tên các TBA"
     elif "tba" in user_msg_lower or "thông tin tba" in user_msg_lower:
@@ -155,7 +155,7 @@ if st.button("Gửi"):
                 filtered_df_tba = df_tba[df_tba['Tên đường dây'].astype(str).str.upper() == line_name]
                 
                 if filtered_df_tba.empty:
-                    st.warning(f"⚠️ Không tìm thấy TBA nào cho đường dây '{line_name}'.")
+                    st.warning(f"(Warning) Không tìm thấy TBA nào cho đường dây '{line_name}'.")
                     st.dataframe(df_tba) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
             
             if not filtered_df_tba.empty:
@@ -165,9 +165,9 @@ if st.button("Gửi"):
                 # Bạn có thể thêm logic vẽ biểu đồ cho TBA tại đây nếu cần
                 # Ví dụ: if "biểu đồ" in user_msg_lower: ...
             else:
-                st.warning("⚠️ Dữ liệu từ sheet 'Tên các TBA' rỗng.")
+                st.warning("(Warning) Dữ liệu từ sheet 'Tên các TBA' rỗng.")
         else:
-            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Tên các TBA'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
+            st.warning("(Warning) Không thể truy xuất dữ liệu từ sheet 'Tên các TBA'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
     # Xử lý truy vấn liên quan đến doanh thu và biểu đồ
     elif "doanh thu" in user_msg_lower or "báo cáo tài chính" in user_msg_lower or "biểu đồ doanh thu" in user_msg_lower:
@@ -207,13 +207,13 @@ if st.button("Gửi"):
                         plt.tight_layout()
                         st.pyplot(fig, dpi=400) # Tăng DPI để biểu đồ nét hơn
                     except Exception as e:
-                        st.error(f"❌ Lỗi khi vẽ biểu đồ doanh thu: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet.")
+                        st.error(f"(Error) Lỗi khi vẽ biểu đồ doanh thu: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet.")
                 else:
-                    st.warning("⚠️ Không tìm thấy các cột 'Tháng' hoặc 'Doanh thu' trong sheet DoanhThu để vẽ biểu đồ.")
+                    st.warning("(Warning) Không tìm thấy các cột 'Tháng' hoặc 'Doanh thu' trong sheet DoanhThu để vẽ biểu đồ.")
             else:
-                st.warning("⚠️ Dữ liệu doanh thu rỗng, không thể hiển thị hoặc vẽ biểu đồ.")
+                st.warning("(Warning) Dữ liệu doanh thu rỗng, không thể hiển thị hoặc vẽ biểu đồ.")
         else:
-            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
+            st.warning("(Warning) Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
     # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV)
     elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự", "thông tin"]):
@@ -296,11 +296,11 @@ if st.button("Gửi"):
                         plt.tight_layout() # Tự động điều chỉnh layout để tránh chồng chéo
                         st.pyplot(fig, dpi=400) # Tăng DPI để biểu đồ nét hơn
                     else:
-                        st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
+                        st.warning("(Warning) Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
             else:
-                st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn. Vui lòng kiểm tra tên bộ phận hoặc từ khóa.")
+                st.warning("(Warning) Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn. Vui lòng kiểm tra tên bộ phận hoặc từ khóa.")
         else:
-            st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet CBCNV.")
+            st.warning("(Warning) Không thể truy xuất dữ liệu từ sheet CBCNV.")
 
     # Xử lý các câu hỏi chung bằng OpenAI
     else:
@@ -311,11 +311,11 @@ if st.button("Gửi"):
                     model="gpt-3.5-turbo", # Thử với gpt-3.5-turbo nếu gpt-4o không hoạt động
                     messages=[
                         {"role": "system", "content": "Bạn là trợ lý ảo của Đội QLĐLKV Định Hóa, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
-                        {"role: \"user\", \"content\": user_msg}
+                        {"role": "user", "content": user_msg}
                     ]
                 )
                 st.write(response.choices[0].message.content)
             except Exception as e:
-                st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
+                st.error(f"(Error) Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
         else:
-            st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
+            st.warning("(Warning) Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
