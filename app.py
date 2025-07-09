@@ -9,7 +9,7 @@ import re # Thêm thư thư viện regex để trích xuất tên sheet
 import os # Thêm thư viện os để kiểm tra đường dẫn tệp
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
-plt.rcParams['font.family'] = 'DejaVu Sans'] # Hoặc 'Arial', 'Times New Roman' nếu có
+plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
 plt.rcParams['font.size'] = 10
 plt.rcParams['axes.labelsize'] = 12
 plt.rcParams['axes.titlesize'] = 14
