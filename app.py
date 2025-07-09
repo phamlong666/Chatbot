@@ -5,7 +5,7 @@ from openai import OpenAI
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
-import re # Thêm thư viện regex để trích xuất tên sheet
+import re # Thêm thư thư viện regex để trích xuất tên sheet
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
 plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
@@ -57,7 +57,7 @@ def get_sheet_data(sheet_name):
         st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}")
         return None
 
-st.title("🤖 Trợ lý Điện lực Định Hóa")
+st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
 
 user_msg = st.text_input("Bạn muốn hỏi gì?")
 
@@ -200,39 +200,45 @@ if st.button("Gửi"):
             st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
     # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV)
-    elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự"]):
+    elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự", "thông tin"]):
         records = get_sheet_data("CBCNV") # Tên sheet CBCNV
         if records:
             df_cbcnv = pd.DataFrame(records) # Chuyển đổi thành DataFrame
 
-            # Logic lọc danh sách theo bộ phận
+            # Logic lọc theo tên người cụ thể
+            person_name = None
+            # Regex để bắt tên người sau "thông tin" hoặc "của" và trước các từ khóa khác hoặc kết thúc chuỗi
+            name_match = re.search(r"(?:thông tin|của)\s+([a-zA-Z\s]+?)(?:\s+trong|\s+tổ|\s+phòng|\s+đội|\s+cbcnv|$)", user_msg_lower)
+            if name_match:
+                person_name = name_match.group(1).strip()
+
+            # Logic lọc theo bộ phận (vẫn giữ nếu người dùng hỏi cả tên và bộ phận)
             bo_phan = None
             for keyword in ["tổ ", "phòng ", "đội "]:
                 if keyword in user_msg_lower:
-                    # Cố gắng lấy tên bộ phận sau từ khóa
                     parts = user_msg_lower.split(keyword, 1)
                     if len(parts) > 1:
-                        # Lấy phần còn lại của chuỗi và tìm từ đầu tiên hoặc cụm từ liên quan
                         remaining_msg = parts[1].strip()
-                        # Một cách đơn giản để lấy từ đầu tiên sau từ khóa
                         bo_phan_candidate = remaining_msg.split(' ')[0].strip()
-                        # Cần thêm logic thông minh hơn để xác định bộ phận nếu tên có nhiều từ
-                        # Ví dụ: "tổ quản lý vận hành"
                         if "quản lý vận hành" in remaining_msg:
                             bo_phan = "quản lý vận hành"
                         elif "kinh doanh" in remaining_msg:
                             bo_phan = "kinh doanh"
                         else:
-                            bo_phan = bo_phan_candidate # Mặc định lấy từ đầu tiên
+                            bo_phan = bo_phan_candidate
                     break
 
             filtered_df = df_cbcnv
-            if bo_phan and 'Bộ phận công tác' in df_cbcnv.columns:
-                # Lọc dữ liệu dựa trên từ khóa bộ phận
-                filtered_df = df_cbcnv[df_cbcnv['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
+            if person_name and 'Họ và tên' in df_cbcnv.columns:
+                # Lọc theo tên người - SỬ DỤNG SO SÁNH CHÍNH XÁC (==)
+                filtered_df = filtered_df[filtered_df['Họ và tên'].astype(str).str.lower() == person_name.lower()]
+            
+            if bo_phan and 'Bộ phận công tác' in filtered_df.columns:
+                # Lọc theo bộ phận (nếu có cả tên người và bộ phận)
+                filtered_df = filtered_df[filtered_df['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
 
             if not filtered_df.empty:
-                st.subheader(f"Danh sách CBCNV {'thuộc ' + bo_phan.title() if bo_phan else ''}:")
+                st.subheader(f"Thông tin CBCNV {'của ' + person_name.title() if person_name else ''} {'thuộc ' + bo_phan.title() if bo_phan else ''}:")
                 # Hiển thị danh sách chi tiết
                 reply_list = []
                 for idx, r in filtered_df.iterrows():
@@ -288,7 +294,7 @@ if st.button("Gửi"):
                     # model="gpt-4o", # Kiểm tra lại quyền truy cập mô hình này
                     model="gpt-3.5-turbo", # Thử với gpt-3.5-turbo nếu gpt-4o không hoạt động
                     messages=[
-                        {"role": "system", "content": "Bạn là trợ lý ảo của Tổng Công ty Điện lực, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
+                        {"role": "system", "content": "Bạn là trợ lý ảo của Đội QLĐLKV Định Hóa, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
                         {"role": "user", "content": user_msg}
                     ]
                 )
