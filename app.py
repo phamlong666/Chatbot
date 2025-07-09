@@ -472,7 +472,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet CBCNV.")
 
             # Xử lý các câu hỏi chung bằng OpenAI
-            else: # Khối else này đã được kiểm tra lại thụt lề
+            # Khối else này là phần xử lý mặc định nếu không có truy vấn cụ thể nào khớp
+            else: 
                 if client_ai:
                     try:
                         response = client_ai.chat.completions.create(
