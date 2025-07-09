@@ -300,14 +300,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.warning(f"⚠️ Không tìm thấy TBA nào cho đường dây '{line_name}'.")
                             # Nếu không tìm thấy theo đường dây, có thể hiển thị toàn bộ hoặc không gì tùy ý
                             # Hiện tại, mình sẽ để filtered_df_tba rỗng để không hiển thị gì nếu không tìm thấy theo đường dây
-                            # Nếu bạn muốn hiển thị toàn bộ khi không tìm thấy theo đường dây, hãy bỏ dòng này:
                             # filtered_df_tba = pd.DataFrame() 
                     
                     # Lọc theo công suất nếu có và cột 'Công suất' tồn tại
                     if power_capacity is not None and 'Công suất' in filtered_df_tba.columns:
-                        # Chuyển đổi cột 'Công suất' sang dạng số để so sánh
-                        # Sử dụng errors='coerce' để biến các giá trị không phải số thành NaN
-                        filtered_df_tba['Công suất_numeric'] = pd.to_numeric(filtered_df_tba['Công suất'], errors='coerce')
+                        # Clean the 'Công suất' column by removing "KVA" and then convert to numeric
+                        # Áp dụng regex để trích xuất chỉ phần số trước khi chuyển đổi
+                        filtered_df_tba['Công suất_numeric'] = filtered_df_tba['Công suất'].astype(str).str.extract(r'(\d+)').astype(float)
                         
                         # Lọc các hàng có công suất khớp
                         filtered_df_tba = filtered_df_tba[filtered_df_tba['Công suất_numeric'] == power_capacity]
