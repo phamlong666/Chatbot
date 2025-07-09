@@ -41,7 +41,7 @@ if openai_api_key_direct:
     st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
-    st.warning("⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
+    st.warning(⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
@@ -131,7 +131,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         target_month = month_year_full_match.group(1)
                         target_year = month_year_full_match.group(2) # Có thể là None nếu chỉ có tháng
 
-                    # Nếu năm chưa được trích xuất từ "tháng MM/YYYY", cố gắng trích xuất từ "năm YYYY"
+                    # Nếu năm chưa được trích xuất từ "tháng MM/YYYY", cố gắng trích xuất từ "nămYYYY"
                     if not target_year:
                         year_only_match = re.search(r"năm\s+(\d{4})", user_msg_lower)
                         if year_only_match:
@@ -273,27 +273,72 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     df_tba = pd.DataFrame(records)
                     
                     line_name = None
+                    power_capacity = None # Biến mới để lưu công suất
+                    
+                    # Trích xuất tên đường dây
                     line_match = re.search(r"đường dây\s+([a-zA-Z0-9\.]+)", user_msg_lower)
                     if line_match:
                         line_name = line_match.group(1).upper() # Lấy tên đường dây và chuyển thành chữ hoa để khớp
 
+                    # Trích xuất công suất (ví dụ: "560KVA", "250KVA")
+                    # Regex tìm số theo sau là "kva" (không phân biệt hoa thường)
+                    power_match = re.search(r"(\d+)\s*kva", user_msg_lower)
+                    if power_match:
+                        try:
+                            power_capacity = int(power_match.group(1)) # Chuyển đổi công suất sang số nguyên
+                        except ValueError:
+                            st.warning("⚠️ Công suất không hợp lệ. Vui lòng nhập một số nguyên.")
+                            power_capacity = None
+
                     filtered_df_tba = df_tba
+                    
+                    # Lọc theo tên đường dây nếu có
                     if line_name and 'Tên đường dây' in df_tba.columns:
-                        # Lọc DataFrame theo tên đường dây
                         filtered_df_tba = df_tba[df_tba['Tên đường dây'].astype(str).str.upper() == line_name]
-                        
                         if filtered_df_tba.empty:
                             st.warning(f"⚠️ Không tìm thấy TBA nào cho đường dây '{line_name}'.")
-                            st.dataframe(df_tba) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
+                            # Nếu không tìm thấy theo đường dây, có thể hiển thị toàn bộ hoặc không gì tùy ý
+                            # Hiện tại, mình sẽ để filtered_df_tba rỗng để không hiển thị gì nếu không tìm thấy theo đường dây
+                            # Nếu bạn muốn hiển thị toàn bộ khi không tìm thấy theo đường dây, hãy bỏ dòng này:
+                            # filtered_df_tba = pd.DataFrame() 
+                    
+                    # Lọc theo công suất nếu có và cột 'Công suất' tồn tại
+                    if power_capacity is not None and 'Công suất' in filtered_df_tba.columns:
+                        # Chuyển đổi cột 'Công suất' sang dạng số để so sánh
+                        # Sử dụng errors='coerce' để biến các giá trị không phải số thành NaN
+                        filtered_df_tba['Công suất_numeric'] = pd.to_numeric(filtered_df_tba['Công suất'], errors='coerce')
+                        
+                        # Lọc các hàng có công suất khớp
+                        filtered_df_tba = filtered_df_tba[filtered_df_tba['Công suất_numeric'] == power_capacity]
+                        
+                        # Xóa cột tạm thời
+                        filtered_df_tba = filtered_df_tba.drop(columns=['Công suất_numeric'])
+
+                        if filtered_df_tba.empty:
+                            st.warning(f"⚠️ Không tìm thấy TBA nào có công suất {power_capacity}KVA.")
+                            # Nếu không tìm thấy theo công suất, có thể hiển thị toàn bộ hoặc không gì tùy ý
+                            # filtered_df_tba vẫn rỗng ở đây
                     
                     if not filtered_df_tba.empty:
-                        st.subheader(f"Dữ liệu từ sheet 'Tên các TBA' {'cho đường dây ' + line_name if line_name else ''}:")
-                        st.dataframe(filtered_df_tba) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
+                        subheader_parts = ["Dữ liệu từ sheet 'Tên các TBA'"]
+                        if line_name:
+                            subheader_parts.append(f"cho đường dây {line_name}")
+                        if power_capacity is not None:
+                            subheader_parts.append(f"có công suất {power_capacity}KVA")
+                        
+                        st.subheader(" ".join(subheader_parts) + ":")
+                        st.dataframe(filtered_df_tba) # Hiển thị dữ liệu đã lọc
                         
                         # Bạn có thể thêm logic vẽ biểu đồ cho TBA tại đây nếu cần
                         # Ví dụ: if "biểu đồ" in user_msg_lower: ...
                     else:
-                        st.warning("⚠️ Dữ liệu từ sheet 'Tên các TBA' rỗng.")
+                        # Nếu filtered_df_tba rỗng sau tất cả các bước lọc
+                        # Chỉ hiển thị toàn bộ danh sách nếu không có yêu cầu cụ thể nào được tìm thấy
+                        if not (line_name or (power_capacity is not None)): # Nếu không có yêu cầu đường dây hoặc công suất
+                            st.subheader("Toàn bộ thông tin TBA:")
+                            st.dataframe(df_tba)
+                        else:
+                            st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
                 else:
                     st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Tên các TBA'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
