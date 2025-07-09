@@ -163,7 +163,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                         fig, ax = plt.subplots(figsize=(12, 7))
                                         colors = cm.get_cmap('tab10', len(counts.index))
-                                        bars = ax.bar(counts.index, counts.values, color=colors.colors)
+                                        
+                                        # Chuyển đổi index sang list of strings để đảm bảo tương thích với Matplotlib
+                                        x_labels = [str(item) for item in counts.index]
+                                        y_values = counts.values
+                                        
+                                        bars = ax.bar(x_labels, y_values, color=colors.colors) # Sử dụng x_labels đã chuyển đổi
 
                                         for bar in bars:
                                             yval = bar.get_height()
