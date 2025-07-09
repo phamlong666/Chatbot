@@ -74,7 +74,8 @@ with header_col1:
             st.error(f"❌ Lỗi khi hiển thị ảnh logo từ file cục bộ: {e_local_file}.")
 
 with header_col2:
-    st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
+    # Đã thay đổi st.title thành st.markdown để tùy chỉnh cỡ chữ
+    st.markdown("<h1 style='font-size: 30px;'>🤖 Chatbot Đội QLĐLKV Định Hóa</h1>", unsafe_allow_html=True)
 
 # Phần nội dung chính của chatbot (ô nhập liệu, nút, kết quả) sẽ được căn giữa
 # Tạo 3 cột: cột trái rỗng (để tạo khoảng trống), cột giữa chứa nội dung chatbot, cột phải rỗng
