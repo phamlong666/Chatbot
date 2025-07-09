@@ -6,6 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
 import re # Thêm thư thư viện regex để trích xuất tên sheet
+import os # Import os for path handling
+from pathlib import Path # Import Path for robust path handling
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
 plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
@@ -58,8 +60,18 @@ def get_sheet_data(sheet_name):
         return None
 
 # Thêm logo vào giao diện chính
-# Đảm bảo file ảnh 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py
-st.image("logo_hinh_tron.jpg", width=75) 
+# Sử dụng pathlib để xây dựng đường dẫn một cách an toàn hơn
+# Path(__file__).parent sẽ trả về thư mục chứa file app.py
+logo_path = Path(__file__).parent / "logo_hinh_tron.jpg"
+
+try:
+    if logo_path.exists():
+        st.image(str(logo_path), width=75) # Chuyển đổi đối tượng Path thành chuỗi cho st.image
+    else:
+        st.warning(f"⚠️ Không tìm thấy file ảnh logo tại: {logo_path}. Vui lòng đảm bảo file 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py của bạn khi triển khai.")
+except Exception as e:
+    st.error(f"❌ Lỗi khi hiển thị ảnh logo: {e}. Vui lòng kiểm tra lại đường dẫn và quyền truy cập file.")
+
 st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
 
 user_msg = st.text_input("Bạn muốn hỏi gì?")
@@ -298,7 +310,7 @@ if st.button("Gửi"):
                     model="gpt-3.5-turbo", # Thử với gpt-3.5-turbo nếu gpt-4o không hoạt động
                     messages=[
                         {"role": "system", "content": "Bạn là trợ lý ảo của Đội QLĐLKV Định Hóa, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
-                        {"role": "user", "content": user_msg} # Đã sửa lỗi cú pháp tại đây
+                        {"role": "user", "content": user_msg}
                     ]
                 )
                 st.write(response.choices[0].message.content)
