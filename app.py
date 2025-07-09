@@ -60,28 +60,26 @@ def get_sheet_data(sheet_name):
         return None
 
 # Thêm logo vào giao diện chính
-# Ưu tiên sử dụng URL công khai cho ảnh để đảm bảo hiển thị trên môi trường triển khai
-# Google Drive links thường không phải là URL trực tiếp và có thể không hoạt động ổn định.
-# Nếu link Google Drive không hoạt động, hãy tải ảnh lên một dịch vụ lưu trữ ảnh công khai
-# (ví dụ: Imgur) và thay thế URL dưới đây bằng URL trực tiếp của ảnh đó.
-public_logo_url = "https://drive.google.com/uc?export=download&id=1-Q_9ynT0TCK2ZpvTdgLSsD5wvmTPrYg" # Đã cập nhật từ link Google Drive của bạn
+# Sử dụng URL ảnh placeholder đáng tin cậy để đảm bảo hiển thị.
+# Nếu bạn muốn sử dụng logo thực tế của mình, vui lòng tải nó lên một dịch vụ lưu trữ ảnh công khai
+# (ví dụ: Imgur.com) và thay thế URL dưới đây bằng URL trực tiếp của ảnh đó.
+# Các liên kết từ Google Drive thường không phải là URL trực tiếp và có thể không hoạt động ổn định.
+public_logo_url = "https://placehold.co/75x75/000000/FFFFFF/png?text=LOGO" # URL ảnh placeholder
 
 try:
-    # Cố gắng hiển thị ảnh từ URL công khai trước
+    # Cố gắng hiển thị ảnh từ URL công khai
     st.image(public_logo_url, width=75)
-    st.success("✅ Đã hiển thị logo từ URL công khai (Google Drive).")
 except Exception as e_public_url:
-    st.warning(f"⚠️ Không thể hiển thị logo từ URL công khai: {e_public_url}. Đang thử tải từ file cục bộ. Vui lòng kiểm tra quyền truy cập của link Google Drive hoặc cân nhắc sử dụng dịch vụ lưu trữ ảnh khác.")
-    # Nếu không tải được từ URL, thử tải từ file cục bộ (như trước)
+    st.error(f"❌ Lỗi khi hiển thị logo từ URL: {e_public_url}. Vui lòng kiểm tra URL hoặc kết nối internet.")
+    # Fallback về file cục bộ (chỉ để dự phòng, có thể vẫn gặp lỗi nếu file không được triển khai đúng)
     logo_path = Path(__file__).parent / "logo_hinh_tron.jpg"
     try:
         if logo_path.exists():
             st.image(str(logo_path), width=75)
-            st.success("✅ Đã hiển thị logo từ file cục bộ.")
         else:
-            st.error(f"❌ Không tìm thấy file ảnh logo tại: {logo_path}. Vui lòng đảm bảo file 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py của bạn khi triển khai hoặc cung cấp URL công khai hợp lệ.")
+            st.error(f"❌ Không tìm thấy file ảnh logo tại: {logo_path}. Vui lòng đảm bảo file 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py của bạn khi triển khai.")
     except Exception as e_local_file:
-        st.error(f"❌ Lỗi khi hiển thị ảnh logo từ file cục bộ: {e_local_file}. Vui lòng kiểm tra lại đường dẫn và quyền truy cập file.")
+        st.error(f"❌ Lỗi khi hiển thị ảnh logo từ file cục bộ: {e_local_file}.")
 
 
 st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
