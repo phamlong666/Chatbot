@@ -5,7 +5,7 @@ from openai import OpenAI
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
-import re # Thêm thư viện regex để trích xuất tên sheet
+import re # Thêm thư thư viện regex để trích xuất tên sheet
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
 plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
@@ -199,7 +199,7 @@ if st.button("Gửi"):
         else:
             st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
-    # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV) - Đặt sau các sheet cụ thể khác
+    # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV)
     elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự", "thông tin"]):
         records = get_sheet_data("CBCNV") # Tên sheet CBCNV
         if records:
@@ -207,10 +207,10 @@ if st.button("Gửi"):
 
             # Logic lọc theo tên người cụ thể
             person_name = None
-            # Regex để bắt tên người sau "thông tin" hoặc "của"
-            name_match = re.search(r"(thông tin|của)\s+([a-zA-Z\s]+)", user_msg_lower)
+            # Regex để bắt tên người sau "thông tin" hoặc "của" và trước các từ khóa khác hoặc kết thúc chuỗi
+            name_match = re.search(r"(?:thông tin|của)\s+([a-zA-Z\s]+?)(?:\s+trong|\s+tổ|\s+phòng|\s+đội|\s+cbcnv|$)", user_msg_lower)
             if name_match:
-                person_name = name_match.group(2).strip()
+                person_name = name_match.group(1).strip()
 
             # Logic lọc theo bộ phận (vẫn giữ nếu người dùng hỏi cả tên và bộ phận)
             bo_phan = None
@@ -230,8 +230,8 @@ if st.button("Gửi"):
 
             filtered_df = df_cbcnv
             if person_name and 'Họ và tên' in df_cbcnv.columns:
-                # Lọc theo tên người
-                filtered_df = filtered_df[filtered_df['Họ và tên'].astype(str).str.lower().str.contains(person_name.lower(), na=False)]
+                # Lọc theo tên người - SỬ DỤNG SO SÁNH CHÍNH XÁC (==)
+                filtered_df = filtered_df[filtered_df['Họ và tên'].astype(str).str.lower() == person_name.lower()]
             
             if bo_phan and 'Bộ phận công tác' in filtered_df.columns:
                 # Lọc theo bộ phận (nếu có cả tên người và bộ phận)
