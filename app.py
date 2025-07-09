@@ -291,23 +291,30 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.warning("⚠️ Công suất không hợp lệ. Vui lòng nhập một số nguyên.")
                             power_capacity = None
 
-                    filtered_df_tba = df_tba
+                    filtered_df_tba = df_tba.copy() # Bắt đầu với bản sao của toàn bộ DataFrame
+
+                    # Debug: Hiển thị giá trị công suất được trích xuất
+                    # st.write(f"Debug: Công suất được trích xuất từ câu hỏi: {power_capacity}KVA")
                     
                     # Lọc theo tên đường dây nếu có
-                    if line_name and 'Tên đường dây' in df_tba.columns:
-                        filtered_df_tba = df_tba[df_tba['Tên đường dây'].astype(str).str.upper() == line_name]
+                    if line_name and 'Tên đường dây' in filtered_df_tba.columns:
+                        filtered_df_tba = filtered_df_tba[filtered_df_tba['Tên đường dây'].astype(str).str.upper() == line_name]
                         if filtered_df_tba.empty:
                             st.warning(f"⚠️ Không tìm thấy TBA nào cho đường dây '{line_name}'.")
-                            # Nếu không tìm thấy theo đường dây, có thể hiển thị toàn bộ hoặc không gì tùy ý
-                            # Hiện tại, mình sẽ để filtered_df_tba rỗng để không hiển thị gì nếu không tìm thấy theo đường dây
-                            # filtered_df_tba = pd.DataFrame() 
+                            # Nếu không tìm thấy theo đường dây, dừng lại và không lọc thêm
+                            filtered_df_tba = pd.DataFrame() # Đảm bảo nó rỗng để không hiển thị toàn bộ
                     
                     # Lọc theo công suất nếu có và cột 'Công suất' tồn tại
-                    if power_capacity is not None and 'Công suất' in filtered_df_tba.columns:
+                    if power_capacity is not None and 'Công suất' in filtered_df_tba.columns and not filtered_df_tba.empty:
                         # Clean the 'Công suất' column by removing "KVA" and then convert to numeric
                         # Áp dụng regex để trích xuất chỉ phần số trước khi chuyển đổi
-                        filtered_df_tba['Công suất_numeric'] = filtered_df_tba['Công suất'].astype(str).str.extract(r'(\d+)').astype(float)
+                        # Sử dụng .loc để tránh SettingWithCopyWarning
+                        filtered_df_tba.loc[:, 'Công suất_numeric'] = filtered_df_tba['Công suất'].astype(str).str.extract(r'(\d+)').astype(float)
                         
+                        # Debug: Hiển thị cột 'Công suất_numeric' trước khi lọc
+                        # st.write("Debug: Cột 'Công suất_numeric' trước khi lọc:")
+                        # st.dataframe(filtered_df_tba[['Tên TBA', 'Công suất', 'Công suất_numeric']])
+
                         # Lọc các hàng có công suất khớp
                         filtered_df_tba = filtered_df_tba[filtered_df_tba['Công suất_numeric'] == power_capacity]
                         
@@ -316,9 +323,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                         if filtered_df_tba.empty:
                             st.warning(f"⚠️ Không tìm thấy TBA nào có công suất {power_capacity}KVA.")
-                            # Nếu không tìm thấy theo công suất, có thể hiển thị toàn bộ hoặc không gì tùy ý
                             # filtered_df_tba vẫn rỗng ở đây
                     
+                    # Debug: Hiển thị filtered_df_tba cuối cùng
+                    # st.write("Debug: DataFrame TBA cuối cùng sau tất cả các bộ lọc:")
+                    # st.dataframe(filtered_df_tba)
+
                     if not filtered_df_tba.empty:
                         subheader_parts = ["Dữ liệu từ sheet 'Tên các TBA'"]
                         if line_name:
@@ -420,46 +430,50 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 is_specific_query = True # Có yêu cầu bộ phận là yêu cầu cụ thể
                             break
 
-                    filtered_df = pd.DataFrame() # Khởi tạo DataFrame rỗng cho kết quả lọc
+                    df_to_process = df_cbcnv.copy() # Bắt đầu với bản sao của toàn bộ DataFrame
 
-                    if person_name and 'Họ và tên' in df_cbcnv.columns:
-                        # Thử tìm kiếm chính xác theo tên
-                        filtered_df = df_cbcnv[df_cbcnv['Họ và tên'].astype(str).str.lower() == person_name.lower()]
-                        
-                        if filtered_df.empty:
-                            # Nếu không tìm thấy chính xác, thử tìm kiếm gần đúng
+                    if person_name and 'Họ và tên' in df_to_process.columns:
+                        temp_filtered_by_name = df_to_process[df_to_process['Họ và tên'].astype(str).str.lower() == person_name.lower()]
+                        if temp_filtered_by_name.empty:
                             st.info(f"Không tìm thấy chính xác '{person_name.title()}'. Đang tìm kiếm gần đúng...")
-                            filtered_df = df_cbcnv[df_cbcnv['Họ và tên'].astype(str).str.lower().str.contains(person_name.lower(), na=False)]
-                            
-                            if filtered_df.empty:
+                            temp_filtered_by_name = df_to_process[df_to_process['Họ và tên'].astype(str).str.lower().str.contains(person_name.lower(), na=False)]
+                            if temp_filtered_by_name.empty:
                                 st.warning(f"⚠️ Không tìm thấy người nào có tên '{person_name.title()}' hoặc tên gần giống.")
-                                # filtered_df vẫn rỗng ở đây
-                        
-                        # Nếu tìm thấy tên (chính xác hoặc gần đúng) và có bộ phận được chỉ định, lọc thêm
-                        if not filtered_df.empty and bo_phan and 'Bộ phận công tác' in filtered_df.columns:
-                            initial_filtered_count = len(filtered_df)
-                            filtered_df = filtered_df[filtered_df['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
-                            if filtered_df.empty and initial_filtered_count > 0:
-                                st.warning(f"⚠️ Không tìm thấy kết quả cho bộ phận '{bo_phan.title()}' trong danh sách đã lọc theo tên.")
+                                df_to_process = pd.DataFrame() # Set to empty if no name found
+                            else:
+                                df_to_process = temp_filtered_by_name
+                        else:
+                            df_to_process = temp_filtered_by_name
                     
-                    elif bo_phan and 'Bộ phận công tác' in df_cbcnv.columns:
-                        # Nếu chỉ có bộ phận được chỉ định (không có tên người)
-                        filtered_df = df_cbcnv[df_cbcnv['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
-                        if filtered_df.empty:
+                    if bo_phan and 'Bộ phận công tác' in df_to_process.columns and not df_to_process.empty: # Apply department filter only if df_to_process is not already empty
+                        initial_filtered_count = len(df_to_process)
+                        df_to_process = df_to_process[df_to_process['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
+                        if df_to_process.empty and initial_filtered_count > 0:
+                            st.warning(f"⚠️ Không tìm thấy kết quả cho bộ phận '{bo_phan.title()}' trong danh sách đã lọc theo tên.")
+                    elif bo_phan and 'Bộ phận công tác' in df_cbcnv.columns and not person_name: # Only filter by bo_phan if no person_name was specified
+                        df_to_process = df_cbcnv[df_cbcnv['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
+                        if df_to_process.empty:
                             st.warning(f"⚠️ Không tìm thấy dữ liệu cho bộ phận '{bo_phan.title()}'.")
-                    
-                    # Logic hiển thị kết quả
-                    if not filtered_df.empty:
+
+
+                    # Determine which DataFrame to display and chart
+                    df_to_show = df_to_process
+                    if df_to_show.empty and not is_specific_query: # If no specific query and df_to_show is empty (shouldn't happen with new init), show all
+                        df_to_show = df_cbcnv
+                        st.subheader("Toàn bộ thông tin CBCNV:")
+                    elif not df_to_show.empty: # If df_to_show has data, display it
                         subheader_parts = ["Thông tin CBCNV"]
-                        if person_name: # Chỉ thêm nếu person_name có giá trị
+                        if person_name:
                             subheader_parts.append(f"của {person_name.title()}")
-                        if bo_phan: # Chỉ thêm nếu bo_phan có giá trị
+                        if bo_phan:
                             subheader_parts.append(f"thuộc {bo_phan.title()}")
-                        
                         st.subheader(" ".join(subheader_parts) + ":")
-                        
+                    else: # df_to_show is empty and it was a specific query that yielded no results
+                        st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
+
+                    if not df_to_show.empty:
                         reply_list = []
-                        for idx, r in filtered_df.iterrows():
+                        for idx, r in df_to_show.iterrows():
                             reply_list.append(
                                 f"Họ và tên: {r.get('Họ và tên', 'N/A')}\n"
                                 f"Ngày sinh: {r.get('Ngày sinh CBCNV', 'N/A')}\n"
@@ -470,39 +484,35 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 f"---"
                             )
                         st.text_area("Kết quả", value="\n".join(reply_list), height=300)
+                        st.dataframe(df_to_show) # Also display as dataframe for clarity
 
-                        # --- Bổ sung logic vẽ biểu đồ CBCNV ---
-                        if "biểu đồ" in user_msg_lower or "báo cáo" in user_msg_lower:
-                            if 'Bộ phận công tác' in filtered_df.columns and not filtered_df['Bộ phận công tác'].empty:
-                                st.subheader("Biểu đồ số lượng nhân viên theo Bộ phận công tác")
-                                bo_phan_counts = filtered_df['Bộ phận công tác'].value_counts()
+                    # --- Bổ sung logic vẽ biểu đồ CBCNV ---
+                    if ("biểu đồ" in user_msg_lower or "báo cáo" in user_msg_lower) and not df_to_show.empty:
+                        if 'Bộ phận công tác' in df_to_show.columns and not df_to_show['Bộ phận công tác'].empty:
+                            st.subheader("Biểu đồ số lượng nhân viên theo Bộ phận công tác")
+                            bo_phan_counts = df_to_show['Bộ phận công tác'].value_counts()
 
-                                fig, ax = plt.subplots(figsize=(12, 7)) 
-                                
-                                colors = cm.get_cmap('tab10', len(bo_phan_counts.index))
-                                
-                                bars = ax.bar(bo_phan_counts.index, bo_phan_counts.values, color=colors.colors)
-                                
-                                for bar in bars:
-                                    yval = bar.get_height()
-                                    ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+                            fig, ax = plt.subplots(figsize=(12, 7)) 
+                            
+                            colors = cm.get_cmap('tab10', len(bo_phan_counts.index))
+                            
+                            bars = ax.bar(bo_phan_counts.index, bo_phan_counts.values, color=colors.colors)
+                            
+                            for bar in bars:
+                                yval = bar.get_height()
+                                ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                ax.set_xlabel("Bộ phận công tác")
-                                ax.set_ylabel("Số lượng nhân viên")
-                                ax.set_title("Biểu đồ số lượng CBCNV theo Bộ phận")
-                                plt.xticks(rotation=45, ha='right')
-                                plt.tight_layout()
-                                st.pyplot(fig, dpi=400)
-                            else:
-                                st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
-                    else:
-                        # Nếu filtered_df rỗng sau tất cả các bước lọc
-                        # Chỉ hiển thị toàn bộ danh sách nếu không có yêu cầu cụ thể nào được tìm thấy
-                        if not is_specific_query or "toàn bộ" in user_msg_lower or "tất cả" in user_msg_lower or "danh sách" in user_msg_lower:
-                            st.subheader("Toàn bộ thông tin CBCNV:")
-                            st.dataframe(df_cbcnv)
+                            ax.set_xlabel("Bộ phận công tác")
+                            ax.set_ylabel("Số lượng nhân viên")
+                            ax.set_title("Biểu đồ số lượng CBCNV theo Bộ phận")
+                            plt.xticks(rotation=45, ha='right')
+                            plt.tight_layout()
+                            st.pyplot(fig, dpi=400)
                         else:
-                            st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
+                            st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
+                    elif ("biểu đồ" in user_msg_lower or "báo cáo" in user_msg_lower) and df_to_show.empty:
+                         st.warning("⚠️ Không có dữ liệu để vẽ biểu đồ.")
+
                 else:
                     st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet CBCNV.")
 
