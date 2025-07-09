@@ -60,20 +60,10 @@ def get_sheet_data(sheet_name):
         return None
 
 # Thêm logo vào giao diện chính
-# RẤT QUAN TRỌNG: Bạn cần thay thế URL dưới đây bằng URL TRỰC TIẾP của logo của bạn.
-# Hãy tải ảnh "logo_hinh_tron.png" lên một dịch vụ lưu trữ ảnh công khai như GitHub (khuyến nghị),
-# hoặc Imgur.com (nếu không quá tải).
-#
-# CÁCH LẤY URL TRỰC TIẾP TỪ GITHUB:
-# 1. Tạo một kho lưu trữ (repository) công khai trên GitHub.
-# 2. Tải file "logo_hinh_tron.png" của bạn lên kho lưu trữ đó.
-# 3. Điều hướng đến file ảnh trong kho lưu trữ, sau đó nhấp vào nút "Raw".
-# 4. Sao chép địa chỉ liên kết từ trang "Raw" đó. URL sẽ có dạng:
-#    https://raw.githubusercontent.com/your_username/your_repo_name/main/logo_hinh_tron.png
-#
-# Các liên kết từ Google Drive (ví dụ: https://drive.google.com/file/d/...)
-# thường KHÔNG phải là URL trực tiếp và sẽ không hoạt động ổn định.
-public_logo_url = "https://raw.githubusercontent.com/phamlong666/Chatbot/main/logo_hinh_tron.png" # <= Đã cập nhật URL logo của bạn
+# URL trực tiếp của logo từ GitHub
+# Đây là URL trực tiếp (Raw URL) từ GitHub của logo của bạn.
+# Nó có dạng https://raw.githubusercontent.com/your_username/your_repo_name/main/your_image.png
+public_logo_url = "https://raw.githubusercontent.com/phamlong666/Chatbot/main/logo_hinh_tron.png" # <= Đã cập nhật URL logo chính xác của bạn
 
 try:
     # Cố gắng hiển thị ảnh từ URL công khai với kích thước 100px
