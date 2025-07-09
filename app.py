@@ -214,11 +214,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
             # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV)
             elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự", "thông tin"]):
-                records = get_sheet_data("CBCNV")
+                records = get_sheet_data("CBCNV") # Tên sheet CBCNV
                 if records:
-                    df_cbcnv = pd.DataFrame(records)
+                    df_cbcnv = pd.DataFrame(records) # Chuyển đổi thành DataFrame
 
                     person_name = None
+                    # Regex để bắt tên người sau "thông tin" hoặc "của" và trước các từ khóa khác hoặc kết thúc chuỗi
                     name_match = re.search(r"(?:thông tin|của)\s+([a-zA-Z\s]+?)(?:\s+trong|\s+tổ|\s+phòng|\s+đội|\s+cbcnv|$)", user_msg_lower)
                     if name_match:
                         person_name = name_match.group(1).strip()
@@ -238,15 +239,49 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     bo_phan = bo_phan_candidate
                             break
 
-                    filtered_df = df_cbcnv
-                    if person_name and 'Họ và tên' in df_cbcnv.columns:
-                        filtered_df = filtered_df[filtered_df['Họ và tên'].astype(str).str.lower() == person_name.lower()]
-                    
-                    if bo_phan and 'Bộ phận công tác' in filtered_df.columns:
-                        filtered_df = filtered_df[filtered_df['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
+                    filtered_df = pd.DataFrame() # Khởi tạo DataFrame rỗng
 
+                    if person_name and 'Họ và tên' in df_cbcnv.columns:
+                        # Thử tìm kiếm chính xác theo tên
+                        filtered_df = df_cbcnv[df_cbcnv['Họ và tên'].astype(str).str.lower() == person_name.lower()]
+                        
+                        if filtered_df.empty:
+                            # Nếu không tìm thấy chính xác, thử tìm kiếm gần đúng
+                            st.info(f"Không tìm thấy chính xác '{person_name.title()}'. Đang tìm kiếm gần đúng...")
+                            filtered_df = df_cbcnv[df_cbcnv['Họ và tên'].astype(str).str.lower().str.contains(person_name.lower(), na=False)]
+                            
+                            if filtered_df.empty:
+                                st.warning(f"⚠️ Không tìm thấy người nào có tên '{person_name.title()}' hoặc tên gần giống.")
+                                # Không cần làm gì thêm, filtered_df vẫn rỗng để hiển thị thông báo "Không tìm thấy dữ liệu" chung
+                        
+                        # Nếu tìm thấy tên (chính xác hoặc gần đúng) và có bộ phận được chỉ định, lọc thêm
+                        if not filtered_df.empty and bo_phan and 'Bộ phận công tác' in filtered_df.columns:
+                            initial_filtered_count = len(filtered_df)
+                            filtered_df = filtered_df[filtered_df['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
+                            if filtered_df.empty and initial_filtered_count > 0:
+                                st.warning(f"⚠️ Không tìm thấy kết quả cho bộ phận '{bo_phan.title()}' trong danh sách đã lọc theo tên.")
+                    
+                    elif bo_phan and 'Bộ phận công tác' in df_cbcnv.columns:
+                        # Nếu chỉ có bộ phận được chỉ định (không có tên người)
+                        filtered_df = df_cbcnv[df_cbcnv['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
+                        if filtered_df.empty:
+                            st.warning(f"⚠️ Không tìm thấy dữ liệu cho bộ phận '{bo_phan.title()}'.")
+                    
+                    # Đây là trường hợp dự phòng: nếu không có tiêu chí lọc cụ thể nào được cung cấp hoặc tìm thấy
+                    if filtered_df.empty and not (person_name or bo_phan):
+                        st.subheader("Toàn bộ thông tin CBCNV:")
+                        filtered_df = df_cbcnv # Hiển thị tất cả nếu không có bộ lọc cụ thể nào được yêu cầu hoặc tìm thấy
+
+                    # Kiểm tra cuối cùng trước khi hiển thị dữ liệu
                     if not filtered_df.empty:
-                        st.subheader(f"Thông tin CBCNV {'của ' + person_name.title() if person_name else ''} {'thuộc ' + bo_phan.title() if bo_phan else ''}:")
+                        subheader_parts = ["Thông tin CBCNV"]
+                        if person_name and not filtered_df.empty: # Chỉ thêm nếu person_name có giá trị và filtered_df không rỗng
+                            subheader_parts.append(f"của {person_name.title()}")
+                        if bo_phan and not filtered_df.empty: # Chỉ thêm nếu bo_phan có giá trị và filtered_df không rỗng
+                            subheader_parts.append(f"thuộc {bo_phan.title()}")
+                        
+                        st.subheader(" ".join(subheader_parts) + ":")
+                        
                         reply_list = []
                         for idx, r in filtered_df.iterrows():
                             reply_list.append(
@@ -260,6 +295,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             )
                         st.text_area("Kết quả", value="\n".join(reply_list), height=300)
 
+                        # --- Bổ sung logic vẽ biểu đồ CBCNV ---
                         if "biểu đồ" in user_msg_lower or "báo cáo" in user_msg_lower:
                             if 'Bộ phận công tác' in filtered_df.columns and not filtered_df['Bộ phận công tác'].empty:
                                 st.subheader("Biểu đồ số lượng nhân viên theo Bộ phận công tác")
@@ -284,7 +320,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             else:
                                 st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
                     else:
-                        st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn. Vui lòng kiểm tra tên bộ phận hoặc từ khóa.")
+                        # Khối này sẽ chạy nếu filtered_df rỗng sau tất cả các bước lọc hoặc tìm kiếm
+                        st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
                 else:
                     st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet CBCNV.")
 
