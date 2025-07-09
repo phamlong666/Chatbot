@@ -37,7 +37,7 @@ openai_api_key_direct = "sk-proj-3SkFtE-6W2yUYFL2wj3kxlD6epI7ZIeDaInlwYfjwLjBzbr
 
 
 if openai_api_key_direct:
-    client_ai = OpenAI(api_key=openai_api_key_direct)
+    client_ai = OpenAI(api_key=openai_api_key_key)
     st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
@@ -135,11 +135,52 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         
                         if filtered_df_suco.empty:
                             st.warning(f"⚠️ Không tìm thấy sự cố nào trong năm '{target_year}'.")
-                            st.dataframe(df_suco) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
+                            # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc theo năm nhưng có dữ liệu chung
+                            if not df_suco.empty:
+                                st.dataframe(df_suco) 
                     
                     if not filtered_df_suco.empty:
                         st.subheader(f"Dữ liệu từ sheet 'Quản lý sự cố' {'năm ' + target_year if target_year else ''}:")
                         st.dataframe(filtered_df_suco) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
+
+                        # --- Bổ sung logic vẽ biểu đồ cho sheet "Quản lý sự cố" ---
+                        if "biểu đồ" in user_msg_lower or "vẽ biểu đồ" in user_msg_lower:
+                            chart_columns = []
+                            if "đường dây" in user_msg_lower and 'Đường dây' in filtered_df_suco.columns:
+                                chart_columns.append('Đường dây')
+                            if "tính chất" in user_msg_lower and 'Tính chất' in filtered_df_suco.columns:
+                                chart_columns.append('Tính chất')
+                            if "loại sự cố" in user_msg_lower and 'Loại sự cố' in filtered_df_suco.columns:
+                                chart_columns.append('Loại sự cố')
+                            
+                            if chart_columns:
+                                for col in chart_columns:
+                                    if not filtered_df_suco[col].empty and not filtered_df_suco[col].isnull().all(): # Kiểm tra dữ liệu không rỗng hoặc toàn bộ NaN
+                                        st.subheader(f"Biểu đồ số lượng sự cố theo '{col}'")
+                                        
+                                        # Đếm số lượng các giá trị duy nhất trong cột
+                                        counts = filtered_df_suco[col].value_counts()
+
+                                        fig, ax = plt.subplots(figsize=(12, 7))
+                                        colors = cm.get_cmap('tab10', len(counts.index))
+                                        bars = ax.bar(counts.index, counts.values, color=colors.colors)
+
+                                        for bar in bars:
+                                            yval = bar.get_height()
+                                            ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+
+                                        ax.set_xlabel(col)
+                                        ax.set_ylabel("Số lượng sự cố")
+                                        ax.set_title(f"Biểu đồ số lượng sự cố theo {col}")
+                                        plt.xticks(rotation=45, ha='right')
+                                        plt.tight_layout()
+                                        st.pyplot(fig, dpi=400)
+                                    else:
+                                        st.warning(f"⚠️ Cột '{col}' không có dữ liệu để vẽ biểu đồ.")
+                            else:
+                                st.warning("⚠️ Vui lòng chỉ định cột bạn muốn vẽ biểu đồ (ví dụ: 'đường dây', 'tính chất', 'loại sự cố').")
+                        else:
+                            st.info("Để vẽ biểu đồ sự cố, bạn có thể thêm 'và vẽ biểu đồ theo [tên cột]' vào câu hỏi.")
                     else:
                         st.warning("⚠️ Dữ liệu từ sheet 'Quản lý sự cố' rỗng hoặc không có sự cố phù hợp với yêu cầu của bạn.")
                 else:
