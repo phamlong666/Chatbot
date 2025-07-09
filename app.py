@@ -8,17 +8,16 @@ import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
 import re # Thêm thư thư viện regex để trích xuất tên sheet
 import os # Import os for path handling
 from pathlib import Path # Import Path for robust path handling
-from datetime import datetime
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
 
-# Cấu hình Matplotlib để hiển thị tiếng Việt và tăng độ nét chữ trục hoành
+# Cấu hình Matplotlib để hiển thị tiếng Việt
 plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
 plt.rcParams['font.size'] = 10
 plt.rcParams['axes.labelsize'] = 12
 plt.rcParams['axes.titlesize'] = 14
-plt.rcParams['xtick.labelsize'] = 12 # Tăng cỡ chữ trục hoành để nét hơn
+plt.rcParams['xtick.labelsize'] = 10
 plt.rcParams['ytick.labelsize'] = 10
 plt.rcParams['figure.titlesize'] = 16
 
@@ -34,7 +33,7 @@ else:
     st.stop() # Dừng ứng dụng nếu không có secrets
 
 # Lấy API key OpenAI từ secrets (ĐÃ SỬA ĐỂ GÁN TRỰC TIẾP)
-openai_api_key_direct = "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"
+openai_api_key_direct = "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"
 
 
 if openai_api_key_direct:
@@ -90,8 +89,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Khởi tạo session state để lưu trữ tin nhắn cuối cùng đã xử lý
     if 'last_processed_user_msg' not in st.session_state:
         st.session_state.last_processed_user_msg = ""
-    if 'current_incident_df' not in st.session_state:
-        st.session_state.current_incident_df = pd.DataFrame() # Để lưu trữ df sự cố hiện tại
 
     user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input")
 
@@ -116,8 +113,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.success(f"✅ Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
                         else:
                             st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
-                    else:
-                        st.warning(f"⚠️ Không thể truy xuất dữ liệu từ sheet '{sheet_name_from_query}'.")
                 else:
                     st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
 
@@ -136,50 +131,43 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         target_month = month_year_full_match.group(1)
                         target_year = month_year_full_match.group(2) # Có thể là None nếu chỉ có tháng
 
-                    # Nếu năm chưa được trích xuất từ "tháng MM/YYYY", cố gắng trích xuất từ "năm"
+                    # Nếu năm chưa được trích xuất từ "tháng MM/YYYY", cố gắng trích xuất từ "năm YYYY"
                     if not target_year:
                         year_only_match = re.search(r"năm\s+(\d{4})", user_msg_lower)
                         if year_only_match:
                             target_year = year_only_match.group(1)
 
-                    filtered_df_suco = df_suco.copy() # Make a copy to ensure independent filtering
+                    filtered_df_suco = df_suco # Khởi tạo với toàn bộ dataframe
 
-                    # Kiểm tra sự tồn tại của cột 'Tháng/Năm sự cố' hoặc 'Tháng/Năm'
-                    sheet_month_year_col = None
-                    if 'Tháng/Năm sự cố' in df_suco.columns:
-                        sheet_month_year_col = 'Tháng/Năm sự cố'
-                    elif 'Tháng/Năm' in df_suco.columns: # Fallback to 'Tháng/Năm' if 'Tháng/Năm sự cố' not found
-                        sheet_month_year_col = 'Tháng/Năm'
-                    
-                    if not sheet_month_year_col:
-                        st.warning("⚠️ Không tìm thấy cột 'Tháng/Năm sự cố' hoặc 'Tháng/Năm' trong sheet 'Quản lý sự cố'. Không thể lọc theo tháng/năm.")
+                    # Kiểm tra sự tồn tại của cột 'Tháng/Năm sự cố'
+                    if 'Tháng/Năm sự cố' not in df_suco.columns:
+                        st.warning("⚠️ Không tìm thấy cột 'Tháng/Năm sự cố' trong sheet 'Quản lý sự cố'. Không thể lọc theo tháng/năm.")
+                        # Nếu cột bị thiếu, không thể lọc theo tháng/năm, hiển thị toàn bộ dữ liệu hoặc không có gì
+                        if target_month or target_year:
+                            st.info("Hiển thị toàn bộ dữ liệu sự cố (nếu có) do không tìm thấy cột lọc tháng/năm.")
+                            # filtered_df_suco vẫn là df_suco ban đầu
+                        else:
+                            # Nếu không có tháng/năm cụ thể được yêu cầu, và cột cũng thiếu, vẫn hiển thị toàn bộ
+                            pass # filtered_df_suco đã là df_suco
                     else:
-                        # Convert the column to string type to avoid potential type issues during filtering
-                        filtered_df_suco[sheet_month_year_col] = filtered_df_suco[sheet_month_year_col].astype(str)
-
                         # Thực hiện lọc dựa trên tháng và năm đã trích xuất
                         if target_month and target_year:
                             # Lọc chính xác theo định dạng "MM/YYYY"
                             exact_match_str = f"{int(target_month):02d}/{target_year}"
-                            filtered_df_suco = filtered_df_suco[filtered_df_suco[sheet_month_year_col] == exact_match_str]
+                            filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str) == exact_match_str]
                         elif target_month:
                             # Lọc theo tiền tố tháng "MM/"
                             month_prefix = f"{int(target_month):02d}/"
-                            filtered_df_suco = filtered_df_suco[filtered_df_suco[sheet_month_year_col].str.startswith(month_prefix)]
+                            filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
                         elif target_year:
                             # Lọc theo hậu tố năm "/YYYY"
                             year_suffix = f"/{target_year}"
-                            filtered_df_suco = filtered_df_suco[filtered_df_suco[sheet_month_year_col].str.endswith(year_suffix)]
-
-                    # Lưu DataFrame sự cố hiện tại vào session_state để dùng cho nút so sánh
-                    st.session_state.current_incident_df = filtered_df_suco.copy()
-                    st.session_state.current_target_month = target_month
-                    st.session_state.current_target_year = target_year
-                    st.session_state.current_sheet_month_year_col = sheet_month_year_col
+                            filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix)]
 
 
                     if filtered_df_suco.empty:
                         st.warning(f"⚠️ Không tìm thấy sự cố nào {'trong tháng ' + target_month if target_month else ''} {'năm ' + target_year if target_year else ''}.")
+                        # Không hiển thị toàn bộ dataframe nếu có yêu cầu tháng/năm cụ thể mà không tìm thấy
                     
                     if not filtered_df_suco.empty:
                         subheader_text = "Dữ liệu từ sheet 'Quản lý sự cố'"
@@ -237,6 +225,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         else:
                             st.info("Để vẽ biểu đồ sự cố, bạn có thể thêm 'và vẽ biểu đồ theo [tên cột]' vào câu hỏi.")
                     else:
+                        # Nếu filtered_df rỗng sau tất cả các bước lọc và không có thông báo cụ thể
+                        # Điều này xảy ra nếu có yêu cầu tháng/năm cụ thể nhưng không tìm thấy dữ liệu
                         st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
                 else:
                     st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Quản lý sự cố'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
@@ -472,8 +462,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet CBCNV.")
 
             # Xử lý các câu hỏi chung bằng OpenAI
-            # Khối else này là phần xử lý mặc định nếu không có truy vấn cụ thể nào khớp
-            else: 
+            else:
                 if client_ai:
                     try:
                         response = client_ai.chat.completions.create(
@@ -488,81 +477,3 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
                 else:
                     st.warning("⚠️ Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
-
-    # --- Nút "So sánh cùng kỳ" (đặt ngoài khối if user_msg để luôn hiển thị) ---
-    if not st.session_state.current_incident_df.empty and (st.session_state.current_target_month or st.session_state.current_target_year):
-        if st.button("So sánh cùng kỳ"):
-            current_df = st.session_state.current_incident_df
-            current_month = st.session_state.current_target_month
-            current_year = st.session_state.current_target_year
-            sheet_month_year_col = st.session_state.current_sheet_month_year_col
-
-            if current_month and current_year:
-                try:
-                    # Tính toán kỳ trước (cùng tháng năm trước)
-                    prev_year_date = datetime(int(current_year), int(current_month), 1)
-                    prev_year_date = prev_year_date.replace(year=prev_year_date.year - 1)
-                    prev_month = f"{prev_year_date.month:02d}"
-                    prev_year = str(prev_year_date.year)
-                    
-                    st.info(f"Đang so sánh với dữ liệu tháng {prev_month} năm {prev_year}.")
-
-                    # Lấy toàn bộ dữ liệu sự cố để lọc kỳ trước
-                    all_suco_records = get_sheet_data("Quản lý sự cố")
-                    if all_suco_records:
-                        df_all_suco = pd.DataFrame(all_suco_records)
-                        df_all_suco[sheet_month_year_col] = df_all_suco[sheet_month_year_col].astype(str)
-
-                        prev_period_match_str = f"{prev_month}/{prev_year}"
-                        df_prev_period = df_all_suco[df_all_suco[sheet_month_year_col] == prev_period_match_str]
-
-                        if not df_prev_period.empty:
-                            st.subheader(f"So sánh sự cố tháng {current_month}/{current_year} và tháng {prev_month}/{prev_year}:")
-                            
-                            chart_columns_for_comparison = []
-                            # Lấy các cột biểu đồ từ yêu cầu ban đầu của người dùng (nếu có)
-                            user_msg_lower = st.session_state.last_processed_user_msg.lower()
-                            if "đường dây" in user_msg_lower and 'Đường dây' in current_df.columns:
-                                chart_columns_for_comparison.append('Đường dây')
-                            if "tính chất" in user_msg_lower and 'Tính chất' in current_df.columns:
-                                chart_columns_for_comparison.append('Tính chất')
-                            if "loại sự cố" in user_msg_lower and 'Loại sự cố' in current_df.columns:
-                                chart_columns_for_comparison.append('Loại sự cố')
-
-                            if chart_columns_for_comparison:
-                                for col in chart_columns_for_comparison:
-                                    if col in current_df.columns and col in df_prev_period.columns:
-                                        st.subheader(f"Biểu đồ so sánh số lượng sự cố theo '{col}'")
-                                        
-                                        counts_current = current_df[col].value_counts().rename(f'{current_month}/{current_year}')
-                                        counts_prev = df_prev_period[col].value_counts().rename(f'{prev_month}/{prev_year}')
-                                        
-                                        # Kết hợp dữ liệu của 2 kỳ
-                                        combined_counts = pd.concat([counts_current, counts_prev], axis=1).fillna(0)
-                                        
-                                        fig, ax = plt.subplots(figsize=(14, 8))
-                                        combined_counts.plot(kind='bar', ax=ax, width=0.8) # Vẽ biểu đồ cột nhóm
-                                        
-                                        # Thêm giá trị lên trên các cột
-                                        for container in ax.containers:
-                                            ax.bar_label(container, fmt='%d', label_type='edge', fontsize=9, color='black')
-
-                                        ax.set_xlabel(col)
-                                        ax.set_ylabel("Số lượng sự cố")
-                                        ax.set_title(f"So sánh số lượng sự cố theo {col} ({current_month}/{current_year} vs {prev_month}/{prev_year})")
-                                        plt.xticks(rotation=45, ha='right')
-                                        plt.tight_layout()
-                                        st.pyplot(fig, dpi=400)
-                                    else:
-                                        st.warning(f"⚠️ Cột '{col}' không tồn tại trong dữ liệu của một trong hai kỳ để so sánh.")
-                            else:
-                                st.warning("⚠️ Không có cột nào được chỉ định để so sánh biểu đồ. Vui lòng thêm 'và vẽ biểu đồ theo [cột]' vào câu hỏi ban đầu.")
-
-                        else:
-                            st.warning(f"⚠️ Không tìm thấy dữ liệu sự cố cho tháng {prev_month} năm {prev_year} để so sánh.")
-                    else:
-                        st.warning("⚠️ Không thể truy xuất dữ liệu sự cố cho kỳ trước.")
-                else:
-                    st.warning("⚠️ Không thể lấy dữ liệu sự cố để so sánh.")
-            else:
-                st.warning("⚠️ Vui lòng cung cấp tháng và năm cụ thể trong câu hỏi ban đầu để có thể so sánh cùng kỳ.")
