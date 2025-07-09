@@ -59,29 +59,31 @@ def get_sheet_data(sheet_name):
         st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}")
         return None
 
-# Thêm logo vào giao diện chính
+# Thêm logo vào giao diện chính và căn chỉnh sang trái
 # URL trực tiếp của logo từ GitHub
-# Đây là URL trực tiếp (Raw URL) từ GitHub của logo của bạn.
-# Nó có dạng https://raw.githubusercontent.com/your_username/your_repo_name/main/your_image.png
 public_logo_url = "https://raw.githubusercontent.com/phamlong666/Chatbot/main/logo_hinh_tron.png" # <= Đã cập nhật URL logo chính xác của bạn
 
-try:
-    # Cố gắng hiển thị ảnh từ URL công khai với kích thước 100px
-    st.image(public_logo_url, width=100) # Đã thay đổi kích thước thành 100
-except Exception as e_public_url:
-    st.error(f"❌ Lỗi khi hiển thị logo từ URL: {e_public_url}. Vui lòng đảm bảo URL là liên kết TRỰC TIẾP đến file ảnh (kết thúc bằng .jpg, .png, v.v.) và kiểm tra kết nối internet.")
-    # Fallback về file cục bộ (chỉ để dự phòng, có thể vẫn gặp lỗi nếu file không được triển khai đúng)
-    logo_path = Path(__file__).parent / "logo_hinh_tron.jpg"
+# Sử dụng st.columns để căn chỉnh logo sang trái
+col1, col2 = st.columns([1, 4]) # Cột đầu tiên nhỏ hơn để chứa logo, cột thứ hai lớn hơn
+
+with col1:
     try:
-        if logo_path.exists():
-            st.image(str(logo_path), width=100) # Đã thay đổi kích thước thành 100
-        else:
-            st.error(f"❌ Không tìm thấy file ảnh logo tại: {logo_path}. Vui lòng đảm bảo file 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py của bạn khi triển khai.")
-    except Exception as e_local_file:
-        st.error(f"❌ Lỗi khi hiển thị ảnh logo từ file cục bộ: {e_local_file}.")
+        # Hiển thị ảnh từ URL công khai với kích thước 100px
+        st.image(public_logo_url, width=100) # Đã thay đổi kích thước thành 100
+    except Exception as e_public_url:
+        st.error(f"❌ Lỗi khi hiển thị logo từ URL: {e_public_url}. Vui lòng đảm bảo URL là liên kết TRỰC TIẾP đến file ảnh (kết thúc bằng .jpg, .png, v.v.) và kiểm tra kết nối internet.")
+        # Fallback về file cục bộ (chỉ để dự phòng, có thể vẫn gặp lỗi nếu file không được triển khai đúng)
+        logo_path = Path(__file__).parent / "logo_hinh_tron.jpg"
+        try:
+            if logo_path.exists():
+                st.image(str(logo_path), width=100) # Đã thay đổi kích thước thành 100
+            else:
+                st.error(f"❌ Không tìm thấy file ảnh logo tại: {logo_path}. Vui lòng đảm bảo file 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py của bạn khi triển khai.")
+        except Exception as e_local_file:
+            st.error(f"❌ Lỗi khi hiển thị ảnh logo từ file cục bộ: {e_local_file}.")
 
-
-st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
+with col2:
+    st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
 
 user_msg = st.text_input("Bạn muốn hỏi gì?")
 
