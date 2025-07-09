@@ -37,7 +37,7 @@ openai_api_key_direct = "sk-proj-3SkFtE-6W2yUYFL2wj3kxlD6epI7ZIeDaInlwYfjwLjBzbr
 
 
 if openai_api_key_direct:
-    client_ai = OpenAI(api_key=openai_api_key_key)
+    client_ai = OpenAI(api_key=openai_api_key_direct) # Đã sửa lỗi chính tả ở đây
     st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
