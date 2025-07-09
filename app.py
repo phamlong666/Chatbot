@@ -6,6 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
 import re # Thêm thư thư viện regex để trích xuất tên sheet
+import os # Import os module để kiểm tra sự tồn tại của file
+from PIL import Image # Import Pillow để mở file ảnh (nếu cần, nhưng ở đây chỉ đọc bytes)
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
 plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
@@ -41,7 +43,7 @@ if openai_api_key_direct:
     st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
-    st.warning("⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
+    st.warning(⚠️ Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
@@ -58,7 +60,18 @@ def get_sheet_data(sheet_name):
         return None
 
 # Thêm logo vào sidebar
-st.sidebar.image("logo_hinh_tron.jpg", width=75)
+logo_path = "logo_hinh_tron.jpg"
+if os.path.exists(logo_path):
+    try:
+        # Mở file ảnh ở chế độ nhị phân và truyền bytes vào st.sidebar.image
+        with open(logo_path, "rb") as f:
+            logo_bytes = f.read()
+        st.sidebar.image(logo_bytes, width=75)
+    except Exception as e:
+        st.sidebar.error(f"❌ Lỗi khi tải logo: {e}. Vui lòng kiểm tra quyền truy cập file.")
+else:
+    st.sidebar.warning(f"⚠️ Không tìm thấy file logo tại đường dẫn: {logo_path}. Vui lòng đảm bảo file nằm cùng thư mục với app.py.")
+
 
 st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
 
@@ -298,7 +311,7 @@ if st.button("Gửi"):
                     model="gpt-3.5-turbo", # Thử với gpt-3.5-turbo nếu gpt-4o không hoạt động
                     messages=[
                         {"role": "system", "content": "Bạn là trợ lý ảo của Đội QLĐLKV Định Hóa, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
-                        {"role": "user", "content": user_msg}
+                        {"role: \"user\", \"content\": user_msg}
                     ]
                 )
                 st.write(response.choices[0].message.content)
