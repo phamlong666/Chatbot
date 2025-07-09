@@ -79,8 +79,8 @@ with header_col2:
 
 # Phần nội dung chính của chatbot (ô nhập liệu, nút, kết quả) sẽ được căn giữa
 # Tạo 3 cột: cột trái rỗng (để tạo khoảng trống), cột giữa chứa nội dung chatbot, cột phải rỗng
-# Tỷ lệ 1:3:1 sẽ giúp nội dung ở giữa chiếm khoảng 60% chiều rộng, tạo cảm giác cân xứng
-col_left_spacer, col_main_content, col_right_spacer = st.columns([1, 3, 1])
+# Đã thay đổi tỷ lệ từ [1, 3, 1] sang [1, 5, 1] để mở rộng không gian chat
+col_left_spacer, col_main_content, col_right_spacer = st.columns([1, 5, 1]) 
 
 with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột này
     # Khởi tạo session state để lưu trữ tin nhắn cuối cùng đã xử lý
