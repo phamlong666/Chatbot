@@ -57,6 +57,9 @@ def get_sheet_data(sheet_name):
         st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}")
         return None
 
+# Thêm logo vào sidebar
+st.sidebar.image("logo_hinh_tron.jpg", width=75)
+
 st.title("🤖 Chatbot Đội QLĐLKV Định Hóa")
 
 user_msg = st.text_input("Bạn muốn hỏi gì?")
