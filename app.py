@@ -13,7 +13,7 @@ from pathlib import Path # Import Path for robust path handling
 st.set_page_config(layout="wide")
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
-plt.rcParams['font.family'] = 'DejaVu Sans'] # Hoặc 'Arial', 'Times New Roman' nếu có
+plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
 plt.rcParams['font.size'] = 10
 plt.rcParams['axes.labelsize'] = 12
 plt.rcParams['axes.titlesize'] = 14
