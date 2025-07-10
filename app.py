@@ -586,7 +586,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 model="gpt-3.5-turbo",
                                 messages=[
                                     {"role": "system", "content": "Bạn là trợ lý ảo của Đội QLĐLKV Định Hóa, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
-                                    {"role": "user", "content": user_msg}
+                                    {"role: "user", "content": user_msg}
                                 ]
                             )
                             st.write(response.choices[0].message.content)
@@ -594,16 +594,28 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
                     else:
                         st.warning("Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
+
+# Hàm làm sạch câu hỏi an toàn
 def clean_question_an_toan(text):
     return re.sub(r"Câu\s*\d+\s*[:：]", "", text, flags=re.IGNORECASE).strip()
 
 # Đọc file Excel hoặc Google Sheet (anh thay đường dẫn file cho phù hợp)
-df_an_toan = pd.read_excel("file_cau_hoi_an_toan.xlsx", sheet_name="An toàn")
+# Đã thêm khối try-except để xử lý FileNotFoundError
+try:
+    df_an_toan = pd.read_excel("file_cau_hoi_an_toan.xlsx", sheet_name="An toàn")
+    # Tạo dictionary với câu hỏi chuẩn hóa
+    qa_an_toan_dict = {clean_question_an_toan(q): a for q, a in zip(df_an_toan["Câu hỏi"], df_an_toan["Đáp án"])}
+    st.success("✅ Đã tải dữ liệu an toàn từ file Excel.")
+except FileNotFoundError:
+    st.error("❌ Không tìm thấy tệp 'file_cau_hoi_an_toan.xlsx'. Vui lòng đảm bảo tệp này nằm cùng thư mục với app.py khi triển khai.")
+    df_an_toan = pd.DataFrame() # Khởi tạo DataFrame rỗng để tránh lỗi nếu không tìm thấy file
+    qa_an_toan_dict = {} # Khởi tạo dictionary rỗng
+except Exception as e:
+    st.error(f"❌ Lỗi khi đọc tệp Excel 'file_cau_hoi_an_toan.xlsx': {e}")
+    df_an_toan = pd.DataFrame()
+    qa_an_toan_dict = {}
 
-# Tạo dictionary với câu hỏi chuẩn hóa
-qa_an_toan_dict = {clean_question_an_toan(q): a for q, a in zip(df_an_toan["Câu hỏi"], df_an_toan["Đáp án"])}
-
-# Hàm tra lời an toàn
+# Hàm trả lời an toàn
 def tra_loi_an_toan(user_question):
     user_clean = clean_question_an_toan(user_question)
     for question, answer in qa_an_toan_dict.items():
