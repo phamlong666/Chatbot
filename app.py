@@ -34,7 +34,7 @@ else:
     st.stop() # Dừng ứng dụng nếu không có secrets
 
 # Lấy API key OpenAI từ secrets (ĐÃ SỬA ĐỂ GÁN TRỰC TIẾP)
-openai_api_key_direct = "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"
+openai_api_key_direct = "sk-proj-3SkFtE-6W2yUYFL2wj3kxlD6epI7ZIeDaInlwYfjwLjBzbr4jC02GkQEqZ1CwlAxRIrv7ivq0T3BlbkFJEQxDvv9kGtpJ5an9AZGMJpftDxMx-u21snU1qiqLitRmqzyakhkRKO366_xZqczo4Ghw3JoeoA"
 
 
 if openai_api_key_direct:
@@ -57,6 +57,13 @@ def get_sheet_data(sheet_name):
     except Exception as e:
         st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}")
         return None
+
+# Hàm chuẩn hóa chuỗi để so sánh chính xác hơn (loại bỏ dấu cách thừa, chuyển về chữ thường)
+def normalize_text(text):
+    if isinstance(text, str):
+        # Chuyển về chữ thường, loại bỏ dấu cách thừa ở đầu/cuối và thay thế nhiều dấu cách bằng một dấu cách
+        return re.sub(r'\s+', ' ', text).strip().lower()
+    return ""
 
 # Tải dữ liệu từ sheet "Hỏi-Trả lời" một lần khi ứng dụng khởi động
 qa_data = get_sheet_data("Hỏi-Trả lời")
@@ -107,26 +114,29 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
             found_qa_answer = False
             
-            # NEW LOGIC: Kiểm tra cú pháp "An toàn:..." để yêu cầu khớp 100%
+            # NEW LOGIC: Kiểm tra cú pháp "An toàn:..." để yêu cầu khớp chính xác 100% sau khi chuẩn hóa
             if user_msg_lower.startswith("an toàn:"):
-                # Trích xuất phần câu hỏi thực tế sau "An toàn:"
-                specific_question = user_msg_lower.replace("an toàn:", "").strip()
+                # Trích xuất và chuẩn hóa phần câu hỏi thực tế sau "An toàn:"
+                specific_question_for_safety = normalize_text(user_msg_lower.replace("an toàn:", "").strip())
                 
                 if not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
                     exact_match_found_for_safety = False
                     for index, row in qa_df.iterrows():
-                        question_from_sheet = str(row['Câu hỏi']).lower()
-                        if specific_question == question_from_sheet: # Khớp chính xác 100%
+                        question_from_sheet_normalized = normalize_text(str(row['Câu hỏi']))
+                        
+                        # So sánh chính xác 100% sau khi đã chuẩn hóa
+                        if specific_question_for_safety == question_from_sheet_normalized:
                             st.write(str(row['Câu trả lời']))
                             exact_match_found_for_safety = True
                             found_qa_answer = True
                             break # Đã tìm thấy khớp chính xác, dừng tìm kiếm
                     
                     if not exact_match_found_for_safety:
-                        st.warning("⚠️ Không tìm thấy câu trả lời chính xác 100% cho yêu cầu 'An toàn:' của bạn. Vui lòng đảm bảo câu hỏi khớp hoàn toàn.")
-                        found_qa_answer = True # Đánh dấu là đã xử lý nhánh này, dù không tìm thấy
+                        st.warning("⚠️ Không tìm thấy câu trả lời chính xác 100% cho yêu cầu 'An toàn:' của bạn. Vui lòng đảm bảo câu hỏi khớp hoàn toàn (có thể bỏ qua dấu cách thừa).")
+                        found_qa_answer = True # Đánh dấu là đã xử lý nhánh này, dù không tìm thấy khớp đủ cao
             
             # Logic hiện có cho các câu hỏi chung (khớp tương đối)
+            # Chỉ chạy nếu chưa tìm thấy câu trả lời từ nhánh "An toàn:"
             if not found_qa_answer and not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
                 best_match_score = 0
                 best_answer = ""
@@ -584,4 +594,3 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
                     else:
                         st.warning("Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
-
