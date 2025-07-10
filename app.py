@@ -594,3 +594,19 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
                     else:
                         st.warning("Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
+def clean_question_an_toan(text):
+    return re.sub(r"Câu\s*\d+\s*[:：]", "", text, flags=re.IGNORECASE).strip()
+
+# Đọc file Excel hoặc Google Sheet (anh thay đường dẫn file cho phù hợp)
+df_an_toan = pd.read_excel("file_cau_hoi_an_toan.xlsx", sheet_name="An toàn")
+
+# Tạo dictionary với câu hỏi chuẩn hóa
+qa_an_toan_dict = {clean_question_an_toan(q): a for q, a in zip(df_an_toan["Câu hỏi"], df_an_toan["Đáp án"])}
+
+# Hàm tra lời an toàn
+def tra_loi_an_toan(user_question):
+    user_clean = clean_question_an_toan(user_question)
+    for question, answer in qa_an_toan_dict.items():
+        if fuzz.ratio(user_clean.lower(), question.lower()) > 95:
+            return answer
+    return None
