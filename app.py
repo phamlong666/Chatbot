@@ -106,26 +106,46 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
             found_qa_answer = False
-            if not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
+            
+            # NEW LOGIC: Kiểm tra cú pháp "An toàn:..." để yêu cầu khớp 100%
+            if user_msg_lower.startswith("an toàn:"):
+                # Trích xuất phần câu hỏi thực tế sau "An toàn:"
+                specific_question = user_msg_lower.replace("an toàn:", "").strip()
+                
+                if not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
+                    exact_match_found_for_safety = False
+                    for index, row in qa_df.iterrows():
+                        question_from_sheet = str(row['Câu hỏi']).lower()
+                        if specific_question == question_from_sheet: # Khớp chính xác 100%
+                            st.write(str(row['Câu trả lời']))
+                            exact_match_found_for_safety = True
+                            found_qa_answer = True
+                            break # Đã tìm thấy khớp chính xác, dừng tìm kiếm
+                    
+                    if not exact_match_found_for_safety:
+                        st.warning("⚠️ Không tìm thấy câu trả lời chính xác 100% cho yêu cầu 'An toàn:' của bạn. Vui lòng đảm bảo câu hỏi khớp hoàn toàn.")
+                        found_qa_answer = True # Đánh dấu là đã xử lý nhánh này, dù không tìm thấy
+            
+            # Logic hiện có cho các câu hỏi chung (khớp tương đối)
+            if not found_qa_answer and not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
                 best_match_score = 0
                 best_answer = ""
                 
                 for index, row in qa_df.iterrows():
                     question_from_sheet = str(row['Câu hỏi']).lower()
-                    # Sử dụng fuzz.ratio để tính toán độ tương đồng
                     score = fuzz.ratio(user_msg_lower, question_from_sheet)
                     
                     if score > best_match_score:
                         best_match_score = score
                         best_answer = str(row['Câu trả lời'])
                 
-                # Ngưỡng độ tương đồng, có thể điều chỉnh
-                if best_match_score >= 80: # Ví dụ: nếu độ tương đồng từ 80% trở lên
+                if best_match_score >= 80: # Nếu độ tương đồng từ 80% trở lên
                     st.write(best_answer)
                     found_qa_answer = True
                 elif best_match_score >= 60: # Nếu độ tương đồng từ 60% đến dưới 80%
                     st.info(f"Có vẻ bạn đang hỏi về: '{qa_df.loc[qa_df['Câu trả lời'] == best_answer, 'Câu hỏi'].iloc[0]}'? Câu trả lời là: {best_answer}")
                     found_qa_answer = True
+
 
             if found_qa_answer:
                 pass # Đã tìm thấy câu trả lời từ QA sheet, không làm gì thêm
