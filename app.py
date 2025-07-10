@@ -258,7 +258,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.info("Để vẽ biểu đồ sự cố, bạn có thể thêm 'và vẽ biểu đồ theo [tên cột]' vào câu hỏi.")
                         else:
                             # Nếu filtered_df rỗng sau tất cả các bước lọc và không có thông báo cụ thể
-                            # Điều này xảy ra nếu có yêu cầu tháng/năm cụ thể mà không tìm thấy dữ liệu
+                            # Điều này xảy ra nếu có yêu cầu tháng/năm cụ thể nhưng không tìm thấy dữ liệu
                             st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
                     else:
                         st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Quản lý sự cố'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
@@ -434,10 +434,16 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         bo_phan = None
                         is_specific_query = False # Flag để kiểm tra nếu có yêu cầu tìm kiếm cụ thể
 
-                        # Regex để bắt tên người sau "thông tin" hoặc "của" và trước các từ khóa khác hoặc kết thúc chuỗi
-                        name_match = re.search(r"(?:thông tin|của)\s+([a-zA-Z\s]+?)(?:\s+trong|\s+tổ|\s+phòng|\s+đội|\s+cbcnv|$)", user_msg_lower)
+                        # Regex để bắt tên người sau "thông tin" hoặc "của" (tham lam)
+                        name_match = re.search(r"(?:thông tin|của)\s+([a-zA-Z\s]+)", user_msg_lower)
                         if name_match:
                             person_name = name_match.group(1).strip()
+                            # Loại bỏ các từ khóa có thể bị bắt nhầm vào tên
+                            known_keywords = ["trong", "tổ", "phòng", "đội", "cbcnv", "tất cả"] # Thêm "tất cả"
+                            for kw in known_keywords:
+                                if kw in person_name:
+                                    person_name = person_name.split(kw, 1)[0].strip()
+                                    break
                             is_specific_query = True
 
                         # Logic lọc theo bộ phận
@@ -484,17 +490,17 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                         # Determine which DataFrame to display and chart
                         df_to_show = df_to_process
-                        if df_to_show.empty and not is_specific_query: # If no specific query and df_to_show is empty (shouldn't happen with new init), show all
+                        if df_to_show.empty and not is_specific_query: # Nếu không có truy vấn cụ thể (tên hoặc bộ phận) và df rỗng, hiển thị toàn bộ
                             df_to_show = df_cbcnv
                             st.subheader("Toàn bộ thông tin CBCNV:")
-                        elif not df_to_show.empty: # If df_to_show has data, display it
+                        elif not df_to_show.empty: # Nếu df_to_show có dữ liệu, hiển thị nó (đã lọc hoặc toàn bộ nếu không có truy vấn cụ thể)
                             subheader_parts = ["Thông tin CBCNV"]
                             if person_name:
                                 subheader_parts.append(f"của {person_name.title()}")
                             if bo_phan:
                                 subheader_parts.append(f"thuộc {bo_phan.title()}")
                             st.subheader(" ".join(subheader_parts) + ":")
-                        else: # df_to_show is empty and it was a specific query that yielded no results
+                        else: # df_to_show rỗng VÀ đó là một truy vấn cụ thể (is_specific_query là True)
                             st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
 
                         if not df_to_show.empty:
