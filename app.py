@@ -586,7 +586,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 model="gpt-3.5-turbo",
                                 messages=[
                                     {"role": "system", "content": "Bạn là trợ lý ảo của Đội QLĐLKV Định Hóa, chuyên hỗ trợ trả lời các câu hỏi kỹ thuật, nghiệp vụ, đoàn thể và cộng đồng liên quan đến ngành điện. Luôn cung cấp thông tin chính xác và hữu ích."},
-                                    {"role: "user", "content": user_msg}
+                                    {"role": "user", "content": user_msg}
                                 ]
                             )
                             st.write(response.choices[0].message.content)
