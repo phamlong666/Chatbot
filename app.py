@@ -352,6 +352,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                     st.warning(f"⚠️ Không có dữ liệu để so sánh theo '{col}' giữa năm {target_year} và năm {compare_year}.")
                                                     continue # Skip plotting for this column
 
+                                                # DEBUGGING START
+                                                st.info(f"DEBUG: filtered_df_suco for {target_year} and {compare_year} (first 5 rows):")
+                                                st.dataframe(filtered_df_suco.head())
+                                                st.info(f"DEBUG: Categories Target ({target_year}): {categories_target}")
+                                                st.info(f"DEBUG: Categories Compare ({compare_year}): {categories_compare}")
+                                                st.info(f"DEBUG: All Categories: {all_categories}")
+                                                # DEBUGGING END
 
                                                 # Tạo bảng tần suất cho từng năm, reindex để bao gồm tất cả các danh mục
                                                 counts_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].value_counts()
@@ -360,11 +367,23 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 counts_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].value_counts()
                                                 counts_compare = counts_compare.reindex(all_categories, fill_value=0)
 
+                                                # DEBUGGING START
+                                                st.info(f"DEBUG: Counts Target ({target_year}):")
+                                                st.dataframe(counts_target)
+                                                st.info(f"DEBUG: Counts Compare ({compare_year}):")
+                                                st.dataframe(counts_compare)
+                                                # DEBUGGING END
+
                                                 # Gộp hai Series thành một DataFrame để dễ dàng vẽ biểu đồ nhóm
                                                 combined_counts = pd.DataFrame({
                                                     f'Năm {target_year}': counts_target,
                                                     f'Năm {compare_year}': counts_compare
                                                 })
+
+                                                # DEBUGGING START
+                                                st.info(f"DEBUG: Combined Counts before plotting:")
+                                                st.dataframe(combined_counts)
+                                                # DEBUGGING END
 
                                                 fig, ax = plt.subplots(figsize=(14, 8))
                                                 
