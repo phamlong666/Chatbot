@@ -236,8 +236,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         # Initialize df_target_year and df_compare_year as empty DataFrames with appropriate columns
                         # This prevents issues with pd.concat if one of them ends up empty.
                         base_columns = df_suco.columns.tolist()
-                        df_target_year_with_year = pd.DataFrame(columns=base_columns + ['Năm'])
-                        df_compare_year_with_year = pd.DataFrame(columns=base_columns + ['Năm'])
+                        # Ensure 'Năm' column exists in base_columns if not already there
+                        if 'Năm' not in base_columns:
+                            base_columns.append('Năm')
+
+                        df_target_year_with_year = pd.DataFrame(columns=base_columns)
+                        df_compare_year_with_year = pd.DataFrame(columns=base_columns)
                         
                         filtered_df_suco = pd.DataFrame() # Initialize filtered_df_suco
 
@@ -256,8 +260,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 if target_month:
                                     exact_match_str_target = f"{int(target_month):02d}/{target_year}"
                                     temp_df_target = temp_df_target[temp_df_target['Tháng/Năm sự cố'].astype(str) == exact_match_str_target]
+                                
+                                # Assign to df_target_year_with_year, ensuring 'Năm' column is added even if temp_df_target is empty
                                 if not temp_df_target.empty:
                                     df_target_year_with_year = temp_df_target.assign(Năm=target_year)
+                                else: # If no data for target year, create an empty DataFrame with 'Năm' column
+                                    df_target_year_with_year = pd.DataFrame(columns=df_suco.columns.tolist() + ['Năm'])
                             
                             # Filter for compare year
                             if compare_year:
@@ -266,21 +274,29 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 if target_month:
                                     exact_match_str_compare = f"{int(target_month):02d}/{compare_year}"
                                     temp_df_compare = temp_df_compare[temp_df_compare['Tháng/Năm sự cố'].astype(str) == exact_match_str_compare]
+                                
+                                # Assign to df_compare_year_with_year, ensuring 'Năm' column is added even if temp_df_compare is empty
                                 if not temp_df_compare.empty:
                                     df_compare_year_with_year = temp_df_compare.assign(Năm=compare_year)
+                                else: # If no data for compare year, create an empty DataFrame with 'Năm' column
+                                    df_compare_year_with_year = pd.DataFrame(columns=df_suco.columns.tolist() + ['Năm'])
                             
                             # Combine for filtered_df_suco
-                            if target_year and compare_year:
+                            # Only concatenate if at least one year is present for comparison or target
+                            if target_year or compare_year:
+                                # Ensure both DataFrames have the same columns before concatenation
+                                # This is crucial if one year has data and the other doesn't,
+                                # and the empty DataFrame was created with a different set of columns.
+                                common_columns = list(set(df_target_year_with_year.columns) | set(df_compare_year_with_year.columns))
+                                
+                                # Reindex to ensure all common columns are present, filling missing with NaN
+                                df_target_year_with_year = df_target_year_with_year.reindex(columns=common_columns, fill_value=None)
+                                df_compare_year_with_year = df_compare_year_with_year.reindex(columns=common_columns, fill_value=None)
+
                                 filtered_df_suco = pd.concat([
                                     df_target_year_with_year, 
                                     df_compare_year_with_year
-                                ]).reset_index(drop=True) # Reset index after concat
-                            elif target_year: # Only target year specified
-                                filtered_df_suco = df_target_year_with_year.reset_index(drop=True)
-                            elif target_month and not target_year: # Only month specified, no year
-                                month_prefix = f"{int(target_month):02d}/"
-                                filtered_df_suco = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)].reset_index(drop=True)
-                                # No 'Năm' column for this case, as it's not year-specific
+                                ]).reset_index(drop=True)
                             else: # No specific year/month/comparison requested
                                 filtered_df_suco = df_suco.copy() # Show all data
 
@@ -320,8 +336,15 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 
                                                 # Lấy tất cả các danh mục duy nhất từ cả hai năm để đảm bảo trục x nhất quán
                                                 # Ensure categories are lists to prevent TypeError
-                                                categories_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].dropna().unique().tolist()
-                                                categories_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].dropna().unique().tolist()
+                                                categories_target = []
+                                                if not filtered_df_suco[filtered_df_suco['Năm'] == target_year].empty:
+                                                    if col in filtered_df_suco.columns:
+                                                        categories_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].dropna().unique().tolist()
+                                                
+                                                categories_compare = []
+                                                if not filtered_df_suco[filtered_df_suco['Năm'] == compare_year].empty:
+                                                    if col in filtered_df_suco.columns:
+                                                        categories_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].dropna().unique().tolist()
                                                 
                                                 all_categories = sorted(list(set(categories_target + categories_compare)))
 
@@ -379,7 +402,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                     yval = bar.get_height()
                                                     ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                                ax.set_xlabel(col)
+                                                ax.set_xlabel("Bộ phận công tác")
                                                 ax.set_ylabel("Số lượng sự cố")
                                                 ax.set_title(f"Biểu đồ số lượng sự cố theo {col}")
                                                 plt.xticks(rotation=45, ha='right')
@@ -421,7 +444,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.dataframe(df_lanhdao) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
                         
                         if not filtered_df_lanhdao.empty:
-                            subheader_parts = ["Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'"] # Fixed the unterminated string literal
+                            subheader_parts = ["Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'"]
                             if location_name:
                                 subheader_parts.append(f"cho {location_name.title()}")
                             st.subheader(" ".join(subheader_parts) + ":")
