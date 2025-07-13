@@ -304,7 +304,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 fig, ax = plt.subplots(figsize=(14, 8))
                                                 
                                                 # Vẽ biểu đồ cột nhóm
-                                                combined_counts.plot(kind='bar', ax=ax, width=0.8, colormap='viridis')
+                                                bars = combined_counts.plot(kind='bar', ax=ax, width=0.8, colormap='viridis')
+
+                                                # Thêm số liệu trên các cột biểu đồ nhóm
+                                                for container in ax.containers:
+                                                    ax.bar_label(container, fmt='%d', label_type='edge', fontsize=9, padding=3)
 
                                                 ax.set_xlabel(col)
                                                 ax.set_ylabel("Số lượng sự cố")
@@ -322,12 +326,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 fig, ax = plt.subplots(figsize=(12, 7))
                                                 colors = cm.get_cmap('tab10', len(counts.index))
                                                 
-                                                # Chuyển đổi index sang list of strings để đảm bảo tương thích với Matplotlib
-                                                x_labels = [str(item) for item in counts.index]
-                                                y_values = counts.values
-                                                
                                                 bars = ax.bar(x_labels, y_values, color=colors.colors) # Sử dụng x_labels đã chuyển đổi
 
+                                                # Thêm số liệu trên các cột biểu đồ đơn
                                                 for bar in bars:
                                                     yval = bar.get_height()
                                                     ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
@@ -489,7 +490,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     # Tạo danh sách màu sắc duy nhất cho mỗi tháng
                                     colors = cm.get_cmap('viridis', len(df['Tháng'].unique()))
                                     
-                                    # Vẽ biểu đồ cột với màu sắc riêng cho từng cột
                                     bars = ax.bar(df['Tháng'], df['Doanh thu'], color=colors.colors)
                                     
                                     # Hiển thị giá trị trên đỉnh mỗi cột với màu đen
@@ -618,6 +618,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 
                                 bars = ax.bar(bo_phan_counts.index, bo_phan_counts.values, color=colors.colors)
                                 
+                                # Thêm số liệu trên các cột biểu đồ
                                 for bar in bars:
                                     yval = bar.get_height()
                                     ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
