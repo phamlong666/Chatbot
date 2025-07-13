@@ -108,7 +108,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
     if st.button("Gửi") or (user_msg and user_msg != st.session_state.last_processed_user_msg):
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
-            st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
+            st.session_session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
             user_msg_lower = user_msg.lower()
 
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
@@ -233,52 +233,58 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 compare_year = None # Ensure compare_year is None if we can't form a valid comparison
 
 
-                        filtered_df_suco = df_suco # Khởi tạo với toàn bộ dataframe
+                        # Initialize df_target_year and df_compare_year as empty DataFrames
+                        df_target_year = pd.DataFrame()
+                        df_compare_year = pd.DataFrame()
+                        filtered_df_suco = pd.DataFrame() # Initialize filtered_df_suco
 
-                        # Kiểm tra sự tồn tại của cột 'Tháng/Năm sự cố'
                         if 'Tháng/Năm sự cố' not in df_suco.columns:
                             st.warning("⚠️ Không tìm thấy cột 'Tháng/Năm sự cố' trong sheet 'Quản lý sự cố'. Không thể lọc theo tháng/năm.")
-                            # Nếu cột bị thiếu, không thể lọc theo tháng/năm, hiển thị toàn bộ dữ liệu hoặc không có gì
-                            if target_month or target_year or compare_year: # Nếu có yêu cầu lọc/so sánh nhưng cột thiếu
-                                st.info("Hiển thị toàn bộ dữ liệu sự cố (nếu có) do không tìm thấy cột lọc tháng/năm.")
-                                # filtered_df_suco vẫn là df_suco ban đầu
+                            if target_year or compare_year:
+                                st.info("Không thể lọc theo năm do thiếu cột 'Tháng/Năm sự cố'.")
+                                filtered_df_suco = pd.DataFrame() 
                             else:
-                                pass # filtered_df_suco đã là df_suco
+                                filtered_df_suco = df_suco 
                         else:
-                            # Thực hiện lọc dựa trên tháng và năm đã trích xuất
-                            if target_year and not compare_year: # Chỉ lọc theo một năm nếu không phải so sánh
-                                # Lọc theo hậu tố năm "/YYYY"
-                                year_suffix = f"/{target_year}"
-                                filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix)]
-                                if target_month: # Nếu có cả tháng và năm
-                                    exact_match_str = f"{int(target_month):02d}/{target_year}"
-                                    filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str) == exact_match_str]
-                            elif target_year and compare_year: # Xử lý so sánh hai năm
-                                # Lọc dữ liệu cho năm mục tiêu
-                                df_target_year = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(f"/{target_year}")]
-                                # Lọc dữ liệu cho năm so sánh
-                                df_compare_year = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(f"/{compare_year}")]
-
-                                # Nếu có tháng cụ thể, lọc thêm theo tháng
+                            # Filter for target year
+                            if target_year:
+                                year_suffix_target = f"/{target_year}"
+                                df_target_year = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix_target)]
                                 if target_month:
-                                    month_prefix = f"{int(target_month):02d}/"
-                                    df_target_year = df_target_year[df_target_year['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
-                                    df_compare_year = df_compare_year[df_compare_year['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
+                                    exact_match_str_target = f"{int(target_month):02d}/{target_year}"
+                                    df_target_year = df_target_year[df_target_year['Tháng/Năm sự cố'].astype(str) == exact_match_str_target]
+                            
+                            # Filter for compare year
+                            if compare_year:
+                                year_suffix_compare = f"/{compare_year}"
+                                df_compare_year = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix_compare)]
+                                if target_month:
+                                    exact_match_str_compare = f"{int(target_month):02d}/{compare_year}"
+                                    df_compare_year = df_compare_year[df_compare_year['Tháng/Năm sự cố'].astype(str) == exact_match_str_compare]
+                            
+                            # Combine for filtered_df_suco
+                            if target_year and compare_year:
+                                # Ensure both dataframes are not empty before assigning 'Năm' and concatenating
+                                # Assign 'Năm' only if the dataframe is not empty, otherwise create an empty df with 'Năm' column
+                                df_target_year_with_year = df_target_year.assign(Năm=target_year) if not df_target_year.empty else pd.DataFrame(columns=df_suco.columns.tolist() + ['Năm'])
+                                df_compare_year_with_year = df_compare_year.assign(Năm=compare_year) if not df_compare_year.empty else pd.DataFrame(columns=df_suco.columns.tolist() + ['Năm'])
                                 
-                                # Gộp dữ liệu của hai năm để hiển thị và vẽ biểu đồ so sánh
-                                filtered_df_suco = pd.concat([df_target_year.assign(Năm=target_year), 
-                                                              df_compare_year.assign(Năm=compare_year)])
-                                # Đảm bảo cột 'Năm' được thêm vào để phân biệt dữ liệu khi vẽ biểu đồ
-
-                            elif target_month and not target_year: # Chỉ lọc theo tháng nếu không có năm
-                                # Lọc theo tiền tố tháng "MM/"
+                                filtered_df_suco = pd.concat([
+                                    df_target_year_with_year, 
+                                    df_compare_year_with_year
+                                ])
+                            elif target_year: # Only target year specified
+                                filtered_df_suco = df_target_year.assign(Năm=target_year)
+                            elif target_month and not target_year: # Only month specified, no year
                                 month_prefix = f"{int(target_month):02d}/"
-                                filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
+                                filtered_df_suco = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
+                                # No 'Năm' column for this case, as it's not year-specific
+                            else: # No specific year/month/comparison requested
+                                filtered_df_suco = df_suco # Show all data
 
 
                         if filtered_df_suco.empty and (target_month or target_year or compare_year):
                             st.warning(f"⚠️ Không tìm thấy sự cố nào {'trong tháng ' + target_month if target_month else ''} {'năm ' + target_year if target_year else ''} {'hoặc năm ' + compare_year if compare_year else ''}.")
-                            # Không hiển thị toàn bộ dataframe nếu có yêu cầu tháng/năm cụ thể mà không tìm thấy
                         
                         if not filtered_df_suco.empty:
                             subheader_text = "Dữ liệu từ sheet 'Quản lý sự cố'"
@@ -311,11 +317,20 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 st.subheader(f"Biểu đồ so sánh số lượng sự cố theo '{col}' giữa năm {target_year} và năm {compare_year}")
                                                 
                                                 # Lấy tất cả các danh mục duy nhất từ cả hai năm để đảm bảo trục x nhất quán
-                                                all_categories = pd.concat([
-                                                    filtered_df_suco[filtered_df_suco['Năm'] == target_year][col],
-                                                    filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col]
-                                                ]).dropna().unique()
-                                                all_categories.sort() # Sắp xếp để đảm bảo thứ tự nhất quán
+                                                categories_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].dropna().unique()
+                                                if categories_target.size == 0:
+                                                    categories_target = []
+
+                                                categories_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].dropna().unique()
+                                                if categories_compare.size == 0:
+                                                    categories_compare = []
+
+                                                all_categories = sorted(list(set(list(categories_target) + list(categories_compare))))
+
+                                                if not all_categories:
+                                                    st.warning(f"⚠️ Không có dữ liệu để so sánh theo '{col}' giữa năm {target_year} và năm {compare_year}.")
+                                                    continue # Skip plotting for this column
+
 
                                                 # Tạo bảng tần suất cho từng năm, reindex để bao gồm tất cả các danh mục
                                                 counts_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].value_counts()
@@ -379,8 +394,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             else:
                                 st.info("Để vẽ biểu đồ sự cố, bạn có thể thêm 'và vẽ biểu đồ theo [tên cột]' vào câu hỏi.")
                         else:
-                            # Nếu filtered_df rỗng sau tất cả các bước lọc và không có thông báo cụ thể
-                            # Điều này xảy ra nếu có yêu cầu tháng/năm cụ thể nhưng không tìm thấy dữ liệu
                             st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
                     else:
                         st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Quản lý sự cố'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
