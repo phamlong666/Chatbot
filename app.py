@@ -326,6 +326,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 fig, ax = plt.subplots(figsize=(12, 7))
                                                 colors = cm.get_cmap('tab10', len(counts.index))
                                                 
+                                                # Đảm bảo x_labels và y_values được định nghĩa ở đây
+                                                x_labels = [str(item) for item in counts.index]
+                                                y_values = counts.values
+
                                                 bars = ax.bar(x_labels, y_values, color=colors.colors) # Sử dụng x_labels đã chuyển đổi
 
                                                 # Thêm số liệu trên các cột biểu đồ đơn
