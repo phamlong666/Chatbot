@@ -421,7 +421,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.dataframe(df_lanhdao) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
                         
                         if not filtered_df_lanhdao.empty:
-                            subheader_parts = ["Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường']
+                            subheader_parts = ["Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'"] # Fixed the unterminated string literal
                             if location_name:
                                 subheader_parts.append(f"cho {location_name.title()}")
                             st.subheader(" ".join(subheader_parts) + ":")
