@@ -108,7 +108,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
     if st.button("Gửi") or (user_msg and user_msg != st.session_state.last_processed_user_msg):
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
-            st.session_session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
+            st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
             user_msg_lower = user_msg.lower()
 
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
