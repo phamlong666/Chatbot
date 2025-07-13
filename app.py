@@ -310,15 +310,25 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                             if compare_year and 'Năm' in filtered_df_suco.columns: # Vẽ biểu đồ so sánh
                                                 st.subheader(f"Biểu đồ so sánh số lượng sự cố theo '{col}' giữa năm {target_year} và năm {compare_year}")
                                                 
-                                                # Tạo bảng tần suất cho từng năm
-                                                counts_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].value_counts().sort_index()
-                                                counts_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].value_counts().sort_index()
+                                                # Lấy tất cả các danh mục duy nhất từ cả hai năm để đảm bảo trục x nhất quán
+                                                all_categories = pd.concat([
+                                                    filtered_df_suco[filtered_df_suco['Năm'] == target_year][col],
+                                                    filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col]
+                                                ]).dropna().unique()
+                                                all_categories.sort() # Sắp xếp để đảm bảo thứ tự nhất quán
+
+                                                # Tạo bảng tần suất cho từng năm, reindex để bao gồm tất cả các danh mục
+                                                counts_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].value_counts()
+                                                counts_target = counts_target.reindex(all_categories, fill_value=0)
+
+                                                counts_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].value_counts()
+                                                counts_compare = counts_compare.reindex(all_categories, fill_value=0)
 
                                                 # Gộp hai Series thành một DataFrame để dễ dàng vẽ biểu đồ nhóm
                                                 combined_counts = pd.DataFrame({
                                                     f'Năm {target_year}': counts_target,
                                                     f'Năm {compare_year}': counts_compare
-                                                }).fillna(0) # Điền 0 cho các giá trị không có trong một năm
+                                                })
 
                                                 fig, ax = plt.subplots(figsize=(14, 8))
                                                 
