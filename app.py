@@ -233,9 +233,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 compare_year = None # Ensure compare_year is None if we can't form a valid comparison
 
 
-                        # Initialize df_target_year and df_compare_year as empty DataFrames
-                        df_target_year = pd.DataFrame()
-                        df_compare_year = pd.DataFrame()
+                        # Initialize df_target_year and df_compare_year as empty DataFrames with appropriate columns
+                        # This prevents issues with pd.concat if one of them ends up empty.
+                        base_columns = df_suco.columns.tolist()
+                        df_target_year_with_year = pd.DataFrame(columns=base_columns + ['Năm'])
+                        df_compare_year_with_year = pd.DataFrame(columns=base_columns + ['Năm'])
+                        
                         filtered_df_suco = pd.DataFrame() # Initialize filtered_df_suco
 
                         if 'Tháng/Năm sự cố' not in df_suco.columns:
@@ -249,38 +252,37 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             # Filter for target year
                             if target_year:
                                 year_suffix_target = f"/{target_year}"
-                                df_target_year = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix_target)]
+                                temp_df_target = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix_target)]
                                 if target_month:
                                     exact_match_str_target = f"{int(target_month):02d}/{target_year}"
-                                    df_target_year = df_target_year[df_target_year['Tháng/Năm sự cố'].astype(str) == exact_match_str_target]
+                                    temp_df_target = temp_df_target[temp_df_target['Tháng/Năm sự cố'].astype(str) == exact_match_str_target]
+                                if not temp_df_target.empty:
+                                    df_target_year_with_year = temp_df_target.assign(Năm=target_year)
                             
                             # Filter for compare year
                             if compare_year:
                                 year_suffix_compare = f"/{compare_year}"
-                                df_compare_year = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix_compare)]
+                                temp_df_compare = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix_compare)]
                                 if target_month:
                                     exact_match_str_compare = f"{int(target_month):02d}/{compare_year}"
-                                    df_compare_year = df_compare_year[df_compare_year['Tháng/Năm sự cố'].astype(str) == exact_match_str_compare]
+                                    temp_df_compare = temp_df_compare[temp_df_compare['Tháng/Năm sự cố'].astype(str) == exact_match_str_compare]
+                                if not temp_df_compare.empty:
+                                    df_compare_year_with_year = temp_df_compare.assign(Năm=compare_year)
                             
                             # Combine for filtered_df_suco
                             if target_year and compare_year:
-                                # Ensure both dataframes are not empty before assigning 'Năm' and concatenating
-                                # Assign 'Năm' only if the dataframe is not empty, otherwise create an empty df with 'Năm' column
-                                df_target_year_with_year = df_target_year.assign(Năm=target_year) if not df_target_year.empty else pd.DataFrame(columns=df_suco.columns.tolist() + ['Năm'])
-                                df_compare_year_with_year = df_compare_year.assign(Năm=compare_year) if not df_compare_year.empty else pd.DataFrame(columns=df_suco.columns.tolist() + ['Năm'])
-                                
                                 filtered_df_suco = pd.concat([
                                     df_target_year_with_year, 
                                     df_compare_year_with_year
-                                ])
+                                ]).reset_index(drop=True) # Reset index after concat
                             elif target_year: # Only target year specified
-                                filtered_df_suco = df_target_year.assign(Năm=target_year)
+                                filtered_df_suco = df_target_year_with_year.reset_index(drop=True)
                             elif target_month and not target_year: # Only month specified, no year
                                 month_prefix = f"{int(target_month):02d}/"
-                                filtered_df_suco = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
+                                filtered_df_suco = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)].reset_index(drop=True)
                                 # No 'Năm' column for this case, as it's not year-specific
                             else: # No specific year/month/comparison requested
-                                filtered_df_suco = df_suco # Show all data
+                                filtered_df_suco = df_suco.copy() # Show all data
 
 
                         if filtered_df_suco.empty and (target_month or target_year or compare_year):
@@ -317,15 +319,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 st.subheader(f"Biểu đồ so sánh số lượng sự cố theo '{col}' giữa năm {target_year} và năm {compare_year}")
                                                 
                                                 # Lấy tất cả các danh mục duy nhất từ cả hai năm để đảm bảo trục x nhất quán
-                                                categories_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].dropna().unique()
-                                                if categories_target.size == 0:
-                                                    categories_target = []
-
-                                                categories_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].dropna().unique()
-                                                if categories_compare.size == 0:
-                                                    categories_compare = []
-
-                                                all_categories = sorted(list(set(list(categories_target) + list(categories_compare))))
+                                                # Ensure categories are lists to prevent TypeError
+                                                categories_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].dropna().unique().tolist()
+                                                categories_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].dropna().unique().tolist()
+                                                
+                                                all_categories = sorted(list(set(categories_target + categories_compare)))
 
                                                 if not all_categories:
                                                     st.warning(f"⚠️ Không có dữ liệu để so sánh theo '{col}' giữa năm {target_year} và năm {compare_year}.")
@@ -423,7 +421,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.dataframe(df_lanhdao) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
                         
                         if not filtered_df_lanhdao.empty:
-                            st.subheader(f"Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường' {'cho ' + location_name.title() if location_name else ''}:")
+                            subheader_parts = ["Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường']
+                            if location_name:
+                                subheader_parts.append(f"cho {location_name.title()}")
+                            st.subheader(" ".join(subheader_parts) + ":")
                             st.dataframe(filtered_df_lanhdao) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
                             
                             # Bạn có thể thêm logic vẽ biểu đồ cho lãnh đạo xã/phường tại đây nếu cần
