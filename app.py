@@ -206,12 +206,31 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             target_year = compare_match.group(1)
                             compare_year = compare_match.group(2)
                             st.info(f"Đang so sánh sự cố năm {target_year} với năm {compare_year}.")
-                        elif re.search(r"so sánh.*?cùng kỳ.*?(\d{4})", user_msg_lower):
-                            # Nếu chỉ nói "cùng kỳ năm 2024" thì năm hiện tại mặc định là 2025
-                            if not target_year: # Nếu chưa có năm mục tiêu từ các pattern khác
-                                target_year = "2025" # Mặc định năm hiện tại là 2025
-                            compare_year = re.search(r"cùng kỳ.*?(\d{4})", user_msg_lower).group(1)
-                            st.info(f"Đang so sánh sự cố năm {target_year} với cùng kỳ năm {compare_year}.")
+                        # NEW: Handle "cùng kỳ" without explicit year
+                        elif "cùng kỳ" in user_msg_lower:
+                            # Try to find a year for "cùng kỳ" explicitly, otherwise default
+                            cung_ky_year_match = re.search(r"cùng kỳ\s+(\d{4})", user_msg_lower)
+                            if cung_ky_year_match:
+                                compare_year = cung_ky_year_match.group(1)
+                            
+                            # If target_year is not set yet, default to current year (e.g., 2025)
+                            if not target_year:
+                                import datetime
+                                target_year = str(datetime.datetime.now().year)
+                            
+                            # If compare_year was not explicitly given, derive it from target_year
+                            if not compare_year:
+                                try:
+                                    compare_year = str(int(target_year) - 1)
+                                except (ValueError, TypeError):
+                                    st.warning("⚠️ Không thể xác định năm so sánh cho 'cùng kỳ'. Vui lòng cung cấp năm cụ thể hoặc đảm bảo năm mục tiêu hợp lệ.")
+                                    compare_year = None # Reset to None if calculation fails
+                            
+                            if target_year and compare_year:
+                                st.info(f"Đang so sánh sự cố năm {target_year} với cùng kỳ năm {compare_year}.")
+                            else:
+                                st.warning("⚠️ Không đủ thông tin để thực hiện so sánh 'cùng kỳ'. Vui lòng chỉ định năm hoặc đảm bảo cú pháp hợp lệ.")
+                                compare_year = None # Ensure compare_year is None if we can't form a valid comparison
 
 
                         filtered_df_suco = df_suco # Khởi tạo với toàn bộ dataframe
