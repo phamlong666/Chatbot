@@ -111,7 +111,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.current_qa_display = ""
 
     # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
-    input_col, send_button_col, clear_button_col = st.columns([7, 1, 1])
+    # Đã thay đổi tỷ lệ cột để tăng độ rộng của ô nhập liệu
+    input_col, send_button_col, clear_button_col = st.columns([8, 1, 1]) # Tăng từ 7 lên 8
 
     with input_col:
         user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input", value=st.session_state.user_input_value)
