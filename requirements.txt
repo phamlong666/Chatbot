@@ -6,3 +6,4 @@ pandas
 matplotlib
 fuzzywuzzy
 python-Levenshtein
+pip install easyocr gspread oauth2client
