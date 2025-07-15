@@ -107,6 +107,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.qa_index = 0
     if 'user_input_value' not in st.session_state:
         st.session_state.user_input_value = ""
+    if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
+        st.session_state.current_qa_display = ""
 
     # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
     input_col, send_button_col, clear_button_col = st.columns([7, 1, 1])
@@ -123,6 +125,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.session_state.qa_results = []
             st.session_state.qa_index = 0
             st.session_state.last_processed_user_msg = ""
+            st.session_state.current_qa_display = "" # Clear displayed QA as well
             st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
@@ -132,9 +135,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.session_state.user_input_value = user_msg # Cập nhật giá trị input để giữ lại sau khi gửi
             user_msg_lower = user_msg.lower()
 
-            # Reset QA results for a new query
+            # Reset QA results and display for a new query
             st.session_state.qa_results = []
             st.session_state.qa_index = 0
+            st.session_state.current_qa_display = "" # Clear previous display
 
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
             found_qa_answer = False
@@ -185,9 +189,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     found_qa_answer = False # No matches found
 
             if found_qa_answer:
-                # Display the first result
+                # Set the initial display content
                 if st.session_state.qa_results:
-                    st.write(st.session_state.qa_results[st.session_state.qa_index])
+                    st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
                     if len(st.session_state.qa_results) > 1:
                         st.session_state.qa_index += 1 # Move to the next index for "Tìm tiếp"
                 pass # Đã tìm thấy câu trả lời từ QA sheet, không làm gì thêm
@@ -703,16 +707,21 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     {"role": "user", "content": user_msg}
                                 ]
                             )
-                            st.write(response.choices[0].message.content)
+                            st.session_state.current_qa_display = response.choices[0].message.content # Display AI response here
                         except Exception as e:
                             st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
                     else:
                         st.warning("Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
     
+    # Always display the current QA answer if available
+    if st.session_state.current_qa_display:
+        st.info("Câu trả lời:")
+        st.write(st.session_state.current_qa_display)
+
     # Nút "Tìm tiếp" chỉ hiển thị khi có nhiều hơn một kết quả QA và chưa hiển thị hết
     if st.session_state.qa_results and st.session_state.qa_index < len(st.session_state.qa_results):
         if st.button("Tìm tiếp"):
-            st.write(st.session_state.qa_results[st.session_state.qa_index])
+            st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
             st.session_state.qa_index += 1
             st.rerun() # Rerun để hiển thị kết quả tiếp theo
     elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
