@@ -728,3 +728,28 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.rerun() # Rerun để hiển thị kết quả tiếp theo
     elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
         st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
+import easyocr
+
+# Hàm OCR: đọc text từ ảnh
+def extract_text_from_image(image_path):
+    reader = easyocr.Reader(['vi'])
+    result = reader.readtext(image_path, detail=0)
+    text = " ".join(result)
+    return text
+
+# --- Đặt đoạn này vào cuối file app.py ---
+st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
+uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
+
+if uploaded_image is not None:
+    temp_image_path = Path("temp_uploaded_image.jpg")
+    with open(temp_image_path, "wb") as f:
+        f.write(uploaded_image.getbuffer())
+
+    extracted_text = extract_text_from_image(str(temp_image_path))
+    st.success("✅ Đã quét được nội dung từ ảnh:")
+    st.write(extracted_text)
+
+    st.session_state.user_input_value = extracted_text
+    st.rerun()
+
