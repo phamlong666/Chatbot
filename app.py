@@ -9,6 +9,7 @@ import re # Thêm thư thư viện regex để trích xuất tên sheet
 import os # Import os for path handling
 from pathlib import Path # Import Path for robust path handling
 from fuzzywuzzy import fuzz # Import fuzzywuzzy để so sánh chuỗi
+import easyocr # Import easyocr cho chức năng OCR
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -33,16 +34,14 @@ else:
     st.error("❌ Không tìm thấy google_service_account trong secrets. Vui lòng cấu hình.")
     st.stop() # Dừng ứng dụng nếu không có secrets
 
-# Lấy API key OpenAI từ secrets (ĐÃ SỬA ĐỂ GÁN TRỰC TIẾP)
-openai_api_key_direct = "sk-proj-3SkFtE-6W2yUYFL2wj3kxlD6epI7ZIeDaInlwYfjwLjBzbr4jC02GkQEqZ1CwlAxRIrv7ivq0T3BlbkFJEQxDvv9kGtpJ5an9AZGMJpftDxMx-u21snU1qiqLitRmqzyakhkRKO366_xZqczo4Ghw3JoeoA"
-
-
-if openai_api_key_direct:
-    client_ai = OpenAI(api_key=openai_api_key_direct)
+# Lấy API key OpenAI từ secrets
+if "openai_api_key" in st.secrets:
+    openai_api_key = st.secrets["openai_api_key"]
+    client_ai = OpenAI(api_key=openai_api_key)
     st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
-    st.warning("Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
+    st.warning("Chưa cấu hình API key OpenAI. Vui lòng thêm 'openai_api_key' vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
@@ -95,7 +94,7 @@ with header_col2:
 # Phần nội dung chính của chatbot (ô nhập liệu, nút, kết quả) sẽ được căn giữa
 # Tạo 3 cột: cột trái rỗng (để tạo khoảng trống), cột giữa chứa nội dung chatbot, cột phải rỗng
 # Đã thay đổi tỷ lệ từ [1, 3, 1] sang [1, 5, 1] để mở rộng không gian chat
-col_left_spacer, col_main_content, col_right_spacer = st.columns([1, 5, 1]) 
+col_left_spacer, col_main_content, col_right_spacer = st.columns([1, 5, 1])
 
 with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột này
     # Khởi tạo session state để lưu trữ tin nhắn cuối cùng đã xử lý
@@ -117,10 +116,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     with input_col:
         # Thay đổi từ st.text_input sang st.text_area và đặt chiều cao
         user_msg = st.text_area("Bạn muốn hỏi gì?", key="user_input", value=st.session_state.user_input_value, height=150)
-    
+
     with send_button_col:
         send_button_pressed = st.button("Gửi")
-    
+
     with clear_button_col:
         if st.button("Xóa"):
             st.session_state.user_input_value = ""
@@ -144,41 +143,41 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
             found_qa_answer = False
-            
+
             # NEW LOGIC: Kiểm tra cú pháp "An toàn:..." để yêu cầu khớp chính xác 100% sau khi chuẩn hóa
             if user_msg_lower.startswith("an toàn:"):
                 # Trích xuất và chuẩn hóa phần câu hỏi thực tế sau "An toàn:"
                 specific_question_for_safety = normalize_text(user_msg_lower.replace("an toàn:", "").strip())
-                
+
                 if not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
                     exact_match_found_for_safety = False
                     for index, row in qa_df.iterrows():
                         question_from_sheet_normalized = normalize_text(str(row['Câu hỏi']))
-                        
+
                         # So sánh chính xác 100% sau khi đã chuẩn hóa
                         if specific_question_for_safety == question_from_sheet_normalized:
                             st.session_state.qa_results.append(str(row['Câu trả lời']))
                             exact_match_found_for_safety = True
                             found_qa_answer = True
                             # Không break để vẫn có thể tìm các câu trả lời khác nếu có nhiều bản ghi giống hệt
-                    
+
                     if not exact_match_found_for_safety:
                         st.warning("⚠️ Không tìm thấy câu trả lời chính xác 100% cho yêu cầu 'An toàn:' của bạn. Vui lòng đảm bảo câu hỏi khớp hoàn toàn (có thể bỏ qua dấu cách thừa).")
                         found_qa_answer = True # Đánh dấu là đã xử lý nhánh này, dù không tìm thấy khớp đủ cao
-            
+
             # Logic hiện có cho các câu hỏi chung (khớp tương đối)
             # Chỉ chạy nếu chưa tìm thấy câu trả lời từ nhánh "An toàn:"
             if not found_qa_answer and not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
-                
+
                 # Collect all relevant answers with their scores
                 all_matches = []
                 for index, row in qa_df.iterrows():
                     question_from_sheet = str(row['Câu hỏi']).lower()
                     score = fuzz.ratio(user_msg_lower, question_from_sheet)
-                    
+
                     if score >= 60: # Threshold for similarity
                         all_matches.append({'question': str(row['Câu hỏi']), 'answer': str(row['Câu trả lời']), 'score': score})
-                
+
                 # Sort matches by score in descending order
                 all_matches.sort(key=lambda x: x['score'], reverse=True)
 
@@ -221,7 +220,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     records = get_sheet_data("Quản lý sự cố") # Tên sheet chính xác từ hình ảnh
                     if records:
                         df_suco = pd.DataFrame(records)
-                        
+
                         target_year = None
                         target_month = None
                         compare_year = None # Biến mới để lưu năm so sánh
@@ -250,12 +249,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             cung_ky_year_match = re.search(r"cùng kỳ\s+(\d{4})", user_msg_lower)
                             if cung_ky_year_match:
                                 compare_year = cung_ky_year_match.group(1)
-                            
+
                             # If target_year is not set yet, default to current year (e.g., 2025)
                             if not target_year:
                                 import datetime
                                 target_year = str(datetime.datetime.now().year)
-                            
+
                             # If compare_year was not explicitly given, derive it from target_year
                             if not compare_year:
                                 try:
@@ -263,7 +262,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 except (ValueError, TypeError):
                                     st.warning("⚠️ Không thể xác định năm so sánh cho 'cùng kỳ'. Vui lòng cung cấp năm cụ thể hoặc đảm bảo năm mục tiêu hợp lệ.")
                                     compare_year = None # Reset to None if calculation fails
-                            
+
                             if target_year and compare_year:
                                 st.info(f"Đang so sánh sự cố năm {target_year} với cùng kỳ năm {compare_year}.")
                             else:
@@ -302,9 +301,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     month_prefix = f"{int(target_month):02d}/"
                                     df_target_year = df_target_year[df_target_year['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
                                     df_compare_year = df_compare_year[df_compare_year['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
-                                
+
                                 # Gộp dữ liệu của hai năm để hiển thị và vẽ biểu đồ so sánh
-                                filtered_df_suco = pd.concat([df_target_year.assign(Năm=target_year), 
+                                filtered_df_suco = pd.concat([df_target_year.assign(Năm=target_year),
                                                               df_compare_year.assign(Năm=compare_year)])
                                 # Đảm bảo cột 'Năm' được thêm vào để phân biệt dữ liệu khi vẽ biểu đồ
 
@@ -317,7 +316,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         if filtered_df_suco.empty and (target_month or target_year or compare_year):
                             st.warning(f"⚠️ Không tìm thấy sự cố nào {'trong tháng ' + target_month if target_month else ''} {'năm ' + target_year if target_year else ''} {'hoặc năm ' + compare_year if compare_year else ''}.")
                             # Không hiển thị toàn bộ dataframe nếu có yêu cầu tháng/năm cụ thể mà không tìm thấy
-                        
+
                         if not filtered_df_suco.empty:
                             subheader_text = "Dữ liệu từ sheet 'Quản lý sự cố'"
                             if target_month and target_year and not compare_year:
@@ -328,7 +327,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 subheader_text += f" tháng {int(target_month):02d}"
                             elif target_year and compare_year:
                                 subheader_text += f" so sánh năm {target_year} và năm {compare_year}"
-                            
+
                             st.subheader(subheader_text + ":")
                             st.dataframe(filtered_df_suco) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
 
@@ -341,13 +340,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     chart_columns.append('Tính chất')
                                 if "loại sự cố" in user_msg_lower and 'Loại sự cố' in filtered_df_suco.columns:
                                     chart_columns.append('Loại sự cố')
-                                
+
                                 if chart_columns:
                                     for col in chart_columns:
                                         if not filtered_df_suco[col].empty and not filtered_df_suco[col].isnull().all(): # Kiểm tra dữ liệu không rỗng hoặc toàn bộ NaN
                                             if compare_year and 'Năm' in filtered_df_suco.columns: # Vẽ biểu đồ so sánh
                                                 st.subheader(f"Biểu đồ so sánh số lượng sự cố theo '{col}' giữa năm {target_year} và năm {compare_year}")
-                                                
+
                                                 # Tạo bảng tần suất cho từng năm
                                                 counts_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].value_counts().sort_index()
                                                 counts_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].value_counts().sort_index()
@@ -359,7 +358,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 }).fillna(0) # Điền 0 cho các giá trị không có trong một năm
 
                                                 fig, ax = plt.subplots(figsize=(14, 8))
-                                                
+
                                                 # Vẽ biểu đồ cột nhóm
                                                 bars = combined_counts.plot(kind='bar', ax=ax, width=0.8, colormap='viridis')
 
@@ -376,13 +375,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                             else: # Vẽ biểu đồ cho một năm như bình thường
                                                 st.subheader(f"Biểu đồ số lượng sự cố theo '{col}'")
-                                                
+
                                                 # Đếm số lượng các giá trị duy nhất trong cột
                                                 counts = filtered_df_suco[col].value_counts()
 
                                                 fig, ax = plt.subplots(figsize=(12, 7))
                                                 colors = cm.get_cmap('tab10', len(counts.index))
-                                                
+
                                                 # Đảm bảo x_labels và y_values được định nghĩa ở đây
                                                 x_labels = [str(item) for item in counts.index]
                                                 y_values = counts.values
@@ -418,29 +417,29 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     records = get_sheet_data("Danh sách lãnh đạo xã, phường") # Tên sheet chính xác từ hình ảnh
                     if records:
                         df_lanhdao = pd.DataFrame(records)
-                        
+
                         location_name = None
                         match_xa_phuong = re.search(r"(xã|phường)\s+([a-zA-Z0-9\s]+)", user_msg_lower)
                         if match_xa_phuong:
                             location_name = match_xa_phuong.group(2).strip()
                         elif "định hóa" in user_msg_lower: # Ưu tiên "Định Hóa" nếu được nhắc đến cụ thể
                             location_name = "định hóa"
-                        
+
                         filtered_df_lanhdao = df_lanhdao
                         # Đảm bảo cột 'Thuộc xã/phường' tồn tại và lọc dữ liệu
                         if location_name and 'Thuộc xã/phường' in df_lanhdao.columns:
                             # Sử dụng str.contains để tìm kiếm linh hoạt hơn (không cần khớp chính xác)
                             # asType(str) để đảm bảo cột là kiểu chuỗi trước khi dùng str.lower()
                             filtered_df_lanhdao = df_lanhdao[df_lanhdao['Thuộc xã/phường'].astype(str).str.lower().str.contains(location_name.lower(), na=False)]
-                            
+
                             if filtered_df_lanhdao.empty:
                                 st.warning(f"⚠️ Không tìm thấy lãnh đạo nào cho '{location_name.title()}'.")
                                 st.dataframe(df_lanhdao) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
-                        
+
                         if not filtered_df_lanhdao.empty:
                             st.subheader(f"Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường' {'cho ' + location_name.title() if location_name else ''}:")
                             st.dataframe(filtered_df_lanhdao) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
-                            
+
                             # Bạn có thể thêm logic vẽ biểu đồ cho lãnh đạo xã/phường tại đây nếu cần
                             # Ví dụ: if "biểu đồ" in user_msg_lower: ...
                         else:
@@ -453,10 +452,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     records = get_sheet_data("Tên các TBA")
                     if records:
                         df_tba = pd.DataFrame(records)
-                        
+
                         line_name = None
                         power_capacity = None # Biến mới để lưu công suất
-                        
+
                         # Trích xuất tên đường dây
                         line_match = re.search(r"đường dây\s+([a-zA-Z0-9\.]+)", user_msg_lower)
                         if line_match:
@@ -491,30 +490,30 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 filtered_df_tba['Công suất'].astype(str).str.extract(r'(\d+)')[0], # Lấy cột đầu tiên của DataFrame được trích xuất
                                 errors='coerce' # Chuyển đổi các giá trị không phải số thành NaN
                             )
-                            
+
                             # Loại bỏ các hàng có giá trị NaN trong cột 'Công suất_numeric'
                             filtered_df_tba = filtered_df_tba.dropna(subset=['Công suất_numeric'])
 
                             # Lọc các hàng có công suất khớp
                             filtered_df_tba = filtered_df_tba[filtered_df_tba['Công suất_numeric'] == power_capacity]
-                            
+
                             # Xóa cột tạm thời
                             filtered_df_tba = filtered_df_tba.drop(columns=['Công suất_numeric'])
 
                             if filtered_df_tba.empty:
                                 st.warning(f"⚠️ Không tìm thấy TBA nào có công suất {power_capacity}KVA.")
                                 # filtered_df_tba vẫn rỗng ở đây
-                        
+
                         if not filtered_df_tba.empty:
                             subheader_parts = ["Dữ liệu từ sheet 'Tên các TBA'"]
                             if line_name:
                                 subheader_parts.append(f"cho đường dây {line_name}")
                             if power_capacity is not None:
                                 subheader_parts.append(f"có công suất {power_capacity}KVA")
-                            
+
                             st.subheader(" ".join(subheader_parts) + ":")
                             st.dataframe(filtered_df_tba) # Hiển thị dữ liệu đã lọc
-                            
+
                             # Bạn có thể thêm logic vẽ biểu đồ cho TBA tại đây nếu cần
                             # Ví dụ: if "biểu đồ" in user_msg_lower: ...
                         else:
@@ -546,13 +545,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     df = df.dropna(subset=['Doanh thu']) # Loại bỏ các hàng có giá trị NaN sau chuyển đổi
 
                                     st.subheader("Biểu đồ Doanh thu theo tháng")
-                                    fig, ax = plt.subplots(figsize=(12, 7)) 
-                                    
+                                    fig, ax = plt.subplots(figsize=(12, 7))
+
                                     # Tạo danh sách màu sắc duy nhất cho mỗi tháng
                                     colors = cm.get_cmap('viridis', len(df['Tháng'].unique()))
-                                    
+
                                     bars = ax.bar(df['Tháng'], df['Doanh thu'], color=colors.colors)
-                                    
+
                                     # Hiển thị giá trị trên đỉnh mỗi cột với màu đen
                                     for bar in bars:
                                         yval = bar.get_height()
@@ -625,7 +624,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     df_to_process = temp_filtered_by_name
                             else:
                                 df_to_process = temp_filtered_by_name
-                        
+
                         if bo_phan and 'Bộ phận công tác' in df_to_process.columns and not df_to_process.empty: # Apply department filter only if df_to_process is not already empty
                             initial_filtered_count = len(df_to_process)
                             df_to_process = df_to_process[df_to_process['Bộ phận công tác'].str.lower().str.contains(bo_phan.lower(), na=False)]
@@ -673,12 +672,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.subheader("Biểu đồ số lượng nhân viên theo Bộ phận công tác")
                                 bo_phan_counts = df_to_show['Bộ phận công tác'].value_counts()
 
-                                fig, ax = plt.subplots(figsize=(12, 7)) 
-                                
+                                fig, ax = plt.subplots(figsize=(12, 7))
+
                                 colors = cm.get_cmap('tab10', len(bo_phan_counts.index))
-                                
+
                                 bars = ax.bar(bo_phan_counts.index, bo_phan_counts.values, color=colors.colors)
-                                
+
                                 # Thêm số liệu trên các cột biểu đồ
                                 for bar in bars:
                                     yval = bar.get_height()
@@ -714,7 +713,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
                     else:
                         st.warning("Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
-    
+
     # Always display the current QA answer if available
     if st.session_state.current_qa_display:
         st.info("Câu trả lời:")
@@ -728,7 +727,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.rerun() # Rerun để hiển thị kết quả tiếp theo
     elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
         st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
-import easyocr
 
 # Hàm OCR: đọc text từ ảnh
 def extract_text_from_image(image_path):
@@ -752,4 +750,3 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
-
