@@ -728,6 +728,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
         st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
 
+import easyocr
+
 # Hàm OCR: đọc text từ ảnh
 def extract_text_from_image(image_path):
     reader = easyocr.Reader(['vi'])
@@ -736,6 +738,9 @@ def extract_text_from_image(image_path):
     return text
 
 # --- Đặt đoạn này vào cuối file app.py ---
+import streamlit as st
+from pathlib import Path
+
 st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
 uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
 
