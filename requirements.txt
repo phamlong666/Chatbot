@@ -6,8 +6,6 @@ pandas
 matplotlib
 fuzzywuzzy
 python-Levenshtein
-pip install easyocr gspread oauth2client
-python-Levenshtein # Cần cho fuzzywuzzy để có hiệu suất tốt nhất
 easyocr
 torch
 torchvision
