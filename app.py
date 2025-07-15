@@ -112,7 +112,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
     # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
     # Đã thay đổi tỷ lệ cột để tăng độ rộng của ô nhập liệu
-    input_col, send_button_col, clear_button_col = st.columns([8, 1, 1]) # Tăng từ 7 lên 8
+    input_col, send_button_col, clear_button_col = st.columns([10, 1, 1]) # Tăng từ 8 lên 10
 
     with input_col:
         user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input", value=st.session_state.user_input_value)
@@ -393,7 +393,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                     yval = bar.get_height()
                                                     ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                                ax.set_xlabel(col)
+                                                ax.set_xlabel("Bộ phận công tác")
                                                 ax.set_ylabel("Số lượng sự cố")
                                                 ax.set_title(f"Biểu đồ số lượng sự cố theo {col}")
                                                 plt.xticks(rotation=45, ha='right')
