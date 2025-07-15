@@ -115,7 +115,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     input_col, send_button_col, clear_button_col = st.columns([10, 1, 1]) # Tăng từ 8 lên 10
 
     with input_col:
-        user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input", value=st.session_state.user_input_value)
+        # Thay đổi từ st.text_input sang st.text_area và đặt chiều cao
+        user_msg = st.text_area("Bạn muốn hỏi gì?", key="user_input", value=st.session_state.user_input_value, height=150)
     
     with send_button_col:
         send_button_pressed = st.button("Gửi")
