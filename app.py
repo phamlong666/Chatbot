@@ -10,6 +10,7 @@ import os # Import os for path handling
 from pathlib import Path # Import Path for robust path handling
 from fuzzywuzzy import fuzz # Import fuzzywuzzy để so sánh chuỗi
 import easyocr # Import easyocr cho chức năng OCR
+import datetime # Import datetime để lấy năm hiện tại
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -130,7 +131,14 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
-    if send_button_pressed or (user_msg and user_msg != st.session_state.last_processed_user_msg):
+    # Để xử lý Enter trong text_area, người dùng vẫn cần nhấn nút Gửi.
+    # Logic hiện tại đã kiểm tra user_msg != st.session_state.last_processed_user_msg
+    # nhưng vấn đề là st.text_area không tự động kích hoạt lại script khi chỉ nhấn Enter
+    # trong ô nhập liệu. Người dùng phải nhấn nút "Gửi".
+    # Giải pháp tốt nhất cho 'Enter' trong text_area là dùng st.form. Tuy nhiên, nếu không dùng form,
+    # người dùng cần nhấn button. Tôi sẽ không thay đổi hành vi Enter trong text_area
+    # vì nó yêu cầu thay đổi kiến trúc đáng kể (dùng st.form).
+    if send_button_pressed or (user_msg and user_msg != st.session_state.last_processed_user_msg and st.session_state.user_input_value != user_msg):
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
             st.session_state.user_input_value = user_msg # Cập nhật giá trị input để giữ lại sau khi gửi
@@ -252,7 +260,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                             # If target_year is not set yet, default to current year (e.g., 2025)
                             if not target_year:
-                                import datetime
+                                # import datetime
                                 target_year = str(datetime.datetime.now().year)
 
                             # If compare_year was not explicitly given, derive it from target_year
@@ -283,24 +291,27 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 pass # filtered_df_suco đã là df_suco
                         else:
                             # Thực hiện lọc dựa trên tháng và năm đã trích xuất
+                            # Chuẩn hóa cột 'Tháng/Năm sự cố' để đảm bảo kiểu dữ liệu chuỗi và xử lý NaN
+                            df_suco['Tháng/Năm sự cố'] = df_suco['Tháng/Năm sự cố'].astype(str).fillna('')
+
                             if target_year and not compare_year: # Chỉ lọc theo một năm nếu không phải so sánh
                                 # Lọc theo hậu tố năm "/YYYY"
                                 year_suffix = f"/{target_year}"
-                                filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(year_suffix)]
+                                filtered_df_suco = df_suco[df_suco['Tháng/Năm sự cố'].str.endswith(year_suffix)]
                                 if target_month: # Nếu có cả tháng và năm
                                     exact_match_str = f"{int(target_month):02d}/{target_year}"
-                                    filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str) == exact_match_str]
+                                    filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'] == exact_match_str]
                             elif target_year and compare_year: # Xử lý so sánh hai năm
                                 # Lọc dữ liệu cho năm mục tiêu
-                                df_target_year = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(f"/{target_year}")]
+                                df_target_year = df_suco[df_suco['Tháng/Năm sự cố'].str.endswith(f"/{target_year}")].copy()
                                 # Lọc dữ liệu cho năm so sánh
-                                df_compare_year = df_suco[df_suco['Tháng/Năm sự cố'].astype(str).str.endswith(f"/{compare_year}")]
+                                df_compare_year = df_suco[df_suco['Tháng/Năm sự cố'].str.endswith(f"/{compare_year}")].copy()
 
                                 # Nếu có tháng cụ thể, lọc thêm theo tháng
                                 if target_month:
                                     month_prefix = f"{int(target_month):02d}/"
-                                    df_target_year = df_target_year[df_target_year['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
-                                    df_compare_year = df_compare_year[df_compare_year['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
+                                    df_target_year = df_target_year[df_target_year['Tháng/Năm sự cố'].str.startswith(month_prefix)]
+                                    df_compare_year = df_compare_year[df_compare_year['Tháng/Năm sự cố'].str.startswith(month_prefix)]
 
                                 # Gộp dữ liệu của hai năm để hiển thị và vẽ biểu đồ so sánh
                                 filtered_df_suco = pd.concat([df_target_year.assign(Năm=target_year),
@@ -310,7 +321,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             elif target_month and not target_year: # Chỉ lọc theo tháng nếu không có năm
                                 # Lọc theo tiền tố tháng "MM/"
                                 month_prefix = f"{int(target_month):02d}/"
-                                filtered_df_suco = filtered_df_suco[filtered_df_suco['Tháng/Năm sự cố'].astype(str).str.startswith(month_prefix)]
+                                filtered_df_suco = df_suco[df_suco['Tháng/Năm sự cố'].str.startswith(month_prefix)]
 
 
                         if filtered_df_suco.empty and (target_month or target_year or compare_year):
@@ -343,13 +354,17 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                 if chart_columns:
                                     for col in chart_columns:
-                                        if not filtered_df_suco[col].empty and not filtered_df_suco[col].isnull().all(): # Kiểm tra dữ liệu không rỗng hoặc toàn bộ NaN
+                                        # Fix: Chuyển đổi cột thành chuỗi và điền NaN để tránh lỗi TypeError khi value_counts() hoặc sort_index()
+                                        if col in filtered_df_suco.columns and not filtered_df_suco[col].empty:
+                                            # Đảm bảo cột là chuỗi và điền giá trị rỗng cho NaN
+                                            col_data = filtered_df_suco[col].astype(str).fillna('Không xác định')
+
                                             if compare_year and 'Năm' in filtered_df_suco.columns: # Vẽ biểu đồ so sánh
                                                 st.subheader(f"Biểu đồ so sánh số lượng sự cố theo '{col}' giữa năm {target_year} và năm {compare_year}")
 
-                                                # Tạo bảng tần suất cho từng năm
-                                                counts_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].value_counts().sort_index()
-                                                counts_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].value_counts().sort_index()
+                                                # Tạo bảng tần suất cho từng năm, xử lý NaN trước khi value_counts()
+                                                counts_target = filtered_df_suco[filtered_df_suco['Năm'] == target_year][col].astype(str).fillna('Không xác định').value_counts().sort_index()
+                                                counts_compare = filtered_df_suco[filtered_df_suco['Năm'] == compare_year][col].astype(str).fillna('Không xác định').value_counts().sort_index()
 
                                                 # Gộp hai Series thành một DataFrame để dễ dàng vẽ biểu đồ nhóm
                                                 combined_counts = pd.DataFrame({
@@ -376,8 +391,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                             else: # Vẽ biểu đồ cho một năm như bình thường
                                                 st.subheader(f"Biểu đồ số lượng sự cố theo '{col}'")
 
-                                                # Đếm số lượng các giá trị duy nhất trong cột
-                                                counts = filtered_df_suco[col].value_counts()
+                                                # Đếm số lượng các giá trị duy nhất trong cột, xử lý NaN trước khi value_counts()
+                                                counts = col_data.value_counts()
 
                                                 fig, ax = plt.subplots(figsize=(12, 7))
                                                 colors = cm.get_cmap('tab10', len(counts.index))
@@ -393,14 +408,14 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                     yval = bar.get_height()
                                                     ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                                ax.set_xlabel("Bộ phận công tác")
+                                                ax.set_xlabel("Bộ phận công tác" if col == 'Tính chất' else col) # Điều chỉnh nhãn x nếu cần
                                                 ax.set_ylabel("Số lượng sự cố")
                                                 ax.set_title(f"Biểu đồ số lượng sự cố theo {col}")
                                                 plt.xticks(rotation=45, ha='right')
                                                 plt.tight_layout()
                                                 st.pyplot(fig, dpi=400)
                                         else:
-                                            st.warning(f"⚠️ Cột '{col}' không có dữ liệu để vẽ biểu đồ.")
+                                            st.warning(f"⚠️ Cột '{col}' không có dữ liệu để vẽ biểu đồ hoặc không tồn tại.")
                                 else:
                                     st.warning("⚠️ Vui lòng chỉ định cột bạn muốn vẽ biểu đồ (ví dụ: 'đường dây', 'tính chất', 'loại sự cố').")
                             else:
@@ -670,7 +685,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         if ("biểu đồ" in user_msg_lower or "báo cáo" in user_msg_lower) and not df_to_show.empty:
                             if 'Bộ phận công tác' in df_to_show.columns and not df_to_show['Bộ phận công tác'].empty:
                                 st.subheader("Biểu đồ số lượng nhân viên theo Bộ phận công tác")
-                                bo_phan_counts = df_to_show['Bộ phận công tác'].value_counts()
+                                # Đảm bảo cột là chuỗi và điền giá trị rỗng cho NaN trước khi value_counts()
+                                bo_phan_counts = df_to_show['Bộ phận công tác'].astype(str).fillna('Không xác định').value_counts()
 
                                 fig, ax = plt.subplots(figsize=(12, 7))
 
@@ -727,8 +743,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.rerun() # Rerun để hiển thị kết quả tiếp theo
     elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
         st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
-
-import easyocr
 
 # Hàm OCR: đọc text từ ảnh
 def extract_text_from_image(image_path):
