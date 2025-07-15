@@ -42,7 +42,6 @@ if openai_api_key_direct:
     st.success("✅ Đã kết nối OpenAI API key.")
 else:
     client_ai = None
-    # Đã sửa lỗi: Xóa ký tự emoji '⚠️' vì gây lỗi SyntaxError
     st.warning("Chưa cấu hình API key OpenAI. Vui lòng thêm vào st.secrets.")
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
@@ -102,14 +101,40 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Khởi tạo session state để lưu trữ tin nhắn cuối cùng đã xử lý
     if 'last_processed_user_msg' not in st.session_state:
         st.session_state.last_processed_user_msg = ""
+    if 'qa_results' not in st.session_state:
+        st.session_state.qa_results = []
+    if 'qa_index' not in st.session_state:
+        st.session_state.qa_index = 0
+    if 'user_input_value' not in st.session_state:
+        st.session_state.user_input_value = ""
 
-    user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input")
+    # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
+    input_col, send_button_col, clear_button_col = st.columns([7, 1, 1])
+
+    with input_col:
+        user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input", value=st.session_state.user_input_value)
+    
+    with send_button_col:
+        send_button_pressed = st.button("Gửi")
+    
+    with clear_button_col:
+        if st.button("Xóa"):
+            st.session_state.user_input_value = ""
+            st.session_state.qa_results = []
+            st.session_state.qa_index = 0
+            st.session_state.last_processed_user_msg = ""
+            st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
-    if st.button("Gửi") or (user_msg and user_msg != st.session_state.last_processed_user_msg):
+    if send_button_pressed or (user_msg and user_msg != st.session_state.last_processed_user_msg):
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
+            st.session_state.user_input_value = user_msg # Cập nhật giá trị input để giữ lại sau khi gửi
             user_msg_lower = user_msg.lower()
+
+            # Reset QA results for a new query
+            st.session_state.qa_results = []
+            st.session_state.qa_index = 0
 
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
             found_qa_answer = False
@@ -126,10 +151,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         
                         # So sánh chính xác 100% sau khi đã chuẩn hóa
                         if specific_question_for_safety == question_from_sheet_normalized:
-                            st.write(str(row['Câu trả lời']))
+                            st.session_state.qa_results.append(str(row['Câu trả lời']))
                             exact_match_found_for_safety = True
                             found_qa_answer = True
-                            break # Đã tìm thấy khớp chính xác, dừng tìm kiếm
+                            # Không break để vẫn có thể tìm các câu trả lời khác nếu có nhiều bản ghi giống hệt
                     
                     if not exact_match_found_for_safety:
                         st.warning("⚠️ Không tìm thấy câu trả lời chính xác 100% cho yêu cầu 'An toàn:' của bạn. Vui lòng đảm bảo câu hỏi khớp hoàn toàn (có thể bỏ qua dấu cách thừa).")
@@ -138,26 +163,33 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             # Logic hiện có cho các câu hỏi chung (khớp tương đối)
             # Chỉ chạy nếu chưa tìm thấy câu trả lời từ nhánh "An toàn:"
             if not found_qa_answer and not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
-                best_match_score = 0
-                best_answer = ""
                 
+                # Collect all relevant answers with their scores
+                all_matches = []
                 for index, row in qa_df.iterrows():
                     question_from_sheet = str(row['Câu hỏi']).lower()
                     score = fuzz.ratio(user_msg_lower, question_from_sheet)
                     
-                    if score > best_match_score:
-                        best_match_score = score
-                        best_answer = str(row['Câu trả lời'])
+                    if score >= 60: # Threshold for similarity
+                        all_matches.append({'question': str(row['Câu hỏi']), 'answer': str(row['Câu trả lời']), 'score': score})
                 
-                if best_match_score >= 80: # Nếu độ tương đồng từ 80% trở lên
-                    st.write(best_answer)
-                    found_qa_answer = True
-                elif best_match_score >= 60: # Nếu độ tương đồng từ 60% đến dưới 80%
-                    st.info(f"Có vẻ bạn đang hỏi về: '{qa_df.loc[qa_df['Câu trả lời'] == best_answer, 'Câu hỏi'].iloc[0]}'? Câu trả lời là: {best_answer}")
-                    found_qa_answer = True
+                # Sort matches by score in descending order
+                all_matches.sort(key=lambda x: x['score'], reverse=True)
 
+                if all_matches:
+                    # Store only the answers in session state for "Tìm tiếp" functionality
+                    st.session_state.qa_results = [match['answer'] for match in all_matches]
+                    st.session_state.qa_index = 0 # Start with the first result
+                    found_qa_answer = True
+                else:
+                    found_qa_answer = False # No matches found
 
             if found_qa_answer:
+                # Display the first result
+                if st.session_state.qa_results:
+                    st.write(st.session_state.qa_results[st.session_state.qa_index])
+                    if len(st.session_state.qa_results) > 1:
+                        st.session_state.qa_index += 1 # Move to the next index for "Tìm tiếp"
                 pass # Đã tìm thấy câu trả lời từ QA sheet, không làm gì thêm
             else:
                 # Xử lý truy vấn để lấy dữ liệu từ BẤT KỲ sheet nào (ƯU TIÊN HÀNG ĐẦU)
@@ -175,8 +207,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.success(f"✅ Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
                             else:
                                 st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
-                    else:
-                        st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
+                        else:
+                            st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
 
                 # Xử lý truy vấn liên quan đến sheet "Quản lý sự cố"
                 elif "sự cố" in user_msg_lower or "quản lý sự cố" in user_msg_lower:
@@ -676,3 +708,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.error(f"❌ Lỗi khi gọi OpenAI: {e}. Vui lòng kiểm tra API key hoặc quyền truy cập mô hình.")
                     else:
                         st.warning("Không có API key OpenAI. Vui lòng thêm vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
+    
+    # Nút "Tìm tiếp" chỉ hiển thị khi có nhiều hơn một kết quả QA và chưa hiển thị hết
+    if st.session_state.qa_results and st.session_state.qa_index < len(st.session_state.qa_results):
+        if st.button("Tìm tiếp"):
+            st.write(st.session_state.qa_results[st.session_state.qa_index])
+            st.session_state.qa_index += 1
+            st.rerun() # Rerun để hiển thị kết quả tiếp theo
+    elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
+        st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
