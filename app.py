@@ -109,6 +109,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.user_input_value = ""
     if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
+    # Khởi tạo key động cho text_area
+    if 'text_area_key' not in st.session_state:
+        st.session_state.text_area_key = 0
 
     # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
     with st.form(key='chat_form'):
@@ -116,7 +119,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
 
         with input_col:
-            user_msg = st.text_area("Bạn muốn hỏi gì?", key="user_input_form", value=st.session_state.user_input_value, height=150)
+            # Sử dụng key động cho text_area
+            user_msg = st.text_area("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value, height=150)
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -130,6 +134,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
         st.session_state.current_qa_display = "" # Clear displayed QA as well
+        st.session_state.text_area_key += 1 # Tăng key để buộc text_area re-render
         st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
@@ -764,4 +769,3 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
-
