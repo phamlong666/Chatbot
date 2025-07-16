@@ -110,35 +110,30 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
 
-    # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
-    # Đã thay đổi tỷ lệ cột để tăng độ rộng của ô nhập liệu
-    input_col, send_button_col, clear_button_col = st.columns([10, 1, 1]) # Tăng từ 8 lên 10
+    # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
+    with st.form(key='chat_form'):
+        # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
+        input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
 
-    with input_col:
-        # Thay đổi từ st.text_input sang st.text_area và đặt chiều cao
-        user_msg = st.text_area("Bạn muốn hỏi gì?", key="user_input", value=st.session_state.user_input_value, height=150)
+        with input_col:
+            user_msg = st.text_area("Bạn muốn hỏi gì?", key="user_input_form", value=st.session_state.user_input_value, height=150)
 
-    with send_button_col:
-        send_button_pressed = st.button("Gửi")
+        with send_button_col:
+            send_button_pressed = st.form_submit_button("Gửi")
 
-    with clear_button_col:
-        if st.button("Xóa"):
-            st.session_state.user_input_value = ""
-            st.session_state.qa_results = []
-            st.session_state.qa_index = 0
-            st.session_state.last_processed_user_msg = ""
-            st.session_state.current_qa_display = "" # Clear displayed QA as well
-            st.rerun() # Rerun để xóa nội dung input ngay lập tức
+        with clear_button_col:
+            clear_button_pressed = st.form_submit_button("Xóa")
+
+    if clear_button_pressed:
+        st.session_state.user_input_value = ""
+        st.session_state.qa_results = []
+        st.session_state.qa_index = 0
+        st.session_state.last_processed_user_msg = ""
+        st.session_state.current_qa_display = "" # Clear displayed QA as well
+        st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
-    # Để xử lý Enter trong text_area, người dùng vẫn cần nhấn nút Gửi.
-    # Logic hiện tại đã kiểm tra user_msg != st.session_state.last_processed_user_msg
-    # nhưng vấn đề là st.text_area không tự động kích hoạt lại script khi chỉ nhấn Enter
-    # trong ô nhập liệu. Người dùng phải nhấn nút "Gửi".
-    # Giải pháp tốt nhất cho 'Enter' trong text_area là dùng st.form. Tuy nhiên, nếu không dùng form,
-    # người dùng cần nhấn button. Tôi sẽ không thay đổi hành vi Enter trong text_area
-    # vì nó yêu cầu thay đổi kiến trúc đáng kể (dùng st.form).
-    if send_button_pressed or (user_msg and user_msg != st.session_state.last_processed_user_msg and st.session_state.user_input_value != user_msg):
+    if send_button_pressed:
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
             st.session_state.user_input_value = user_msg # Cập nhật giá trị input để giữ lại sau khi gửi
@@ -769,3 +764,4 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
+
