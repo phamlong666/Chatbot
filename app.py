@@ -261,6 +261,15 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             df_kpi['Năm'] = pd.to_numeric(df_kpi['Năm'], errors='coerce').dropna().astype(int)
                         else:
                             st.warning("⚠️ Không tìm thấy cột 'Năm' trong sheet 'KPI'. Một số chức năng KPI có thể không hoạt động.")
+                            df_kpi = pd.DataFrame() # Đảm bảo df_kpi rỗng nếu không có cột Năm
+
+                        # NEW: Chuyển đổi cột 'Tháng' sang kiểu số nguyên một cách vững chắc
+                        if 'Tháng' in df_kpi.columns:
+                            df_kpi['Tháng'] = pd.to_numeric(df_kpi['Tháng'], errors='coerce').dropna().astype(int)
+                        else:
+                            st.warning("⚠️ Không tìm thấy cột 'Tháng' trong sheet 'KPI'. Một số chức năng KPI có thể không hoạt động.")
+                            df_kpi = pd.DataFrame() # Đảm bảo df_kpi rỗng nếu không có cột Tháng
+
 
                         if not df_kpi.empty:
                             st.subheader("Dữ liệu KPI")
@@ -321,15 +330,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                 if can_plot_line_chart and target_year_kpi and 'Năm' in df_to_plot_line.columns and 'Tháng' in df_to_plot_line.columns and kpi_value_column in df_to_plot_line.columns:
                                     try:
-                                        df_to_plot_line.loc[:, 'Tháng'] = pd.to_numeric(df_to_plot_line['Tháng'], errors='coerce').fillna(0).astype(int)
-                                        
                                         # Cải thiện: Thay thế dấu phẩy bằng dấu chấm trước khi chuyển đổi sang số
                                         # Sử dụng .loc để tránh SettingWithCopyWarning
                                         df_to_plot_line.loc[:, kpi_value_column] = df_to_plot_line[kpi_value_column].astype(str).str.replace(',', '.', regex=False)
                                         df_to_plot_line.loc[:, kpi_value_column] = pd.to_numeric(df_to_plot_line[kpi_value_column], errors='coerce')
                                         
-                                        # CHỈ LOẠI BỎ HÀNG NẾU THÁNG BỊ THIẾU, KHÔNG LOẠI BỎ NẾU KPI BỊ THIẾU ĐỂ GIỮ CÁC THÁNG ĐẦY ĐỦ
-                                        df_to_plot_line = df_to_plot_line.dropna(subset=['Tháng'])
+                                        # CHỈ LOẠI BỎ HÀNG NẾU KPI BỊ THIẾU ĐỂ GIỮ CÁC THÁNG ĐẦY ĐỦ
+                                        df_to_plot_line = df_to_plot_line.dropna(subset=[kpi_value_column]) # Chỉ loại bỏ nếu KPI thiếu
 
                                         fig, ax = plt.subplots(figsize=(14, 8))
                                         
