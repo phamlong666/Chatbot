@@ -25,7 +25,7 @@ plt.rcParams['ytick.labelsize'] = 10
 plt.rcParams['figure.titlesize'] = 16
 
 # Kết nối Google Sheets
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = ["https://www.googleapis.com/https://www.googleapis.com/auth/spreadsheets"]
 
 if "google_service_account" in st.secrets:
     info = st.secrets["google_service_account"]
@@ -246,8 +246,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     if records:
                         df_kpi = pd.DataFrame(records)
                         
-                        # Ensure 'Năm' column is numeric for reliable filtering
+                        # Cải thiện: Trích xuất năm từ chuỗi "Năm YYYY" trước khi chuyển đổi sang số
                         if 'Năm' in df_kpi.columns:
+                            df_kpi['Năm'] = df_kpi['Năm'].astype(str).str.extract(r'(\d{4})')[0]
                             df_kpi['Năm'] = pd.to_numeric(df_kpi['Năm'], errors='coerce').dropna().astype(int)
                         else:
                             st.warning("⚠️ Không tìm thấy cột 'Năm' trong sheet 'KPI'. Một số chức năng KPI có thể không hoạt động.")
