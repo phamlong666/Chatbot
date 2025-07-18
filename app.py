@@ -353,7 +353,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                     df_year_filtered = df_year
                                                 
                                                 ax.plot(df_year_filtered['Tháng'], df_year_filtered[kpi_value_column], 
-                                                        marker='o', label=f'Năm {year}', color=colors(i))
+                                                        marker='o', label=f'Năm {year}', color=colors(i), linestyle='-') # Ensure solid line
                                                 # Thêm giá trị trên đường cho năm mục tiêu (tùy chọn, có thể gây rối nếu nhiều điểm)
                                                 for x, y in zip(df_year_filtered['Tháng'], df_year_filtered[kpi_value_column]):
                                                     # Chỉ thêm text nếu giá trị không phải NaN
@@ -362,7 +362,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                             else:
                                                 # Vẽ đủ 12 tháng cho các năm trước. ax.plot sẽ tự động bỏ qua NaN
                                                 ax.plot(df_year['Tháng'], df_year[kpi_value_column], 
-                                                        marker='x', linestyle='--', label=f'Năm {year}', color=colors(i), alpha=0.7)
+                                                        marker='x', linestyle='-', label=f'Năm {year}', color=colors(i), alpha=0.7) # Ensure solid line
                                                 # Thêm giá trị trên đường cho các năm trước (tùy chọn, có thể gây rối nếu nhiều điểm)
                                                 for x, y in zip(df_year['Tháng'], df_year[kpi_value_column]):
                                                     if pd.notna(y):
@@ -394,6 +394,14 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 # Lọc DataFrame theo năm mục tiêu
                                 df_kpi_year = df_kpi[df_kpi['Năm'] == int(target_year_kpi)].copy()
 
+                                # NEW: Extract target month and cumulative flag
+                                target_month_kpi = None
+                                month_match = re.search(r"tháng\s+(\d{1,2})", user_msg_lower)
+                                if month_match:
+                                    target_month_kpi = int(month_match.group(1))
+
+                                is_cumulative = "lũy kế" in user_msg_lower
+
                                 if not df_kpi_year.empty:
                                     # Ensure 'Điểm KPI' is numeric and handle commas
                                     df_kpi_year.loc[:, 'Điểm KPI'] = df_kpi_year['Điểm KPI'].astype(str).str.replace(',', '.', regex=False)
@@ -402,13 +410,33 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     # Drop rows where 'Điểm KPI' is NaN after conversion
                                     df_kpi_year = df_kpi_year.dropna(subset=['Điểm KPI'])
 
-                                    if unit_name_from_query:
+                                    unit_kpis_aggregated = {}
+                                    
+                                    if unit_name_from_query: # Nếu có yêu cầu đơn vị cụ thể
                                         selected_unit = unit_column_mapping.get(unit_name_from_query)
                                         if selected_unit:
-                                            # Filter for the specific unit and calculate mean KPI
                                             unit_data = df_kpi_year[df_kpi_year['Đơn vị'].astype(str).str.lower() == selected_unit.lower()]
+                                            
                                             if not unit_data.empty:
-                                                unit_kpis_aggregated = {selected_unit: unit_data['Điểm KPI'].mean()}
+                                                if target_month_kpi:
+                                                    # Filter for specific month
+                                                    monthly_data = unit_data[unit_data['Tháng'] == target_month_kpi]
+                                                    if not monthly_data.empty:
+                                                        unit_kpis_aggregated[selected_unit] = monthly_data['Điểm KPI'].mean() # Mean for that specific month
+                                                    else:
+                                                        st.warning(f"⚠️ Không có dữ liệu KPI cho đơn vị '{selected_unit}' trong tháng {target_month_kpi} năm {target_year_kpi}.")
+                                                        can_plot_bar_chart = False
+                                                elif is_cumulative:
+                                                    current_month = datetime.datetime.now().month
+                                                    cumulative_data = unit_data[unit_data['Tháng'] <= current_month]
+                                                    if not cumulative_data.empty:
+                                                        unit_kpis_aggregated[selected_unit] = cumulative_data['Điểm KPI'].mean() # Mean for cumulative months
+                                                    else:
+                                                        st.warning(f"⚠️ Không có dữ liệu KPI lũy kế cho đơn vị '{selected_unit}' đến tháng {current_month} năm {target_year_kpi}.")
+                                                        can_plot_bar_chart = False
+                                                else:
+                                                    # Default: mean for the whole year for the specific unit
+                                                    unit_kpis_aggregated[selected_unit] = unit_data['Điểm KPI'].mean()
                                             else:
                                                 st.warning(f"⚠️ Không có dữ liệu KPI cho đơn vị '{selected_unit}' trong năm {target_year_kpi}.")
                                                 can_plot_bar_chart = False
@@ -417,7 +445,25 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                             can_plot_bar_chart = False
                                     else: # If no specific unit, aggregate for all units
                                         if 'Đơn vị' in df_kpi_year.columns:
-                                            unit_kpis_aggregated = df_kpi_year.groupby('Đơn vị')['Điểm KPI'].mean().to_dict()
+                                            if target_month_kpi:
+                                                # Filter for specific month for all units
+                                                monthly_data_all_units = df_kpi_year[df_kpi_year['Tháng'] == target_month_kpi]
+                                                if not monthly_data_all_units.empty:
+                                                    unit_kpis_aggregated = monthly_data_all_units.groupby('Đơn vị')['Điểm KPI'].mean().to_dict()
+                                                else:
+                                                    st.warning(f"⚠️ Không có dữ liệu KPI cho tháng {target_month_kpi} năm {target_year_kpi} cho bất kỳ đơn vị nào.")
+                                                    can_plot_bar_chart = False
+                                            elif is_cumulative:
+                                                current_month = datetime.datetime.now().month
+                                                cumulative_data_all_units = df_kpi_year[df_kpi_year['Tháng'] <= current_month]
+                                                if not cumulative_data_all_units.empty:
+                                                    unit_kpis_aggregated = cumulative_data_all_units.groupby('Đơn vị')['Điểm KPI'].mean().to_dict()
+                                                else:
+                                                    st.warning(f"⚠️ Không có dữ liệu KPI lũy kế đến tháng {current_month} năm {target_year_kpi} cho bất kỳ đơn vị nào.")
+                                                    can_plot_bar_chart = False
+                                            else:
+                                                # Default: mean for the whole year for all units
+                                                unit_kpis_aggregated = df_kpi_year.groupby('Đơn vị')['Điểm KPI'].mean().to_dict()
                                         else:
                                             st.warning("⚠️ Không tìm thấy cột 'Đơn vị' trong sheet 'KPI' để tổng hợp dữ liệu.")
                                             can_plot_bar_chart = False
@@ -436,7 +482,15 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                             ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval, 2), ha='center', va='bottom', color='black')
 
                                         chart_title_prefix = f"KPI của {selected_unit}" if unit_name_from_query and selected_unit else "KPI của các đơn vị"
-                                        ax.set_title(f"{chart_title_prefix} năm {target_year_kpi}")
+                                        
+                                        if target_month_kpi:
+                                            chart_title_suffix = f"tháng {target_month_kpi} năm {target_year_kpi}"
+                                        elif is_cumulative:
+                                            chart_title_suffix = f"lũy kế đến tháng {datetime.datetime.now().month} năm {target_year_kpi}"
+                                        else:
+                                            chart_title_suffix = f"năm {target_year_kpi}"
+
+                                        ax.set_title(f"{chart_title_prefix} {chart_title_suffix}")
                                         ax.set_xlabel("Đơn vị")
                                         ax.set_ylabel("Giá trị KPI")
                                         plt.xticks(rotation=45, ha='right')
