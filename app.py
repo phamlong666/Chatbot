@@ -80,13 +80,6 @@ def get_sheet_data(sheet_name):
                 # 2. Manually process the data here, assigning unique keys if duplicates exist.
                 #    For example, if 'KPI' appears twice, you might name them 'KPI_1', 'KPI_2'.
                 
-                # For now, let's try to get records, and if it fails due to duplicates,
-                # the user needs to fix the sheet headers or provide a mapping.
-                # Since the error explicitly mentions `expected_headers`, let's try to
-                # use `get_all_records` with a potential workaround if headers are truly duplicated.
-                # If your sheet has headers like ['Tháng', 'Năm', 'Giá trị KPI', 'Giá trị KPI'],
-                # you'd need to manually map them or rename them in the sheet.
-                
                 # A robust way to handle this if you cannot change the sheet:
                 # Fetch all values, then create DataFrame, and then rename duplicate columns.
                 df_temp = pd.DataFrame(data, columns=headers)
@@ -288,6 +281,14 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             if kpi_year_match:
                                 target_year_kpi = kpi_year_match.group(1)
 
+                            # Extract unit name if specified (e.g., "Định Hóa", "Đồng Hỷ")
+                            unit_name_match = re.search(r"(của|thuộc)\s+([a-zA-Z\s]+?)(?=\s+(so sánh|năm|$))", user_msg_lower)
+                            unit_name = None
+                            if unit_name_match:
+                                unit_name = unit_name_match.group(2).strip()
+                                # Normalize unit name for comparison
+                                unit_name = normalize_text(unit_name)
+
                             # Check for unit-wise query
                             units_query = any(unit in user_msg_lower for unit in ["định hóa", "đồng hỷ", "đại từ", "phú bình", "phú lương", "phổ yên", "sông công", "thái nguyên", "võ nhai", "các đơn vị"])
 
@@ -299,7 +300,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 # Giả định cột KPI có tên là 'Giá trị KPI' hoặc 'KPI Value'
                                 # Cần điều chỉnh tên cột cho phù hợp với sheet của bạn
                                 kpi_value_column = None
-                                if 'Giá trị KPI' in df_kpi.columns:
+                                # Check for specific KPI column based on user's sheet.
+                                # The image shows 'Định Hóa', 'Đại Từ', etc. as column headers.
+                                # So, kpi_value_column will be the unit name itself.
+                                if unit_name and unit_name.title() in df_kpi.columns:
+                                    kpi_value_column = unit_name.title()
+                                elif 'Giá trị KPI' in df_kpi.columns:
                                     kpi_value_column = 'Giá trị KPI'
                                 elif 'KPI Value' in df_kpi.columns: # Another possible column name
                                     kpi_value_column = 'KPI Value'
@@ -313,19 +319,31 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                 if 'Tháng' in df_kpi.columns and kpi_value_column:
                                     try:
-                                        df_kpi['Tháng'] = pd.to_numeric(df_kpi['Tháng'], errors='coerce').fillna(0).astype(int)
-                                        df_kpi[kpi_value_column] = pd.to_numeric(df_kpi[kpi_value_column], errors='coerce')
-                                        df_kpi = df_kpi.dropna(subset=['Tháng', kpi_value_column])
+                                        # Filter by unit name if specified
+                                        df_filtered_by_unit = df_kpi.copy()
+                                        if unit_name and unit_name.title() in df_kpi.columns:
+                                            # If the KPI value is directly in the unit's column, we don't need to filter by a separate 'Đơn vị' column.
+                                            # We just need to ensure the correct column (unit_name.title()) is used as kpi_value_column.
+                                            pass # No row filtering needed, just column selection
+                                        elif 'Đơn vị' in df_kpi.columns and unit_name:
+                                            df_filtered_by_unit = df_kpi[df_kpi['Đơn vị'].astype(str).str.lower() == unit_name].copy()
+                                            if df_filtered_by_unit.empty:
+                                                st.warning(f"⚠️ Không tìm thấy dữ liệu KPI cho đơn vị '{unit_name.title()}' trong năm {target_year_kpi}.")
+                                                return # Exit if no data for the unit
+
+                                        df_filtered_by_unit['Tháng'] = pd.to_numeric(df_filtered_by_unit['Tháng'], errors='coerce').fillna(0).astype(int)
+                                        df_filtered_by_unit[kpi_value_column] = pd.to_numeric(df_filtered_by_unit[kpi_value_column], errors='coerce')
+                                        df_filtered_by_unit = df_filtered_by_unit.dropna(subset=['Tháng', kpi_value_column])
 
                                         fig, ax = plt.subplots(figsize=(14, 8))
                                         
                                         # Get unique years from the data, sorted
-                                        unique_years = sorted(df_kpi['Năm'].unique(), reverse=True) # Assuming a 'Năm' column
+                                        unique_years = sorted(df_filtered_by_unit['Năm'].unique(), reverse=True) # Assuming a 'Năm' column
                                         
                                         colors = cm.get_cmap('tab10', len(unique_years)) # Generate enough colors
 
                                         for i, year in enumerate(unique_years):
-                                            df_year = df_kpi[df_kpi['Năm'] == year].sort_values(by='Tháng')
+                                            df_year = df_filtered_by_unit[df_filtered_by_unit['Năm'] == year].sort_values(by='Tháng')
                                             
                                             # For target year, plot only up to the last available month (non-NaN KPI value)
                                             if str(year) == target_year_kpi:
@@ -345,7 +363,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                         ax.set_xlabel("Tháng")
                                         ax.set_ylabel("Giá trị KPI")
-                                        ax.set_title(f"So sánh KPI theo tháng (Năm {target_year_kpi} vs các năm khác)")
+                                        chart_title_suffix = f"của {unit_name.title()}" if unit_name else ""
+                                        ax.set_title(f"So sánh KPI theo tháng {chart_title_suffix} (Năm {target_year_kpi} vs các năm khác)")
                                         ax.set_xticks(range(1, 13)) # Ensure all 12 months are shown on x-axis
                                         ax.legend()
                                         plt.grid(True)
@@ -365,38 +384,74 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 kpi_unit_column = None # Name of the column that holds the unit name
                                 kpi_value_column_for_units = None # Name of the column that holds the KPI value for units
 
-                                # You'll need to identify the correct column names for units and their KPI values
-                                # For example, if your KPI sheet has columns like 'Đơn vị' and 'KPI Tổng năm'
-                                if 'Đơn vị' in df_kpi.columns and 'KPI Tổng năm' in df_kpi.columns:
-                                    kpi_unit_column = 'Đơn vị'
-                                    kpi_value_column_for_units = 'KPI Tổng năm'
-                                elif 'Đơn vị' in df_kpi.columns and 'Giá trị KPI' in df_kpi.columns: # Another possible combination
-                                    kpi_unit_column = 'Đơn vị'
-                                    kpi_value_column_for_units = 'Giá trị KPI'
-                                # Add more conditions based on your actual column names in the "KPI" sheet
+                                # Based on the image, unit names are column headers like 'Định Hóa', 'Đại Từ', etc.
+                                # We need to check if these columns exist and then use them.
+                                # If the user asks for "KPI của các đơn vị", we plot all relevant unit columns.
+                                # If the user asks for "KPI của Định Hóa", we just plot Định Hóa.
 
-                                # Ensure 'Năm' column exists for filtering
-                                if 'Năm' not in df_kpi.columns:
-                                    st.warning("⚠️ Không tìm thấy cột 'Năm' trong sheet 'KPI'. Không thể vẽ biểu đồ KPI theo đơn vị.")
-                                    kpi_unit_column = None # Set to None to prevent further plotting attempts
-                                
-                                if kpi_unit_column and kpi_value_column_for_units:
-                                    try:
-                                        # Filter for the target year
-                                        df_kpi_year = df_kpi[df_kpi['Năm'] == int(target_year_kpi)].copy()
+                                # Dynamically identify unit columns from a predefined list or by checking df.columns
+                                predefined_units = ["Định Hóa", "Đồng Hỷ", "Đại Từ", "Phú Bình", "Phú Lương", "Phổ Yên", "Sông Công", "Thái Nguyên", "Võ Nhai"]
+                                actual_unit_columns = [col for col in predefined_units if col in df_kpi.columns]
 
-                                        df_kpi_year.loc[:, kpi_value_column_for_units] = pd.to_numeric(df_kpi_year[kpi_value_column_for_units], errors='coerce')
-                                        df_kpi_year = df_kpi_year.dropna(subset=[kpi_value_column_for_units])
+                                if unit_name and unit_name.title() in actual_unit_columns:
+                                    # If a specific unit is requested and it's a column header
+                                    kpi_unit_column = 'Đơn vị' # This is a placeholder, as we are using column names as units
+                                    kpi_value_column_for_units = unit_name.title() # The KPI value is in this column
+                                    
+                                    # Filter for the target year and then just get the value for the specific unit
+                                    df_kpi_year = df_kpi[df_kpi['Năm'] == int(target_year_kpi)].copy()
+                                    if not df_kpi_year.empty and kpi_value_column_for_units in df_kpi_year.columns:
+                                        try:
+                                            # Assuming there's a row that represents the "total" or "average" KPI for the year for this unit.
+                                            # Or, if it's monthly data, you might need to sum it up.
+                                            # For simplicity, let's assume the user wants the value from the specified unit column for that year.
+                                            # If there are multiple entries for a unit in a year, you might need aggregation (e.g., sum, mean).
+                                            # For now, let's try to get the first valid value for the unit in that year.
+                                            unit_kpi_value = pd.to_numeric(df_kpi_year[kpi_value_column_for_units], errors='coerce').dropna().iloc[0] # Get first non-NaN value
 
-                                        if not df_kpi_year.empty:
-                                            # Aggregate KPI for each unit if there are multiple entries per unit
-                                            # Or just use directly if each unit has one entry per year
-                                            unit_kpis = df_kpi_year.groupby(kpi_unit_column)[kpi_value_column_for_units].sum().sort_values(ascending=False)
+                                            fig, ax = plt.subplots(figsize=(8, 6))
+                                            ax.bar([unit_name.title()], [unit_kpi_value], color='skyblue')
+                                            ax.text(0, unit_kpi_value + 0.1, round(unit_kpi_value, 2), ha='center', va='bottom', color='black')
+                                            ax.set_xlabel("Đơn vị")
+                                            ax.set_ylabel("Giá trị KPI")
+                                            ax.set_title(f"KPI của {unit_name.title()} năm {target_year_kpi}")
+                                            plt.tight_layout()
+                                            st.pyplot(fig, dpi=400)
+                                        except Exception as e:
+                                            st.error(f"❌ Lỗi khi vẽ biểu đồ KPI cho đơn vị '{unit_name.title()}': {e}. Vui lòng kiểm tra định dạng dữ liệu.")
+                                    else:
+                                        st.warning(f"⚠️ Không tìm thấy dữ liệu KPI cho đơn vị '{unit_name.title()}' trong năm {target_year_kpi}.")
+
+                                elif not unit_name or (unit_name and "các đơn vị" in user_msg_lower): # Plot all units if no specific unit or "các đơn vị" is mentioned
+                                    # This branch handles the "KPI của các đơn vị năm 2025" query
+                                    df_kpi_year = df_kpi[df_kpi['Năm'] == int(target_year_kpi)].copy()
+
+                                    if not df_kpi_year.empty:
+                                        # Aggregate KPI for each unit from their respective columns
+                                        # Assuming the last row or a specific row contains the total/summary for the year
+                                        # For the image provided, it seems like each unit has its own column.
+                                        # We need to decide how to aggregate if there are multiple rows per unit (e.g., monthly data).
+                                        # Let's assume for "KPI của các đơn vị" we are looking at a specific row (e.g., the last row for each month, or a summary row).
+                                        # If your sheet has a summary row for each unit, you'll need to identify it.
+                                        # For now, let's take the average or sum of the available months for each unit in that year.
+                                        
+                                        # Create a dictionary to hold aggregated KPI values for each unit
+                                        unit_kpis_aggregated = {}
+                                        for unit_col in actual_unit_columns:
+                                            if unit_col in df_kpi_year.columns:
+                                                # Convert to numeric, drop NaNs, then calculate mean for the year
+                                                kpi_values = pd.to_numeric(df_kpi_year[unit_col], errors='coerce').dropna()
+                                                if not kpi_values.empty:
+                                                    unit_kpis_aggregated[unit_col] = kpi_values.mean() # Or .sum() if that's more appropriate
+
+                                        if unit_kpis_aggregated:
+                                            unit_kpis_df = pd.DataFrame(list(unit_kpis_aggregated.items()), columns=['Đơn vị', 'Giá trị KPI'])
+                                            unit_kpis_df = unit_kpis_df.sort_values(by='Giá trị KPI', ascending=False)
 
                                             fig, ax = plt.subplots(figsize=(12, 7))
-                                            colors = cm.get_cmap('tab20', len(unit_kpis.index)) # More colors for more units
+                                            colors = cm.get_cmap('tab20', len(unit_kpis_df['Đơn vị'])) # More colors for more units
 
-                                            bars = ax.bar(unit_kpis.index, unit_kpis.values, color=colors.colors)
+                                            bars = ax.bar(unit_kpis_df['Đơn vị'], unit_kpis_df['Giá trị KPI'], color=colors.colors)
 
                                             for bar in bars:
                                                 yval = bar.get_height()
@@ -409,10 +464,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                             plt.tight_layout()
                                             st.pyplot(fig, dpi=400)
                                         else:
-                                            st.warning(f"⚠️ Không có dữ liệu KPI cho các đơn vị trong năm {target_year_kpi}.")
-
-                                    except Exception as e:
-                                        st.error(f"❌ Lỗi khi vẽ biểu đồ KPI theo đơn vị: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet (cột '{kpi_unit_column}', '{kpi_value_column_for_units}' và 'Năm').")
+                                            st.warning(f"⚠️ Không có dữ liệu KPI tổng hợp cho các đơn vị trong năm {target_year_kpi}.")
+                                    else:
+                                        st.warning(f"⚠️ Không có dữ liệu KPI cho các đơn vị trong năm {target_year_kpi}.")
                                 else:
                                     st.warning("⚠️ Không tìm thấy các cột 'Đơn vị', 'Năm' hoặc cột giá trị KPI phù hợp trong sheet 'KPI' để vẽ biểu đồ đơn vị.")
                             elif "biểu đồ" in user_msg_lower and not target_year_kpi:
