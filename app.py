@@ -53,15 +53,23 @@ def get_sheet_data(sheet_name):
         if sheet_name == "KPI":
             all_values = sheet.get_all_values()
             if all_values:
+                # Đảm bảo tiêu đề là duy nhất trước khi tạo DataFrame
                 headers = all_values[0]
+                # Tạo danh sách tiêu đề duy nhất bằng cách thêm số nếu có trùng lặp
+                seen_headers = {}
+                unique_headers = []
+                for h in headers:
+                    original_h = h
+                    count = seen_headers.get(h, 0)
+                    while h in seen_headers and seen_headers[h] > 0:
+                        h = f"{original_h}_{count}"
+                        count += 1
+                    seen_headers[original_h] = seen_headers.get(original_h, 0) + 1
+                    unique_headers.append(h)
+
                 data = all_values[1:]
                 
-                df_temp = pd.DataFrame(data, columns=headers)
-                # Handle duplicate column names by appending a suffix
-                cols = pd.Series(df_temp.columns)
-                for dup in cols[cols.duplicated()].unique():
-                    cols[cols[cols == dup].index.values.tolist()] = [dup + '_' + str(i) if i != 0 else dup for i in range(len(cols[cols == dup].index.values.tolist()))]
-                df_temp.columns = cols
+                df_temp = pd.DataFrame(data, columns=unique_headers)
                 return df_temp.to_dict('records') # Return as list of dictionaries
             else:
                 return [] # Return empty list if no values
@@ -248,6 +256,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         
                         # Cải thiện: Trích xuất năm từ chuỗi "Năm YYYY" trước khi chuyển đổi sang số
                         if 'Năm' in df_kpi.columns:
+                            # Đảm bảo cột 'Năm' là chuỗi và xử lý các giá trị không phải chuỗi
                             df_kpi['Năm'] = df_kpi['Năm'].astype(str).str.extract(r'(\d{4})')[0]
                             df_kpi['Năm'] = pd.to_numeric(df_kpi['Năm'], errors='coerce').dropna().astype(int)
                         else:
@@ -311,18 +320,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                         df_to_plot_line['Tháng'] = pd.to_numeric(df_to_plot_line['Tháng'], errors='coerce').fillna(0).astype(int)
                                         
                                         # Cải thiện: Thay thế dấu phẩy bằng dấu chấm trước khi chuyển đổi sang số
-                                        df_to_plot_line[kpi_value_column] = df_to_plot_line[kpi_value_column].astype(str).str.replace(',', '.', regex=False)
-                                        df_to_plot_line[kpi_value_column] = pd.to_numeric(df_to_plot_line[kpi_value_column], errors='coerce')
+                                        # Sử dụng .loc để tránh SettingWithCopyWarning
+                                        df_to_plot_line.loc[:, kpi_value_column] = df_to_plot_line[kpi_value_column].astype(str).str.replace(',', '.', regex=False)
+                                        df_to_plot_line.loc[:, kpi_value_column] = pd.to_numeric(df_to_plot_line[kpi_value_column], errors='coerce')
                                         
                                         # CHỈ LOẠI BỎ HÀNG NẾU THÁNG BỊ THIẾU, KHÔNG LOẠI BỎ NẾU KPI BỊ THIẾU ĐỂ GIỮ CÁC THÁNG ĐẦY ĐỦ
                                         df_to_plot_line = df_to_plot_line.dropna(subset=['Tháng'])
-
-                                        # Debugging: Print DataFrame before plotting
-                                        # st.write(f"Debug: df_to_plot_line before plotting:\n{df_to_plot_line}")
-                                        # st.write(f"Debug: Unique years in df_to_plot_line: {df_to_plot_line['Năm'].unique()}")
-                                        # st.write(f"Debug: Data for target year {target_year_kpi}:\n{df_to_plot_line[df_to_plot_line['Năm'] == int(target_year_kpi)]}")
-                                        # st.write(f"Debug: Data for other years:\n{df_to_plot_line[df_to_plot_line['Năm'] != int(target_year_kpi)]}")
-
 
                                         fig, ax = plt.subplots(figsize=(14, 8))
                                         
@@ -679,7 +682,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.dataframe(df_lanhdao) # Vẫn hiển thị toàn bộ dữ liệu nếu không tìm thấy kết quả lọc
 
                         if not filtered_df_lanhdao.empty:
-                            st.subheader(f"Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường' {'cho ' + location_name.title() if location_name else ''}:")
+                            subheader_parts = ["Dữ liệu từ sheet 'Danh sách lãnh đạo xã, phường'"]
+                            if location_name:
+                                subheader_parts.append(f"cho {location_name.title()}")
+                            st.subheader(" ".join(subheader_parts) + ":")
                             st.dataframe(filtered_df_lanhdao) # Hiển thị dữ liệu đã lọc hoặc toàn bộ
 
                             # Bạn có thể thêm logic vẽ biểu đồ cho lãnh đạo xã/phường tại đây nếu cần
