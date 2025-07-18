@@ -119,8 +119,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
 
         with input_col:
-            # Sử dụng key động cho text_area
-            user_msg = st.text_area("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value, height=150)
+            # Sử dụng key động cho text_input để cho phép nhấn Enter gửi lệnh
+            user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -134,14 +134,14 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
         st.session_state.current_qa_display = "" # Clear displayed QA as well
-        st.session_state.text_area_key += 1 # Tăng key để buộc text_area re-render
+        st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
         st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
     if send_button_pressed:
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
-            st.session_state.user_input_value = user_msg # Cập nhật giá trị input để giữ lại sau khi gửi
+            st.session_state.user_input_value = "" # Reset input value to clear the box for next input
             user_msg_lower = user_msg.lower()
 
             # Reset QA results and display for a new query
@@ -688,23 +688,44 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 # Đảm bảo cột là chuỗi và điền giá trị rỗng cho NaN trước khi value_counts()
                                 bo_phan_counts = df_to_show['Bộ phận công tác'].astype(str).fillna('Không xác định').value_counts()
 
-                                fig, ax = plt.subplots(figsize=(12, 7))
+                                # Biểu đồ cột mặc định
+                                if "biểu đồ tròn bộ phận công tác" not in user_msg_lower:
+                                    fig, ax = plt.subplots(figsize=(12, 7))
 
-                                colors = cm.get_cmap('tab10', len(bo_phan_counts.index))
+                                    colors = cm.get_cmap('tab10', len(bo_phan_counts.index))
 
-                                bars = ax.bar(bo_phan_counts.index, bo_phan_counts.values, color=colors.colors)
+                                    bars = ax.bar(bo_phan_counts.index, bo_phan_counts.values, color=colors.colors)
 
-                                # Thêm số liệu trên các cột biểu đồ
-                                for bar in bars:
-                                    yval = bar.get_height()
-                                    ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+                                    # Thêm số liệu trên các cột biểu đồ
+                                    for bar in bars:
+                                        yval = bar.get_height()
+                                        ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                ax.set_xlabel("Bộ phận công tác")
-                                ax.set_ylabel("Số lượng nhân viên")
-                                ax.set_title("Biểu đồ số lượng CBCNV theo Bộ phận")
-                                plt.xticks(rotation=45, ha='right')
-                                plt.tight_layout()
-                                st.pyplot(fig, dpi=400)
+                                    ax.set_xlabel("Bộ phận công tác")
+                                    ax.set_ylabel("Số lượng nhân viên")
+                                    ax.set_title("Biểu đồ số lượng CBCNV theo Bộ phận")
+                                    plt.xticks(rotation=45, ha='right')
+                                    plt.tight_layout()
+                                    st.pyplot(fig, dpi=400)
+                                else: # Biểu đồ tròn nếu được yêu cầu
+                                    st.subheader("Biểu đồ hình tròn số lượng nhân viên theo Bộ phận công tác")
+                                    fig, ax = plt.subplots(figsize=(8, 8))
+                                    colors = cm.get_cmap('tab10', len(bo_phan_counts.index))
+
+                                    wedges, texts, autotexts = ax.pie(bo_phan_counts.values, 
+                                                                        labels=bo_phan_counts.index, 
+                                                                        autopct='%1.1f%%', 
+                                                                        startangle=90, 
+                                                                        colors=colors.colors,
+                                                                        pctdistance=0.85)
+                                    for autotext in autotexts:
+                                        autotext.set_color('black')
+                                        autotext.set_fontsize(10)
+                                    ax.axis('equal')
+                                    ax.set_title("Biểu đồ hình tròn số lượng CBCNV theo Bộ phận")
+                                    plt.tight_layout()
+                                    st.pyplot(fig, dpi=400)
+
                             else:
                                 st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
                             
