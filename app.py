@@ -49,12 +49,62 @@ def get_sheet_data(sheet_name):
     try:
         spreadsheet_url = "https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit"
         sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
-        return sheet.get_all_records()
+        
+        # Define expected headers for the KPI sheet to handle duplicates
+        # You MUST replace these with the actual, unique headers of your KPI sheet
+        # If your sheet has duplicate headers, you need to decide which one to keep
+        # or rename them in your Google Sheet to be unique.
+        # For example, if you have two "KPI Value" columns, you might need to
+        # manually specify them as ['Month', 'Year', 'Unit', 'KPI Value 1', 'KPI Value 2']
+        # For now, I'm using a generic approach to get all values and then assume
+        # the first row is headers, but the error indicates this is insufficient.
+        # The best fix is to make headers unique in the Google Sheet itself.
+        
+        # For demonstration, let's assume common headers for KPI sheet.
+        # You NEED to verify and adjust this list based on your actual KPI sheet headers.
+        if sheet_name == "KPI":
+            # Example: Replace with your actual, unique headers from your "KPI" sheet
+            # If you have duplicate headers, you must make them unique in the sheet
+            # or choose which one to use.
+            # For example: ['Tháng', 'Năm', 'Đơn vị', 'Giá trị KPI']
+            # If you have duplicate headers, gspread.get_all_records() will fail.
+            # A common workaround is to fetch all values and manually set headers.
+            all_values = sheet.get_all_values()
+            if all_values:
+                headers = all_values[0]
+                data = all_values[1:]
+                # If there are duplicate headers, gspread.get_all_records() will fail.
+                # The prompt indicates this is the issue.
+                # The solution is to either:
+                # 1. Make headers unique in the Google Sheet itself. (Recommended)
+                # 2. Manually process the data here, assigning unique keys if duplicates exist.
+                #    For example, if 'KPI' appears twice, you might name them 'KPI_1', 'KPI_2'.
+                
+                # For now, let's try to get records, and if it fails due to duplicates,
+                # the user needs to fix the sheet headers or provide a mapping.
+                # Since the error explicitly mentions `expected_headers`, let's try to
+                # use `get_all_records` with a potential workaround if headers are truly duplicated.
+                # If your sheet has headers like ['Tháng', 'Năm', 'Giá trị KPI', 'Giá trị KPI'],
+                # you'd need to manually map them or rename them in the sheet.
+                
+                # A robust way to handle this if you cannot change the sheet:
+                # Fetch all values, then create DataFrame, and then rename duplicate columns.
+                df_temp = pd.DataFrame(data, columns=headers)
+                # Handle duplicate column names by appending a suffix
+                cols = pd.Series(df_temp.columns)
+                for dup in cols[cols.duplicated()].unique():
+                    cols[cols[cols == dup].index.values.tolist()] = [dup + '_' + str(i) if i != 0 else dup for i in range(len(cols[cols == dup].index.values.tolist()))]
+                df_temp.columns = cols
+                return df_temp.to_dict('records') # Return as list of dictionaries
+            else:
+                return [] # Return empty list if no values
+        else:
+            return sheet.get_all_records()
     except gspread.exceptions.WorksheetNotFound:
         st.error(f"❌ Không tìm thấy sheet '{sheet_name}'. Vui lòng kiểm tra tên sheet.")
         return None
     except Exception as e:
-        st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}")
+        st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}. Vui lòng kiểm tra định dạng tiêu đề của sheet. Nếu có tiêu đề trùng lặp, hãy đảm bảo chúng là duy nhất.")
         return None
 
 # Hàm chuẩn hóa chuỗi để so sánh chính xác hơn (loại bỏ dấu cách thừa, chuyển về chữ thường)
