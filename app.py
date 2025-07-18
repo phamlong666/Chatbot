@@ -503,7 +503,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             # Sử dụng .loc để tránh SettingWithCopyWarning
                             filtered_df_tba.loc[:, 'Công suất_numeric'] = pd.to_numeric(
                                 filtered_df_tba['Công suất'].astype(str).str.extract(r'(\d+)')[0], # Lấy cột đầu tiên của DataFrame được trích xuất
-                                errors='coerce' # Chuyển đổi các giá trị không phải số thành NaN
+                                errors='coerce' # Chuy đổi các giá trị không phải số thành NaN
                             )
 
                             # Loại bỏ các hàng có giá trị NaN trong cột 'Công suất_numeric'
@@ -588,7 +588,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet DoanhThu. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
                 # Xử lý truy vấn liên quan đến nhân sự (sheet CBCNV)
-                elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự", "thông tin"]):
+                elif "cbcnv" in user_msg_lower or "danh sách" in user_msg_lower or any(k in user_msg_lower for k in ["tổ", "phòng", "đội", "nhân viên", "nhân sự", "thông tin", "độ tuổi", "trình độ chuyên môn", "giới tính"]):
                     records = get_sheet_data("CBCNV") # Tên sheet CBCNV
                     if records:
                         df_cbcnv = pd.DataFrame(records) # Chuyển đổi thành DataFrame
@@ -602,7 +602,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         if name_match:
                             person_name = name_match.group(1).strip()
                             # Loại bỏ các từ khóa có thể bị bắt nhầm vào tên
-                            known_keywords = ["trong", "tổ", "phòng", "đội", "cbcnv", "tất cả"] # Thêm "tất cả"
+                            known_keywords = ["trong", "tổ", "phòng", "đội", "cbcnv", "tất cả", "độ tuổi", "trình độ chuyên môn", "giới tính"] # Thêm các từ khóa mới
                             for kw in known_keywords:
                                 if kw in person_name:
                                     person_name = person_name.split(kw, 1)[0].strip()
@@ -707,6 +707,114 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.pyplot(fig, dpi=400)
                             else:
                                 st.warning("⚠️ Không tìm thấy cột 'Bộ phận công tác' hoặc dữ liệu rỗng để vẽ biểu đồ nhân sự.")
+                            
+                            # 1. Vẽ biểu đồ theo độ tuổi (cột Q: 'Ngày sinh CBCNV')
+                            if "độ tuổi" in user_msg_lower and 'Ngày sinh CBCNV' in df_to_show.columns:
+                                st.subheader("Biểu đồ số lượng nhân viên theo độ tuổi")
+                                
+                                # Lấy năm hiện tại
+                                current_year = datetime.datetime.now().year
+
+                                # Hàm tính tuổi từ ngày sinh
+                                def calculate_age(dob_str):
+                                    try:
+                                        # Cố gắng phân tích cú pháp ngày sinh theo nhiều định dạng
+                                        for fmt in ('%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', '%d/%m/%y'):
+                                            try:
+                                                dob = datetime.datetime.strptime(str(dob_str), fmt)
+                                                return current_year - dob.year
+                                            except ValueError:
+                                                continue
+                                        return None # Trả về None nếu không khớp định dạng nào
+                                    except TypeError: # Xử lý trường hợp dob_str không phải là chuỗi
+                                        return None
+
+                                df_to_show['Tuổi'] = df_to_show['Ngày sinh CBCNV'].apply(calculate_age)
+                                df_to_show = df_to_show.dropna(subset=['Tuổi']) # Loại bỏ các hàng không tính được tuổi
+
+                                # Phân loại độ tuổi
+                                age_bins = [0, 30, 40, 50, 100] # Giới hạn trên của mỗi nhóm
+                                age_labels = ['<30 tuổi', '30 đến <40 tuổi', '40 đến <50 tuổi', '>50 tuổi']
+                                
+                                # Sử dụng pd.cut để phân loại và bao gồm cả biên phải (right=False) cho nhóm đầu tiên
+                                # và right=True cho các nhóm còn lại để khớp với yêu cầu "<30 tuổi" và "từ 30 đến <40 tuổi"
+                                df_to_show['Nhóm tuổi'] = pd.cut(df_to_show['Tuổi'], 
+                                                                 bins=age_bins, 
+                                                                 labels=age_labels, 
+                                                                 right=False, # Bao gồm biên trái
+                                                                 include_lowest=True) # Bao gồm giá trị thấp nhất
+
+                                # Đếm số lượng theo nhóm tuổi
+                                age_counts = df_to_show['Nhóm tuổi'].value_counts().reindex(age_labels, fill_value=0) # Đảm bảo thứ tự và điền 0 cho nhóm không có
+
+                                fig, ax = plt.subplots(figsize=(12, 7))
+                                colors = cm.get_cmap('viridis', len(age_counts.index))
+                                bars = ax.bar(age_counts.index, age_counts.values, color=colors.colors)
+
+                                for bar in bars:
+                                    yval = bar.get_height()
+                                    ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+
+                                ax.set_xlabel("Nhóm tuổi")
+                                ax.set_ylabel("Số lượng nhân viên")
+                                ax.set_title("Biểu đồ số lượng CBCNV theo Nhóm tuổi")
+                                plt.xticks(rotation=45, ha='right')
+                                plt.tight_layout()
+                                st.pyplot(fig, dpi=400)
+                            elif "độ tuổi" in user_msg_lower:
+                                st.warning("⚠️ Không tìm thấy cột 'Ngày sinh CBCNV' hoặc dữ liệu rỗng để vẽ biểu đồ độ tuổi.")
+
+                            # 2. Vẽ biểu đồ theo trình độ chuyên môn (cột I: 'Trình độ chuyên môn')
+                            if "trình độ chuyên môn" in user_msg_lower and 'Trình độ chuyên môn' in df_to_show.columns:
+                                st.subheader("Biểu đồ số lượng nhân viên theo Trình độ chuyên môn")
+                                # Đảm bảo cột là chuỗi và điền giá trị rỗng cho NaN trước khi value_counts()
+                                trinh_do_counts = df_to_show['Trình độ chuyên môn'].astype(str).fillna('Không xác định').value_counts()
+
+                                fig, ax = plt.subplots(figsize=(12, 7))
+                                colors = cm.get_cmap('plasma', len(trinh_do_counts.index))
+                                bars = ax.bar(trinh_do_counts.index, trinh_do_counts.values, color=colors.colors)
+
+                                for bar in bars:
+                                    yval = bar.get_height()
+                                    ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+
+                                ax.set_xlabel("Trình độ chuyên môn")
+                                ax.set_ylabel("Số lượng nhân viên")
+                                ax.set_title("Biểu đồ số lượng CBCNV theo Trình độ chuyên môn")
+                                plt.xticks(rotation=45, ha='right')
+                                plt.tight_layout()
+                                st.pyplot(fig, dpi=400)
+                            elif "trình độ chuyên môn" in user_msg_lower:
+                                st.warning("⚠️ Không tìm thấy cột 'Trình độ chuyên môn' hoặc dữ liệu rỗng để vẽ biểu đồ trình độ chuyên môn.")
+
+                            # 3. Vẽ biểu đồ theo Giới tính (cột D: 'Giới tính')
+                            if "giới tính" in user_msg_lower and 'Giới tính' in df_to_show.columns:
+                                st.subheader("Biểu đồ số lượng nhân viên theo Giới tính")
+                                # Đảm bảo cột là chuỗi và điền giá trị rỗng cho NaN trước khi value_counts()
+                                gioi_tinh_counts = df_to_show['Giới tính'].astype(str).fillna('Không xác định').value_counts()
+
+                                fig, ax = plt.subplots(figsize=(8, 8)) # Hình tròn thường đẹp hơn với tỷ lệ 1:1
+                                colors = ['#66b3ff', '#ff9999', '#99ff99', '#ffcc99'] # Màu sắc tùy chỉnh
+
+                                wedges, texts, autotexts = ax.pie(gioi_tinh_counts.values, 
+                                                                    labels=gioi_tinh_counts.index, 
+                                                                    autopct='%1.1f%%', 
+                                                                    startangle=90, 
+                                                                    colors=colors[:len(gioi_tinh_counts)], # Sử dụng đủ màu cho số lượng phần tử
+                                                                    pctdistance=0.85) # Khoảng cách của phần trăm từ tâm
+
+                                # Đảm bảo phần trăm được hiển thị rõ ràng
+                                for autotext in autotexts:
+                                    autotext.set_color('black')
+                                    autotext.set_fontsize(10)
+
+                                ax.axis('equal') # Đảm bảo biểu đồ hình tròn là hình tròn
+                                ax.set_title("Biểu đồ số lượng CBCNV theo Giới tính")
+                                plt.tight_layout()
+                                st.pyplot(fig, dpi=400)
+                            elif "giới tính" in user_msg_lower:
+                                st.warning("⚠️ Không tìm thấy cột 'Giới tính' hoặc dữ liệu rỗng để vẽ biểu đồ giới tính.")
+
                         elif ("biểu đồ" in user_msg_lower or "báo cáo" in user_msg_lower) and df_to_show.empty:
                             st.warning("⚠️ Không có dữ liệu để vẽ biểu đồ.")
 
