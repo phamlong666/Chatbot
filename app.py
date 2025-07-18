@@ -25,7 +25,6 @@ plt.rcParams['ytick.labelsize'] = 10
 plt.rcParams['figure.titlesize'] = 16
 
 # Kết nối Google Sheets
-# Đã sửa lỗi: Loại bỏ tiền tố trùng lặp trong SCOPES
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 if "google_service_account" in st.secrets:
@@ -284,10 +283,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     unit_name_from_query = unit_key
                                     break # Tìm thấy khớp đầu tiên thì dừng lại
 
-                            # Debugging output
-                            # st.write(f"Debug: user_msg_lower: {user_msg_lower}")
-                            # st.write(f"Debug: extracted unit_name_from_query: {unit_name_from_query}")
-
                             # Lấy các cột đơn vị thực sự có trong DataFrame
                             actual_unit_columns_in_df = [col for col in unit_column_mapping.values() if col in df_kpi.columns]
 
@@ -301,7 +296,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 if unit_name_from_query: # Nếu có đơn vị cụ thể trong câu hỏi
                                     # Tìm tên cột chính xác từ mapping
                                     mapped_column_name = unit_column_mapping.get(unit_name_from_query)
-                                    # st.write(f"Debug: mapped_column_name: {mapped_column_name}")
                                     if mapped_column_name and mapped_column_name in df_kpi.columns:
                                         kpi_value_column = mapped_column_name
                                     else:
@@ -315,7 +309,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     try:
                                         df_to_plot_line = df_kpi.copy()
                                         df_to_plot_line['Tháng'] = pd.to_numeric(df_to_plot_line['Tháng'], errors='coerce').fillna(0).astype(int)
+                                        
+                                        # Cải thiện: Thay thế dấu phẩy bằng dấu chấm trước khi chuyển đổi sang số
+                                        df_to_plot_line[kpi_value_column] = df_to_plot_line[kpi_value_column].astype(str).str.replace(',', '.', regex=False)
                                         df_to_plot_line[kpi_value_column] = pd.to_numeric(df_to_plot_line[kpi_value_column], errors='coerce')
+                                        
                                         df_to_plot_line = df_to_plot_line.dropna(subset=['Tháng', kpi_value_column])
 
                                         fig, ax = plt.subplots(figsize=(14, 8))
@@ -381,6 +379,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                         # Nếu có yêu cầu đơn vị cụ thể, chỉ lấy KPI của đơn vị đó
                                         mapped_column_name = unit_column_mapping.get(unit_name_from_query)
                                         if mapped_column_name and mapped_column_name in df_kpi_year.columns:
+                                            # Cải thiện: Thay thế dấu phẩy bằng dấu chấm trước khi chuyển đổi sang số
+                                            df_kpi_year.loc[:, mapped_column_name] = df_kpi_year[mapped_column_name].astype(str).str.replace(',', '.', regex=False)
                                             kpi_values = pd.to_numeric(df_kpi_year[mapped_column_name], errors='coerce').dropna()
                                             if not kpi_values.empty:
                                                 unit_kpis_aggregated[mapped_column_name] = kpi_values.mean() # Lấy trung bình KPI của đơn vị đó trong năm
@@ -394,6 +394,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                         # Nếu yêu cầu "các đơn vị" hoặc không có đơn vị cụ thể (mặc định hiển thị tất cả)
                                         for unit_col_key, unit_col_name in unit_column_mapping.items():
                                             if unit_col_name in df_kpi_year.columns:
+                                                # Cải thiện: Thay thế dấu phẩy bằng dấu chấm trước khi chuyển đổi sang số
+                                                df_kpi_year.loc[:, unit_col_name] = df_kpi_year[unit_col_name].astype(str).str.replace(',', '.', regex=False)
                                                 kpi_values = pd.to_numeric(df_kpi_year[unit_col_name], errors='coerce').dropna()
                                                 if not kpi_values.empty:
                                                     unit_kpis_aggregated[unit_col_name] = kpi_values.mean() # Lấy trung bình KPI của mỗi đơn vị trong năm
