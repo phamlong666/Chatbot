@@ -119,9 +119,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
 
         with input_col:
-            # Sử dụng st.text_area để cho phép kéo giãn và hiển thị nhiều dòng.
-            # Lưu ý: Để gửi lệnh, vui lòng nhấn Ctrl+Enter hoặc nút "Gửi".
-            user_msg = st.text_area("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value, height=150)
+            # Sử dụng key động cho text_input để cho phép nhấn Enter gửi lệnh
+            user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -223,6 +222,156 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
                         else:
                             st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
+
+                # Xử lý truy vấn liên quan đến KPI (sheet "KPI")
+                elif "kpi" in user_msg_lower or "chỉ số hiệu suất" in user_msg_lower or "kết quả hoạt động" in user_msg_lower:
+                    records = get_sheet_data("KPI") # Tên sheet KPI
+                    if records:
+                        df_kpi = pd.DataFrame(records)
+                        if not df_kpi.empty:
+                            st.subheader("Dữ liệu KPI")
+                            st.dataframe(df_kpi)
+
+                            target_year_kpi = None
+                            # Extract target year for KPI comparison
+                            kpi_year_match = re.search(r"năm\s+(\d{4})", user_msg_lower)
+                            if kpi_year_match:
+                                target_year_kpi = kpi_year_match.group(1)
+
+                            # Check for unit-wise query
+                            units_query = any(unit in user_msg_lower for unit in ["định hóa", "đồng hỷ", "đại từ", "phú bình", "phú lương", "phổ yên", "sông công", "thái nguyên", "võ nhai", "các đơn vị"])
+
+                            # Lấy thông tin KPI năm X so sánh với các năm trước (biểu đồ line)
+                            if target_year_kpi and "so sánh" in user_msg_lower and not units_query:
+                                st.subheader(f"Biểu đồ KPI theo tháng cho năm {target_year_kpi} và các năm trước")
+
+                                # Lọc các cột KPI (ví dụ: 'KPI', 'Chỉ số') và cột tháng
+                                # Giả định cột KPI có tên là 'Giá trị KPI' hoặc 'KPI Value'
+                                # Cần điều chỉnh tên cột cho phù hợp với sheet của bạn
+                                kpi_value_column = None
+                                if 'Giá trị KPI' in df_kpi.columns:
+                                    kpi_value_column = 'Giá trị KPI'
+                                elif 'KPI Value' in df_kpi.columns: # Another possible column name
+                                    kpi_value_column = 'KPI Value'
+                                # Add more checks if your KPI values are in different columns
+
+                                # Ensure 'Năm' column exists for filtering
+                                if 'Năm' not in df_kpi.columns:
+                                    st.warning("⚠️ Không tìm thấy cột 'Năm' trong sheet 'KPI'. Không thể vẽ biểu đồ so sánh năm.")
+                                    # Skip plotting if 'Năm' column is missing
+                                    kpi_value_column = None # Set to None to prevent further plotting attempts
+
+                                if 'Tháng' in df_kpi.columns and kpi_value_column:
+                                    try:
+                                        df_kpi['Tháng'] = pd.to_numeric(df_kpi['Tháng'], errors='coerce').fillna(0).astype(int)
+                                        df_kpi[kpi_value_column] = pd.to_numeric(df_kpi[kpi_value_column], errors='coerce')
+                                        df_kpi = df_kpi.dropna(subset=['Tháng', kpi_value_column])
+
+                                        fig, ax = plt.subplots(figsize=(14, 8))
+                                        
+                                        # Get unique years from the data, sorted
+                                        unique_years = sorted(df_kpi['Năm'].unique(), reverse=True) # Assuming a 'Năm' column
+                                        
+                                        colors = cm.get_cmap('tab10', len(unique_years)) # Generate enough colors
+
+                                        for i, year in enumerate(unique_years):
+                                            df_year = df_kpi[df_kpi['Năm'] == year].sort_values(by='Tháng')
+                                            
+                                            # For target year, plot only up to the last available month (non-NaN KPI value)
+                                            if str(year) == target_year_kpi:
+                                                # Find the last month with a valid KPI value for the target year
+                                                last_valid_month = df_year[df_year[kpi_value_column].notna()]['Tháng'].max()
+                                                if last_valid_month is not None:
+                                                    df_year_filtered = df_year[df_year['Tháng'] <= last_valid_month]
+                                                else:
+                                                    df_year_filtered = df_year # No valid data, plot whatever is there or empty
+                                                
+                                                ax.plot(df_year_filtered['Tháng'], df_year_filtered[kpi_value_column], 
+                                                        marker='o', label=f'Năm {year}', color=colors(i))
+                                            else:
+                                                # For other years, plot all 12 months (or available months)
+                                                ax.plot(df_year['Tháng'], df_year[kpi_value_column], 
+                                                        marker='x', linestyle='--', label=f'Năm {year}', color=colors(i), alpha=0.7)
+
+                                        ax.set_xlabel("Tháng")
+                                        ax.set_ylabel("Giá trị KPI")
+                                        ax.set_title(f"So sánh KPI theo tháng (Năm {target_year_kpi} vs các năm khác)")
+                                        ax.set_xticks(range(1, 13)) # Ensure all 12 months are shown on x-axis
+                                        ax.legend()
+                                        plt.grid(True)
+                                        plt.tight_layout()
+                                        st.pyplot(fig, dpi=400)
+
+                                    except Exception as e:
+                                        st.error(f"❌ Lỗi khi vẽ biểu đồ KPI so sánh năm: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet (cột 'Tháng', 'Năm', và '{kpi_value_column}').")
+                                else:
+                                    st.warning("⚠️ Không tìm thấy các cột 'Tháng', 'Năm' hoặc cột giá trị KPI trong sheet 'KPI' để vẽ biểu đồ so sánh.")
+
+                            # Lấy thông tin KPI của các đơn vị năm X (biểu đồ cột)
+                            elif target_year_kpi and units_query:
+                                st.subheader(f"Biểu đồ KPI của các đơn vị năm {target_year_kpi}")
+
+                                # Giả định có cột 'Đơn vị' và cột chứa giá trị KPI
+                                kpi_unit_column = None # Name of the column that holds the unit name
+                                kpi_value_column_for_units = None # Name of the column that holds the KPI value for units
+
+                                # You'll need to identify the correct column names for units and their KPI values
+                                # For example, if your KPI sheet has columns like 'Đơn vị' and 'KPI Tổng năm'
+                                if 'Đơn vị' in df_kpi.columns and 'KPI Tổng năm' in df_kpi.columns:
+                                    kpi_unit_column = 'Đơn vị'
+                                    kpi_value_column_for_units = 'KPI Tổng năm'
+                                elif 'Đơn vị' in df_kpi.columns and 'Giá trị KPI' in df_kpi.columns: # Another possible combination
+                                    kpi_unit_column = 'Đơn vị'
+                                    kpi_value_column_for_units = 'Giá trị KPI'
+                                # Add more conditions based on your actual column names in the "KPI" sheet
+
+                                # Ensure 'Năm' column exists for filtering
+                                if 'Năm' not in df_kpi.columns:
+                                    st.warning("⚠️ Không tìm thấy cột 'Năm' trong sheet 'KPI'. Không thể vẽ biểu đồ KPI theo đơn vị.")
+                                    kpi_unit_column = None # Set to None to prevent further plotting attempts
+                                
+                                if kpi_unit_column and kpi_value_column_for_units:
+                                    try:
+                                        # Filter for the target year
+                                        df_kpi_year = df_kpi[df_kpi['Năm'] == int(target_year_kpi)].copy()
+
+                                        df_kpi_year.loc[:, kpi_value_column_for_units] = pd.to_numeric(df_kpi_year[kpi_value_column_for_units], errors='coerce')
+                                        df_kpi_year = df_kpi_year.dropna(subset=[kpi_value_column_for_units])
+
+                                        if not df_kpi_year.empty:
+                                            # Aggregate KPI for each unit if there are multiple entries per unit
+                                            # Or just use directly if each unit has one entry per year
+                                            unit_kpis = df_kpi_year.groupby(kpi_unit_column)[kpi_value_column_for_units].sum().sort_values(ascending=False)
+
+                                            fig, ax = plt.subplots(figsize=(12, 7))
+                                            colors = cm.get_cmap('tab20', len(unit_kpis.index)) # More colors for more units
+
+                                            bars = ax.bar(unit_kpis.index, unit_kpis.values, color=colors.colors)
+
+                                            for bar in bars:
+                                                yval = bar.get_height()
+                                                ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval, 2), ha='center', va='bottom', color='black')
+
+                                            ax.set_xlabel("Đơn vị")
+                                            ax.set_ylabel("Giá trị KPI")
+                                            ax.set_title(f"KPI của các đơn vị năm {target_year_kpi}")
+                                            plt.xticks(rotation=45, ha='right')
+                                            plt.tight_layout()
+                                            st.pyplot(fig, dpi=400)
+                                        else:
+                                            st.warning(f"⚠️ Không có dữ liệu KPI cho các đơn vị trong năm {target_year_kpi}.")
+
+                                    except Exception as e:
+                                        st.error(f"❌ Lỗi khi vẽ biểu đồ KPI theo đơn vị: {e}. Vui lòng kiểm tra định dạng dữ liệu trong sheet (cột '{kpi_unit_column}', '{kpi_value_column_for_units}' và 'Năm').")
+                                else:
+                                    st.warning("⚠️ Không tìm thấy các cột 'Đơn vị', 'Năm' hoặc cột giá trị KPI phù hợp trong sheet 'KPI' để vẽ biểu đồ đơn vị.")
+                            elif "biểu đồ" in user_msg_lower and not target_year_kpi:
+                                st.warning("⚠️ Vui lòng chỉ định năm bạn muốn xem biểu đồ KPI (ví dụ: 'biểu đồ KPI năm 2025').")
+
+                        else:
+                            st.warning("⚠️ Dữ liệu KPI rỗng, không thể hiển thị hoặc vẽ biểu đồ.")
+                    else:
+                        st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet KPI. Vui lòng kiểm tra tên sheet và quyền truy cập.")
 
                 # Xử lý truy vấn liên quan đến sheet "Quản lý sự cố"
                 elif "sự cố" in user_msg_lower or "quản lý sự cố" in user_msg_lower:
@@ -423,7 +572,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.info("Để vẽ biểu đồ sự cố, bạn có thể thêm 'và vẽ biểu đồ theo [tên cột]' vào câu hỏi.")
                         else:
                             # Nếu filtered_df rỗng sau tất cả các bước lọc và không có thông báo cụ thể
-                            # Điều này xảy ra nếu có yêu cầu tháng/năm cụ thể nhưng không tìm thấy dữ liệu
+                            # Điều này xảy ra nếu có yêu cầu tháng/năm cụ thể mà không tìm thấy dữ liệu
                             st.warning("⚠️ Không tìm thấy dữ liệu phù hợp với yêu cầu của bạn.")
                     else:
                         st.warning("⚠️ Không thể truy xuất dữ liệu từ sheet 'Quản lý sự cố'. Vui lòng kiểm tra tên sheet và quyền truy cập.")
@@ -569,7 +718,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     bars = ax.bar(df['Tháng'], df['Doanh thu'], color=colors.colors)
 
                                     # Hiển thị giá trị trên đỉnh mỗi cột với màu đen
-                                    for bar in bar:
+                                    for bar in bars:
                                         yval = bar.get_height()
                                         ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval, 2), ha='center', va='bottom', color='black') # Màu chữ đen
 
@@ -769,38 +918,20 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 # Đếm số lượng theo nhóm tuổi
                                 age_counts = df_to_show['Nhóm tuổi'].value_counts().reindex(age_labels, fill_value=0) # Đảm bảo thứ tự và điền 0 cho nhóm không có
 
-                                # If pie chart for age is requested
-                                if "biểu đồ tròn độ tuổi" in user_msg_lower:
-                                    fig, ax = plt.subplots(figsize=(8, 8))
-                                    colors = cm.get_cmap('viridis', len(age_counts.index))
-                                    wedges, texts, autotexts = ax.pie(age_counts.values,
-                                                                        labels=age_counts.index,
-                                                                        autopct='%1.1f%%',
-                                                                        startangle=90,
-                                                                        colors=colors.colors,
-                                                                        pctdistance=0.85)
-                                    for autotext in autotexts:
-                                        autotext.set_color('black')
-                                        autotext.set_fontsize(10)
-                                    ax.axis('equal')
-                                    ax.set_title("Biểu đồ hình tròn số lượng CBCNV theo Nhóm tuổi")
-                                    plt.tight_layout()
-                                    st.pyplot(fig, dpi=400)
-                                else: # Default to bar chart
-                                    fig, ax = plt.subplots(figsize=(12, 7))
-                                    colors = cm.get_cmap('viridis', len(age_counts.index))
-                                    bars = ax.bar(age_counts.index, age_counts.values, color=colors.colors)
+                                fig, ax = plt.subplots(figsize=(12, 7))
+                                colors = cm.get_cmap('viridis', len(age_counts.index))
+                                bars = ax.bar(age_counts.index, age_counts.values, color=colors.colors)
 
-                                    for bar in bars:
-                                        yval = bar.get_height()
-                                        ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+                                for bar in bars:
+                                    yval = bar.get_height()
+                                    ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                    ax.set_xlabel("Nhóm tuổi")
-                                    ax.set_ylabel("Số lượng nhân viên")
-                                    ax.set_title("Biểu đồ số lượng CBCNV theo Nhóm tuổi")
-                                    plt.xticks(rotation=45, ha='right')
-                                    plt.tight_layout()
-                                    st.pyplot(fig, dpi=400)
+                                ax.set_xlabel("Nhóm tuổi")
+                                ax.set_ylabel("Số lượng nhân viên")
+                                ax.set_title("Biểu đồ số lượng CBCNV theo Nhóm tuổi")
+                                plt.xticks(rotation=45, ha='right')
+                                plt.tight_layout()
+                                st.pyplot(fig, dpi=400)
                             elif "độ tuổi" in user_msg_lower:
                                 st.warning("⚠️ Không tìm thấy cột 'Ngày sinh CBCNV' hoặc dữ liệu rỗng để vẽ biểu đồ độ tuổi.")
 
@@ -810,38 +941,20 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 # Đảm bảo cột là chuỗi và điền giá trị rỗng cho NaN trước khi value_counts()
                                 trinh_do_counts = df_to_show['Trình độ chuyên môn'].astype(str).fillna('Không xác định').value_counts()
 
-                                # If pie chart for expertise is requested
-                                if "biểu đồ tròn trình độ chuyên môn" in user_msg_lower:
-                                    fig, ax = plt.subplots(figsize=(8, 8))
-                                    colors = cm.get_cmap('plasma', len(trinh_do_counts.index))
-                                    wedges, texts, autotexts = ax.pie(trinh_do_counts.values,
-                                                                        labels=trinh_do_counts.index,
-                                                                        autopct='%1.1f%%',
-                                                                        startangle=90,
-                                                                        colors=colors.colors,
-                                                                        pctdistance=0.85)
-                                    for autotext in autotexts:
-                                        autotext.set_color('black')
-                                        autotext.set_fontsize(10)
-                                    ax.axis('equal')
-                                    ax.set_title("Biểu đồ hình tròn số lượng CBCNV theo Trình độ chuyên môn")
-                                    plt.tight_layout()
-                                    st.pyplot(fig, dpi=400)
-                                else: # Default to bar chart
-                                    fig, ax = plt.subplots(figsize=(12, 7))
-                                    colors = cm.get_cmap('plasma', len(trinh_do_counts.index))
-                                    bars = ax.bar(trinh_do_counts.index, trinh_do_counts.values, color=colors.colors)
+                                fig, ax = plt.subplots(figsize=(12, 7))
+                                colors = cm.get_cmap('plasma', len(trinh_do_counts.index))
+                                bars = ax.bar(trinh_do_counts.index, trinh_do_counts.values, color=colors.colors)
 
-                                    for bar in bars:
-                                        yval = bar.get_height()
-                                        ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+                                for bar in bars:
+                                    yval = bar.get_height()
+                                    ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                    ax.set_xlabel("Trình độ chuyên môn")
-                                    ax.set_ylabel("Số lượng nhân viên")
-                                    ax.set_title("Biểu đồ số lượng CBCNV theo Trình độ chuyên môn")
-                                    plt.xticks(rotation=45, ha='right')
-                                    plt.tight_layout()
-                                    st.pyplot(fig, dpi=400)
+                                ax.set_xlabel("Trình độ chuyên môn")
+                                ax.set_ylabel("Số lượng nhân viên")
+                                ax.set_title("Biểu đồ số lượng CBCNV theo Trình độ chuyên môn")
+                                plt.xticks(rotation=45, ha='right')
+                                plt.tight_layout()
+                                st.pyplot(fig, dpi=400)
                             elif "trình độ chuyên môn" in user_msg_lower:
                                 st.warning("⚠️ Không tìm thấy cột 'Trình độ chuyên môn' hoặc dữ liệu rỗng để vẽ biểu đồ trình độ chuyên môn.")
 
