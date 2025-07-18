@@ -263,9 +263,22 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                             unit_name_from_query = None
                             # Regex để bắt tên đơn vị sau "của" hoặc "thuộc"
-                            unit_name_match = re.search(r"(của|thuộc)\s+([a-zA-Z\s]+?)(?=\s+(so sánh|năm|$))", user_msg_lower)
+                            # Điều chỉnh regex để bắt tên đơn vị linh hoạt hơn
+                            unit_name_match = re.search(r"(của|thuộc)\s+([a-zA-Z\s]+?)(?:\s+(so sánh|năm|$))?", user_msg_lower)
                             if unit_name_match:
                                 unit_name_from_query = normalize_text(unit_name_match.group(2).strip())
+                                # Kiểm tra nếu unit_name_from_query chứa các từ khóa không mong muốn, loại bỏ chúng
+                                if "so sánh" in unit_name_from_query:
+                                    unit_name_from_query = unit_name_from_query.replace("so sánh", "").strip()
+                                if "năm" in unit_name_from_query:
+                                    unit_name_from_query = unit_name_from_query.replace("năm", "").strip()
+                                if target_year_kpi and target_year_kpi in unit_name_from_query:
+                                    unit_name_from_query = unit_name_from_query.replace(target_year_kpi, "").strip()
+                                
+                                # Đảm bảo unit_name_from_query không rỗng sau khi xử lý
+                                if not unit_name_from_query:
+                                    unit_name_from_query = None
+
 
                             # Ánh xạ tên đơn vị trong câu hỏi với tên cột trong Google Sheet
                             unit_column_mapping = {
