@@ -119,8 +119,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
 
         with input_col:
-            # Sử dụng key động cho text_input để cho phép nhấn Enter gửi lệnh
-            user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
+            # Sử dụng st.text_area để cho phép kéo giãn và hiển thị nhiều dòng.
+            # Lưu ý: Để gửi lệnh, vui lòng nhấn Ctrl+Enter hoặc nút "Gửi".
+            user_msg = st.text_area("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value, height=150)
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -568,7 +569,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                     bars = ax.bar(df['Tháng'], df['Doanh thu'], color=colors.colors)
 
                                     # Hiển thị giá trị trên đỉnh mỗi cột với màu đen
-                                    for bar in bars:
+                                    for bar in bar:
                                         yval = bar.get_height()
                                         ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval, 2), ha='center', va='bottom', color='black') # Màu chữ đen
 
@@ -768,20 +769,38 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 # Đếm số lượng theo nhóm tuổi
                                 age_counts = df_to_show['Nhóm tuổi'].value_counts().reindex(age_labels, fill_value=0) # Đảm bảo thứ tự và điền 0 cho nhóm không có
 
-                                fig, ax = plt.subplots(figsize=(12, 7))
-                                colors = cm.get_cmap('viridis', len(age_counts.index))
-                                bars = ax.bar(age_counts.index, age_counts.values, color=colors.colors)
+                                # If pie chart for age is requested
+                                if "biểu đồ tròn độ tuổi" in user_msg_lower:
+                                    fig, ax = plt.subplots(figsize=(8, 8))
+                                    colors = cm.get_cmap('viridis', len(age_counts.index))
+                                    wedges, texts, autotexts = ax.pie(age_counts.values,
+                                                                        labels=age_counts.index,
+                                                                        autopct='%1.1f%%',
+                                                                        startangle=90,
+                                                                        colors=colors.colors,
+                                                                        pctdistance=0.85)
+                                    for autotext in autotexts:
+                                        autotext.set_color('black')
+                                        autotext.set_fontsize(10)
+                                    ax.axis('equal')
+                                    ax.set_title("Biểu đồ hình tròn số lượng CBCNV theo Nhóm tuổi")
+                                    plt.tight_layout()
+                                    st.pyplot(fig, dpi=400)
+                                else: # Default to bar chart
+                                    fig, ax = plt.subplots(figsize=(12, 7))
+                                    colors = cm.get_cmap('viridis', len(age_counts.index))
+                                    bars = ax.bar(age_counts.index, age_counts.values, color=colors.colors)
 
-                                for bar in bars:
-                                    yval = bar.get_height()
-                                    ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+                                    for bar in bars:
+                                        yval = bar.get_height()
+                                        ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                ax.set_xlabel("Nhóm tuổi")
-                                ax.set_ylabel("Số lượng nhân viên")
-                                ax.set_title("Biểu đồ số lượng CBCNV theo Nhóm tuổi")
-                                plt.xticks(rotation=45, ha='right')
-                                plt.tight_layout()
-                                st.pyplot(fig, dpi=400)
+                                    ax.set_xlabel("Nhóm tuổi")
+                                    ax.set_ylabel("Số lượng nhân viên")
+                                    ax.set_title("Biểu đồ số lượng CBCNV theo Nhóm tuổi")
+                                    plt.xticks(rotation=45, ha='right')
+                                    plt.tight_layout()
+                                    st.pyplot(fig, dpi=400)
                             elif "độ tuổi" in user_msg_lower:
                                 st.warning("⚠️ Không tìm thấy cột 'Ngày sinh CBCNV' hoặc dữ liệu rỗng để vẽ biểu đồ độ tuổi.")
 
@@ -791,20 +810,38 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 # Đảm bảo cột là chuỗi và điền giá trị rỗng cho NaN trước khi value_counts()
                                 trinh_do_counts = df_to_show['Trình độ chuyên môn'].astype(str).fillna('Không xác định').value_counts()
 
-                                fig, ax = plt.subplots(figsize=(12, 7))
-                                colors = cm.get_cmap('plasma', len(trinh_do_counts.index))
-                                bars = ax.bar(trinh_do_counts.index, trinh_do_counts.values, color=colors.colors)
+                                # If pie chart for expertise is requested
+                                if "biểu đồ tròn trình độ chuyên môn" in user_msg_lower:
+                                    fig, ax = plt.subplots(figsize=(8, 8))
+                                    colors = cm.get_cmap('plasma', len(trinh_do_counts.index))
+                                    wedges, texts, autotexts = ax.pie(trinh_do_counts.values,
+                                                                        labels=trinh_do_counts.index,
+                                                                        autopct='%1.1f%%',
+                                                                        startangle=90,
+                                                                        colors=colors.colors,
+                                                                        pctdistance=0.85)
+                                    for autotext in autotexts:
+                                        autotext.set_color('black')
+                                        autotext.set_fontsize(10)
+                                    ax.axis('equal')
+                                    ax.set_title("Biểu đồ hình tròn số lượng CBCNV theo Trình độ chuyên môn")
+                                    plt.tight_layout()
+                                    st.pyplot(fig, dpi=400)
+                                else: # Default to bar chart
+                                    fig, ax = plt.subplots(figsize=(12, 7))
+                                    colors = cm.get_cmap('plasma', len(trinh_do_counts.index))
+                                    bars = ax.bar(trinh_do_counts.index, trinh_do_counts.values, color=colors.colors)
 
-                                for bar in bars:
-                                    yval = bar.get_height()
-                                    ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
+                                    for bar in bars:
+                                        yval = bar.get_height()
+                                        ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, round(yval), ha='center', va='bottom', color='black')
 
-                                ax.set_xlabel("Trình độ chuyên môn")
-                                ax.set_ylabel("Số lượng nhân viên")
-                                ax.set_title("Biểu đồ số lượng CBCNV theo Trình độ chuyên môn")
-                                plt.xticks(rotation=45, ha='right')
-                                plt.tight_layout()
-                                st.pyplot(fig, dpi=400)
+                                    ax.set_xlabel("Trình độ chuyên môn")
+                                    ax.set_ylabel("Số lượng nhân viên")
+                                    ax.set_title("Biểu đồ số lượng CBCNV theo Trình độ chuyên môn")
+                                    plt.xticks(rotation=45, ha='right')
+                                    plt.tight_layout()
+                                    st.pyplot(fig, dpi=400)
                             elif "trình độ chuyên môn" in user_msg_lower:
                                 st.warning("⚠️ Không tìm thấy cột 'Trình độ chuyên môn' hoặc dữ liệu rỗng để vẽ biểu đồ trình độ chuyên môn.")
 
