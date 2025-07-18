@@ -262,24 +262,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 target_year_kpi = kpi_year_match.group(1)
 
                             unit_name_from_query = None
-                            # Regex để bắt tên đơn vị sau "của" hoặc "thuộc"
-                            # Điều chỉnh regex để bắt tên đơn vị linh hoạt hơn
-                            unit_name_match = re.search(r"(của|thuộc)\s+([a-zA-Z\s]+?)(?:\s+(so sánh|năm|$))?", user_msg_lower)
-                            if unit_name_match:
-                                unit_name_from_query = normalize_text(unit_name_match.group(2).strip())
-                                # Kiểm tra nếu unit_name_from_query chứa các từ khóa không mong muốn, loại bỏ chúng
-                                if "so sánh" in unit_name_from_query:
-                                    unit_name_from_query = unit_name_from_query.replace("so sánh", "").strip()
-                                if "năm" in unit_name_from_query:
-                                    unit_name_from_query = unit_name_from_query.replace("năm", "").strip()
-                                if target_year_kpi and target_year_kpi in unit_name_from_query:
-                                    unit_name_from_query = unit_name_from_query.replace(target_year_kpi, "").strip()
-                                
-                                # Đảm bảo unit_name_from_query không rỗng sau khi xử lý
-                                if not unit_name_from_query:
-                                    unit_name_from_query = None
-
-
                             # Ánh xạ tên đơn vị trong câu hỏi với tên cột trong Google Sheet
                             unit_column_mapping = {
                                 "định hóa": "Định Hóa",
@@ -293,6 +275,17 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 "võ nhai": "Võ Nhai"
                             }
                             
+                            # Cải thiện logic trích xuất unit_name_from_query
+                            # Lặp qua các key trong unit_column_mapping để tìm khớp trong user_msg_lower
+                            for unit_key, unit_col_name in unit_column_mapping.items():
+                                if unit_key in user_msg_lower:
+                                    unit_name_from_query = unit_key
+                                    break # Tìm thấy khớp đầu tiên thì dừng lại
+
+                            # Debugging output
+                            # st.write(f"Debug: user_msg_lower: {user_msg_lower}")
+                            # st.write(f"Debug: extracted unit_name_from_query: {unit_name_from_query}")
+
                             # Lấy các cột đơn vị thực sự có trong DataFrame
                             actual_unit_columns_in_df = [col for col in unit_column_mapping.values() if col in df_kpi.columns]
 
@@ -306,6 +299,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 if unit_name_from_query: # Nếu có đơn vị cụ thể trong câu hỏi
                                     # Tìm tên cột chính xác từ mapping
                                     mapped_column_name = unit_column_mapping.get(unit_name_from_query)
+                                    # st.write(f"Debug: mapped_column_name: {mapped_column_name}")
                                     if mapped_column_name and mapped_column_name in df_kpi.columns:
                                         kpi_value_column = mapped_column_name
                                     else:
