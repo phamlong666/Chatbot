@@ -25,7 +25,8 @@ plt.rcParams['ytick.labelsize'] = 10
 plt.rcParams['figure.titlesize'] = 16
 
 # Kết nối Google Sheets
-SCOPES = ["https://www.googleapis.com/https://www.googleapis.com/auth/spreadsheets"]
+# Đã sửa lỗi: Loại bỏ tiền tố trùng lặp trong SCOPES
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 if "google_service_account" in st.secrets:
     info = st.secrets["google_service_account"]
