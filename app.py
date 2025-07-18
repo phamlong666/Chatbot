@@ -9,8 +9,8 @@ import re # Thêm thư thư viện regex để trích xuất tên sheet
 import os # Import os for path handling
 from pathlib import Path # Import Path for robust path handling
 from fuzzywuzzy import fuzz # Import fuzzywuzzy để so sánh chuỗi
-import easyocr # Import easyocr cho chức năng OCR
 import datetime # Import datetime để lấy năm hiện tại
+import easyocr # Import easyocr cho chức năng OCR
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -267,53 +267,44 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             if unit_name_match:
                                 unit_name_from_query = normalize_text(unit_name_match.group(2).strip())
 
-                            # Danh sách các đơn vị được định nghĩa trước (tiêu đề cột)
-                            predefined_units = ["Định Hóa", "Đồng Hỷ", "Đại Từ", "Phú Bình", "Phú Lương", "Phổ Yên", "Sông Công", "Thái Nguyên", "Võ Nhai"]
+                            # Ánh xạ tên đơn vị trong câu hỏi với tên cột trong Google Sheet
+                            unit_column_mapping = {
+                                "định hóa": "Định Hóa",
+                                "đồng hỷ": "Đồng Hỷ",
+                                "đại từ": "Đại Từ",
+                                "phú bình": "Phú Bình",
+                                "phú lương": "Phú Lương",
+                                "phổ yên": "Phổ Yên",
+                                "sông công": "Sông Công",
+                                "thái nguyên": "Thái Nguyên",
+                                "võ nhai": "Võ Nhai"
+                            }
                             
                             # Lấy các cột đơn vị thực sự có trong DataFrame
-                            actual_unit_columns_in_df = [col for col in predefined_units if col in df_kpi.columns]
+                            actual_unit_columns_in_df = [col for col in unit_column_mapping.values() if col in df_kpi.columns]
 
                             # Lấy thông tin KPI năm X so sánh với các năm trước (biểu đồ line)
                             if target_year_kpi and "so sánh" in user_msg_lower:
                                 st.subheader(f"Biểu đồ KPI theo tháng cho năm {target_year_kpi} và các năm trước")
 
                                 kpi_value_column = None
-                                df_to_plot_line = df_kpi.copy()
                                 can_plot_line_chart = True
 
                                 if unit_name_from_query: # Nếu có đơn vị cụ thể trong câu hỏi
-                                    # Kiểm tra xem tên đơn vị có phải là một cột trực tiếp không
-                                    if unit_name_from_query.title() in df_kpi.columns:
-                                        kpi_value_column = unit_name_from_query.title()
-                                        # Không cần lọc theo hàng nếu KPI là cột riêng của đơn vị
-                                    elif 'Đơn vị' in df_kpi.columns: # Nếu có cột 'Đơn vị' để lọc theo hàng
-                                        df_to_plot_line = df_kpi[df_kpi['Đơn vị'].astype(str).str.lower() == unit_name_from_query].copy()
-                                        if df_to_plot_line.empty:
-                                            st.warning(f"⚠️ Không tìm thấy dữ liệu KPI cho đơn vị '{unit_name_from_query.title()}' trong năm {target_year_kpi}.")
-                                            can_plot_line_chart = False
-                                        else:
-                                            # Giả định cột giá trị KPI chung nếu lọc theo cột 'Đơn vị'
-                                            if 'Giá trị KPI' in df_kpi.columns:
-                                                kpi_value_column = 'Giá trị KPI'
-                                            elif 'KPI Value' in df_kpi.columns:
-                                                kpi_value_column = 'KPI Value'
-                                            else:
-                                                st.warning("⚠️ Không tìm thấy cột giá trị KPI (ví dụ: 'Giá trị KPI' hoặc 'KPI Value') trong sheet 'KPI' để vẽ biểu đồ so sánh cho đơn vị này.")
-                                                can_plot_line_chart = False
-                                    else: # Không tìm thấy cột đơn vị hoặc cột 'Đơn vị'
-                                        st.warning(f"⚠️ Không tìm thấy cột '{unit_name_from_query.title()}' hoặc cột 'Đơn vị' trong sheet 'KPI' để lọc dữ liệu cho đơn vị này.")
-                                        can_plot_line_chart = False
-                                else: # Không có đơn vị cụ thể, cố gắng vẽ KPI chung nếu có cột mặc định
-                                    if 'Giá trị KPI' in df_kpi.columns:
-                                        kpi_value_column = 'Giá trị KPI'
-                                    elif 'KPI Value' in df_kpi.columns:
-                                        kpi_value_column = 'KPI Value'
+                                    # Tìm tên cột chính xác từ mapping
+                                    mapped_column_name = unit_column_mapping.get(unit_name_from_query)
+                                    if mapped_column_name and mapped_column_name in df_kpi.columns:
+                                        kpi_value_column = mapped_column_name
                                     else:
-                                        st.warning("⚠️ Vui lòng chỉ định đơn vị cụ thể (ví dụ: 'Định Hóa') hoặc đảm bảo có cột giá trị KPI chung (ví dụ: 'Giá trị KPI') trong sheet 'KPI' để vẽ biểu đồ so sánh.")
+                                        st.warning(f"⚠️ Không tìm thấy cột cho đơn vị '{unit_name_from_query.title()}' trong sheet 'KPI'. Vui lòng kiểm tra tên đơn vị.")
                                         can_plot_line_chart = False
+                                else: # Không có đơn vị cụ thể, không thể vẽ biểu đồ so sánh đường
+                                    st.warning("⚠️ Vui lòng chỉ định đơn vị cụ thể (ví dụ: 'Định Hóa') để vẽ biểu đồ KPI so sánh năm.")
+                                    can_plot_line_chart = False
 
-                                if can_plot_line_chart and target_year_kpi and 'Năm' in df_to_plot_line.columns and 'Tháng' in df_to_plot_line.columns and kpi_value_column in df_to_plot_line.columns:
+                                if can_plot_line_chart and target_year_kpi and 'Năm' in df_kpi.columns and 'Tháng' in df_kpi.columns and kpi_value_column in df_kpi.columns:
                                     try:
+                                        df_to_plot_line = df_kpi.copy()
                                         df_to_plot_line['Tháng'] = pd.to_numeric(df_to_plot_line['Tháng'], errors='coerce').fillna(0).astype(int)
                                         df_to_plot_line[kpi_value_column] = pd.to_numeric(df_to_plot_line[kpi_value_column], errors='coerce')
                                         df_to_plot_line = df_to_plot_line.dropna(subset=['Tháng', kpi_value_column])
@@ -332,6 +323,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                             df_year = df_to_plot_line[df_to_plot_line['Năm'] == year].sort_values(by='Tháng')
                                             
                                             if str(year) == target_year_kpi:
+                                                # Chỉ vẽ đến tháng có dữ liệu cho năm hiện tại
                                                 last_valid_month = df_year[df_year[kpi_value_column].notna()]['Tháng'].max()
                                                 if last_valid_month is not None:
                                                     df_year_filtered = df_year[df_year['Tháng'] <= last_valid_month]
@@ -340,7 +332,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 
                                                 ax.plot(df_year_filtered['Tháng'], df_year_filtered[kpi_value_column], 
                                                         marker='o', label=f'Năm {year}', color=colors(i))
+                                                # Thêm giá trị trên đường cho năm mục tiêu (tùy chọn, có thể gây rối nếu nhiều điểm)
+                                                for x, y in zip(df_year_filtered['Tháng'], df_year_filtered[kpi_value_column]):
+                                                    ax.text(x, y + (ax.get_ylim()[1] * 0.01), f'{y:.1f}', ha='center', va='bottom', fontsize=8, color=colors(i))
                                             else:
+                                                # Vẽ đủ 12 tháng cho các năm trước
                                                 ax.plot(df_year['Tháng'], df_year[kpi_value_column], 
                                                         marker='x', linestyle='--', label=f'Năm {year}', color=colors(i), alpha=0.7)
 
@@ -372,21 +368,26 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 if not df_kpi_year.empty:
                                     unit_kpis_aggregated = {}
                                     
-                                    if unit_name_from_query and unit_name_from_query.title() in actual_unit_columns_in_df:
-                                        # Nếu có yêu cầu đơn vị cụ thể và nó là một cột
-                                        unit_col_name = unit_name_from_query.title()
-                                        kpi_values = pd.to_numeric(df_kpi_year[unit_col_name], errors='coerce').dropna()
-                                        if not kpi_values.empty:
-                                            unit_kpis_aggregated[unit_col_name] = kpi_values.mean() # Lấy trung bình KPI của đơn vị đó trong năm
+                                    if unit_name_from_query:
+                                        # Nếu có yêu cầu đơn vị cụ thể, chỉ lấy KPI của đơn vị đó
+                                        mapped_column_name = unit_column_mapping.get(unit_name_from_query)
+                                        if mapped_column_name and mapped_column_name in df_kpi_year.columns:
+                                            kpi_values = pd.to_numeric(df_kpi_year[mapped_column_name], errors='coerce').dropna()
+                                            if not kpi_values.empty:
+                                                unit_kpis_aggregated[mapped_column_name] = kpi_values.mean() # Lấy trung bình KPI của đơn vị đó trong năm
+                                            else:
+                                                st.warning(f"⚠️ Không có dữ liệu KPI cho đơn vị '{mapped_column_name}' trong năm {target_year_kpi}.")
+                                                can_plot_bar_chart = False
                                         else:
-                                            st.warning(f"⚠️ Không có dữ liệu KPI cho đơn vị '{unit_col_name}' trong năm {target_year_kpi}.")
+                                            st.warning(f"⚠️ Không tìm thấy cột cho đơn vị '{unit_name_from_query.title()}' trong sheet 'KPI'.")
                                             can_plot_bar_chart = False
                                     elif "các đơn vị" in user_msg_lower or not unit_name_from_query:
                                         # Nếu yêu cầu "các đơn vị" hoặc không có đơn vị cụ thể (mặc định hiển thị tất cả)
-                                        for unit_col in actual_unit_columns_in_df:
-                                            kpi_values = pd.to_numeric(df_kpi_year[unit_col], errors='coerce').dropna()
-                                            if not kpi_values.empty:
-                                                unit_kpis_aggregated[unit_col] = kpi_values.mean() # Lấy trung bình KPI của mỗi đơn vị trong năm
+                                        for unit_col_key, unit_col_name in unit_column_mapping.items():
+                                            if unit_col_name in df_kpi_year.columns:
+                                                kpi_values = pd.to_numeric(df_kpi_year[unit_col_name], errors='coerce').dropna()
+                                                if not kpi_values.empty:
+                                                    unit_kpis_aggregated[unit_col_name] = kpi_values.mean() # Lấy trung bình KPI của mỗi đơn vị trong năm
                                     else:
                                         st.warning(f"⚠️ Không tìm thấy dữ liệu cho đơn vị '{unit_name_from_query.title()}' hoặc các đơn vị khác trong năm {target_year_kpi}.")
                                         can_plot_bar_chart = False
@@ -406,7 +407,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                         ax.set_xlabel("Đơn vị")
                                         ax.set_ylabel("Giá trị KPI")
-                                        chart_title_prefix = f"KPI của {unit_name_from_query.title()}" if unit_name_from_query and unit_name_from_query.title() in actual_unit_columns_in_df else "KPI của các đơn vị"
+                                        chart_title_prefix = f"KPI của {unit_name_from_query.title()}" if unit_name_from_query and unit_name_from_query in unit_column_mapping else "KPI của các đơn vị"
                                         ax.set_title(f"{chart_title_prefix} năm {target_year_kpi}")
                                         plt.xticks(rotation=45, ha='right')
                                         plt.tight_layout()
