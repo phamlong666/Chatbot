@@ -314,7 +314,15 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                         df_to_plot_line[kpi_value_column] = df_to_plot_line[kpi_value_column].astype(str).str.replace(',', '.', regex=False)
                                         df_to_plot_line[kpi_value_column] = pd.to_numeric(df_to_plot_line[kpi_value_column], errors='coerce')
                                         
-                                        df_to_plot_line = df_to_plot_line.dropna(subset=['Tháng', kpi_value_column])
+                                        # CHỈ LOẠI BỎ HÀNG NẾU THÁNG BỊ THIẾU, KHÔNG LOẠI BỎ NẾU KPI BỊ THIẾU ĐỂ GIỮ CÁC THÁNG ĐẦY ĐỦ
+                                        df_to_plot_line = df_to_plot_line.dropna(subset=['Tháng'])
+
+                                        # Debugging: Print DataFrame before plotting
+                                        # st.write(f"Debug: df_to_plot_line before plotting:\n{df_to_plot_line}")
+                                        # st.write(f"Debug: Unique years in df_to_plot_line: {df_to_plot_line['Năm'].unique()}")
+                                        # st.write(f"Debug: Data for target year {target_year_kpi}:\n{df_to_plot_line[df_to_plot_line['Năm'] == int(target_year_kpi)]}")
+                                        # st.write(f"Debug: Data for other years:\n{df_to_plot_line[df_to_plot_line['Năm'] != int(target_year_kpi)]}")
+
 
                                         fig, ax = plt.subplots(figsize=(14, 8))
                                         
@@ -341,11 +349,18 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                         marker='o', label=f'Năm {year}', color=colors(i))
                                                 # Thêm giá trị trên đường cho năm mục tiêu (tùy chọn, có thể gây rối nếu nhiều điểm)
                                                 for x, y in zip(df_year_filtered['Tháng'], df_year_filtered[kpi_value_column]):
-                                                    ax.text(x, y + (ax.get_ylim()[1] * 0.01), f'{y:.1f}', ha='center', va='bottom', fontsize=8, color=colors(i))
+                                                    # Chỉ thêm text nếu giá trị không phải NaN
+                                                    if pd.notna(y):
+                                                        ax.text(x, y + (ax.get_ylim()[1] * 0.01), f'{y:.1f}', ha='center', va='bottom', fontsize=8, color=colors(i))
                                             else:
-                                                # Vẽ đủ 12 tháng cho các năm trước
+                                                # Vẽ đủ 12 tháng cho các năm trước. ax.plot sẽ tự động bỏ qua NaN
                                                 ax.plot(df_year['Tháng'], df_year[kpi_value_column], 
                                                         marker='x', linestyle='--', label=f'Năm {year}', color=colors(i), alpha=0.7)
+                                                # Thêm giá trị trên đường cho các năm trước (tùy chọn, có thể gây rối nếu nhiều điểm)
+                                                for x, y in zip(df_year['Tháng'], df_year[kpi_value_column]):
+                                                    if pd.notna(y):
+                                                        ax.text(x, y + (ax.get_ylim()[1] * 0.01), f'{y:.1f}', ha='center', va='bottom', fontsize=8, color=colors(i), alpha=0.7)
+
 
                                         ax.set_xlabel("Tháng")
                                         ax.set_ylabel("Giá trị KPI")
