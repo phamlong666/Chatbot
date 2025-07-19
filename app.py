@@ -186,7 +186,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             [""] + sample_questions, # Thêm lựa chọn trống ở đầu
             key="sample_question_selector"
         )
-        if selected_sample_question and selected_sample_question != st.session_state.user_input_form_0: # Only update if a new question is selected and it's not already in the input box
+        # Sửa lỗi: So sánh với giá trị hiện tại của user_msg thay vì một key cố định
+        if selected_sample_question and selected_sample_question != user_msg:
             st.session_state.user_input_value = selected_sample_question
             st.session_state.text_area_key += 1 # Force re-render of the text_input
             st.rerun() # Rerun to update the input box immediately
@@ -1228,4 +1229,3 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
-
