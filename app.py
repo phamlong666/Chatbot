@@ -11,6 +11,7 @@ from pathlib import Path # Import Path for robust path handling
 from fuzzywuzzy import fuzz # Import fuzzywuzzy để so sánh chuỗi
 import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
+import json # Import json để đọc file câu hỏi mẫu
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -93,6 +94,30 @@ def normalize_text(text):
 qa_data = get_sheet_data("Hỏi-Trả lời")
 qa_df = pd.DataFrame(qa_data) if qa_data else pd.DataFrame()
 
+# Hàm để đọc câu hỏi từ file JSON
+def load_sample_questions(file_path="sample_questions.json"):
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            questions_data = json.load(f)
+        # Nếu định dạng là list of strings
+        if isinstance(questions_data, list) and all(isinstance(q, str) for q in questions_data):
+            return questions_data
+        # Nếu định dạng là list of dictionaries (nếu sau này bạn muốn thêm id hoặc mô tả)
+        elif isinstance(questions_data, list) and all(isinstance(q, dict) and "text" in q for q in questions_data):
+            return [q["text"] for q in questions_data]
+        else:
+            st.error("Định dạng file sample_questions.json không hợp lệ. Vui lòng đảm bảo nó là một danh sách các chuỗi hoặc đối tượng có khóa 'text'.")
+            return []
+    except FileNotFoundError:
+        st.warning(f"⚠️ Không tìm thấy file: {file_path}. Vui lòng tạo file chứa các câu hỏi mẫu để sử dụng chức năng này.")
+        return []
+    except json.JSONDecodeError:
+        st.error(f"❌ Lỗi đọc file JSON: {file_path}. Vui lòng kiểm tra cú pháp JSON của file.")
+        return []
+
+# Tải các câu hỏi mẫu khi ứng dụng khởi động
+sample_questions = load_sample_questions()
+
 # --- Bắt đầu bố cục mới: Logo ở trái, phần còn lại của chatbot căn giữa ---
 
 # Phần header: Logo và tiêu đề, được đặt ở đầu trang và logo căn trái
@@ -152,6 +177,19 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
+
+    # Thêm dropdown lựa chọn câu hỏi mẫu
+    if sample_questions:
+        st.markdown("### 📝 Hoặc chọn câu hỏi mẫu:")
+        selected_sample_question = st.selectbox(
+            "Chọn câu hỏi từ danh sách:",
+            [""] + sample_questions, # Thêm lựa chọn trống ở đầu
+            key="sample_question_selector"
+        )
+        if selected_sample_question and selected_sample_question != st.session_state.user_input_form_0: # Only update if a new question is selected and it's not already in the input box
+            st.session_state.user_input_value = selected_sample_question
+            st.session_state.text_area_key += 1 # Force re-render of the text_input
+            st.rerun() # Rerun to update the input box immediately
 
     if clear_button_pressed:
         st.session_state.user_input_value = ""
@@ -1176,9 +1214,6 @@ def extract_text_from_image(image_path):
     return text
 
 # --- Đặt đoạn này vào cuối file app.py ---
-import streamlit as st
-from pathlib import Path
-
 st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
 uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
 
@@ -1193,3 +1228,4 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
+
