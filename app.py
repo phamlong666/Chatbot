@@ -12,6 +12,7 @@ from fuzzywuzzy import fuzz # Import fuzzywuzzy để so sánh chuỗi
 import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
 import json # Import json để đọc file câu hỏi mẫu
+from streamlit_mic_recorder import mic_recorder  # Thêm thư viện hỗ trợ micro
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -109,7 +110,7 @@ def load_sample_questions(file_path="sample_questions.json"):
             st.error("Định dạng file sample_questions.json không hợp lệ. Vui lòng đảm bảo nó là một danh sách các chuỗi hoặc đối tượng có khóa 'text'.")
             return []
     except FileNotFoundError:
-        st.warning(f"⚠️ Không tìm thấy file: {file_path}. Vui lòng tạo file chứa các câu hỏi mẫu để sử dụng chức năng này.")
+        st.warning(f⚠️ Không tìm thấy file: {file_path}. Vui lòng tạo file chứa các câu hỏi mẫu để sử dụng chức năng này.")
         return []
     except json.JSONDecodeError:
         st.error(f"❌ Lỗi đọc file JSON: {file_path}. Vui lòng kiểm tra cú pháp JSON của file.")
@@ -166,11 +167,17 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
     with st.form(key='chat_form'):
         # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
-        input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
+        input_col, mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1, 1])
 
         with input_col:
             # Sử dụng key động cho text_input để cho phép nhấn Enter gửi lệnh
             user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
+
+        with mic_col:
+            audio = mic_recorder(key="mic")
+            if audio:
+                st.session_state.user_input_value = audio['text'] if 'text' in audio else ""
+                st.rerun()
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")

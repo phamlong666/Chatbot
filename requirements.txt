@@ -1,4 +1,5 @@
 streamlit
+streamlit-mic-recorder
 gspread
 google-auth-oauthlib
 openai
