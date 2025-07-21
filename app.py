@@ -13,6 +13,15 @@ import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
 import json # Import json để đọc file câu hỏi mẫu
 
+# Thêm thư viện cho nhận dạng giọng nói
+# Streamlit-webrtc là một lựa chọn tốt cho việc ghi âm trực tiếp từ trình duyệt
+# Nếu bạn không muốn cài đặt thêm thư viện, có thể sử dụng API của Google Speech Recognition
+# Tuy nhiên, streamlit-webrtc cung cấp trải nghiệm tốt hơn cho người dùng cuối
+# Cần cài đặt: pip install streamlit-webrtc SpeechRecognition pydub
+# pydub cần ffmpeg, có thể phức tạp khi triển khai.
+# Thay vào đó, chúng ta sẽ sử dụng SpeechRecognition với Google Web Speech API (yêu cầu internet)
+import speech_recognition as sr
+
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
 
@@ -118,6 +127,33 @@ def load_sample_questions(file_path="sample_questions.json"):
 # Tải các câu hỏi mẫu khi ứng dụng khởi động
 sample_questions = load_sample_questions()
 
+# Hàm nhận dạng giọng nói
+def recognize_speech():
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("Đang lắng nghe...")
+        try:
+            audio = r.listen(source, timeout=5, phrase_time_limit=5) # Giới hạn thời gian nghe
+        except sr.WaitTimeoutError:
+            st.warning("Không nhận được giọng nói. Vui lòng thử lại.")
+            return ""
+        except Exception as e:
+            st.error(f"Lỗi khi truy cập microphone: {e}. Vui lòng kiểm tra quyền truy cập microphone của trình duyệt.")
+            return ""
+
+    try:
+        st.info("Đang nhận dạng...")
+        # Sử dụng Google Web Speech API để nhận dạng tiếng Việt
+        text = r.recognize_google(audio, language="vi-VN")
+        st.success("✅ Đã nhận dạng giọng nói.")
+        return text
+    except sr.UnknownValueError:
+        st.warning("Không thể nhận dạng giọng nói. Vui lòng nói rõ hơn.")
+        return ""
+    except sr.RequestError as e:
+        st.error(f"Lỗi kết nối đến dịch vụ nhận dạng giọng nói của Google; {e}. Vui lòng kiểm tra kết nối internet.")
+        return ""
+
 # --- Bắt đầu bố cục mới: Logo ở trái, phần còn lại của chatbot căn giữa ---
 
 # Phần header: Logo và tiêu đề, được đặt ở đầu trang và logo căn trái
@@ -165,12 +201,18 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
     # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
     with st.form(key='chat_form'):
-        # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
-        input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
+        # Tạo ô nhập liệu và nút Gửi/Xóa/Micro trong một hàng
+        input_col, mic_button_col, send_button_col, clear_button_col = st.columns([9, 1, 1, 1])
 
         with input_col:
-            # Sử dụng key động cho text_input để cho phép nhấn Enter gửi lệnh
             user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
+
+        with mic_button_col:
+            # Nút Micro
+            if st.form_submit_button("🎤"):
+                st.session_state.user_input_value = recognize_speech()
+                st.session_state.text_area_key += 1 # Force re-render of the text_input
+                st.rerun() # Rerun để cập nhật input box với văn bản đã nhận dạng
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -187,10 +229,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             key="sample_question_selector"
         )
         # Sửa lỗi: So sánh với giá trị hiện tại của user_msg thay vì một key cố định
-        if selected_sample_question and selected_sample_question != user_msg:
+        if selected_sample_question and selected_sample_question != st.session_state.user_input_value: # So sánh với giá trị trong session state
             st.session_state.user_input_value = selected_sample_question
             st.session_state.text_area_key += 1 # Force re-render of the text_input
-            st.rerun() # Rerun to update the input box immediately
+            st.rerun() # Rerun để cập nhật the input box immediately
 
     if clear_button_pressed:
         st.session_state.user_input_value = ""
@@ -1229,3 +1271,4 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
+
