@@ -199,26 +199,31 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     if 'text_area_key' not in st.session_state:
         st.session_state.text_area_key = 0
 
-    # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
+    # Tạo ô nhập liệu và các nút trong một hàng
+    input_col, mic_button_col, send_button_col, clear_button_col = st.columns([9, 1, 1, 1])
+
+    with input_col:
+        # Sử dụng st.text_input bên ngoài form để giá trị có thể được cập nhật dễ dàng
+        # và sau đó sử dụng giá trị này trong form submission nếu cần
+        user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_main_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
+
+    with mic_button_col:
+        # Nút Micro (bây giờ là một st.button thông thường)
+        if st.button("🎤", key="mic_button"):
+            st.session_state.user_input_value = recognize_speech()
+            st.session_state.text_area_key += 1 # Force re-render of the text_input
+            st.rerun() # Rerun để cập nhật input box với văn bản đã nhận dạng
+
+    # Sử dụng st.form cho nút Gửi để cho phép nhấn Enter gửi câu hỏi
     with st.form(key='chat_form'):
-        # Tạo ô nhập liệu và nút Gửi/Xóa/Micro trong một hàng
-        input_col, mic_button_col, send_button_col, clear_button_col = st.columns([9, 1, 1, 1])
+        # Nút Gửi (nằm trong form)
+        send_button_pressed = st.form_submit_button("Gửi")
 
-        with input_col:
-            user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
-
-        with mic_button_col:
-            # Nút Micro
-            if st.form_submit_button("🎤"):
-                st.session_state.user_input_value = recognize_speech()
-                st.session_state.text_area_key += 1 # Force re-render of the text_input
-                st.rerun() # Rerun để cập nhật input box với văn bản đã nhận dạng
-
-        with send_button_col:
-            send_button_pressed = st.form_submit_button("Gửi")
-
-        with clear_button_col:
-            clear_button_pressed = st.form_submit_button("Xóa")
+        # Nút Xóa (bây giờ là một st.button thông thường, nhưng được đặt trong form để căn chỉnh)
+        # Để nút Xóa hoạt động độc lập với form submit, chúng ta sẽ xử lý nó bên ngoài
+        # Hoặc có thể đặt nó trong một cột riêng biệt bên ngoài form nếu muốn hoàn toàn tách biệt
+        # Tạm thời giữ nó trong form để căn chỉnh bố cục, nhưng xử lý logic bên ngoài
+        # clear_button_pressed = st.form_submit_button("Xóa") # Removed from here
 
     # Thêm dropdown lựa chọn câu hỏi mẫu
     if sample_questions:
@@ -234,7 +239,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.session_state.text_area_key += 1 # Force re-render of the text_input
             st.rerun() # Rerun để cập nhật the input box immediately
 
-    if clear_button_pressed:
+    # Nút Xóa được đặt bên ngoài form để tránh xung đột
+    # Tạo một hàng riêng cho nút Xóa nếu muốn tách biệt hoàn toàn
+    # Hoặc có thể đặt nó trong cột clear_button_col ban đầu nếu muốn nó là một st.button độc lập
+    # Hiện tại, tôi sẽ đặt nó ở đây để xử lý logic bên ngoài form
+    if st.button("Xóa", key="clear_button_outside_form"):
         st.session_state.user_input_value = ""
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
@@ -244,7 +253,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
-    if send_button_pressed:
+    # user_msg là giá trị hiện tại của st.text_input, được lấy trước khi form được submit
+    if send_button_pressed: # send_button_pressed chỉ là True khi form được submit
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
             st.session_state.user_input_value = "" # Reset input value to clear the box for next input
@@ -1271,4 +1281,3 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
-
