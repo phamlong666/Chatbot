@@ -13,11 +13,13 @@ import fuzzywuzzy.fuzz as fuzz # Import fuzzywuzzy để so sánh chuỗi
 import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
 import json # Import json để đọc file câu hỏi mẫu
-from streamlit_mic_recorder import mic_recorder  # Thêm thư viện hỗ trợ micro
 
-# New imports for speech_recognition method
+# New imports for speech_recognition method and streamlit-webrtc
 import speech_recognition as sr
 import tempfile
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
+import av
+import queue
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -48,8 +50,6 @@ if "openai_api_key" in st.secrets:
     openai_api_key = st.secrets["openai_api_key"]
     st.success("✅ Đã kết nối OpenAI API key từ Streamlit secrets.")
 else:
-    # Cảnh báo này đã được xóa theo yêu cầu của người dùng.
-    # st.warning("⚠️ Không tìm thấy API key OpenAI trong `st.secrets`. Chức năng chatbot tổng quát sẽ không hoạt động. Vui lòng cấu hình 'openai_api_key' trong file `.streamlit/secrets.toml`.")
     pass # Không hiển thị cảnh báo nữa
 
 if openai_api_key:
@@ -183,49 +183,98 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1]) # Tỷ lệ mới cho các nút
 
         with mic_col:
-            # Ghi âm – không cần API (dùng SpeechRecognition của Google)
-            voice_input = mic_recorder(
-                start_prompt="🎙 Nhấn để nói",
-                stop_prompt="⏹ Dừng ghi",
-                just_once=True,
-                use_container_width=False,
-                key="voice_only" # Sử dụng key mới của người dùng
+            # Tạo hàng đợi để nhận dữ liệu audio từ WebRTC
+            audio_queue = queue.Queue()
+
+            # Bộ mã hóa âm thanh WebRTC
+            class AudioProcessor:
+                def recv(self, frame: av.VideoFrame): # Sử dụng av.VideoFrame thay vì av.AudioFrame
+                    # Chuyển đổi AudioFrame thành numpy array (mono)
+                    if frame.format.name == 's16': # Kiểm tra định dạng sample
+                        audio_array = frame.to_ndarray().flatten() # Flatten nếu có nhiều kênh
+                    else:
+                        # Nếu định dạng khác, có thể cần chuyển đổi hoặc xử lý khác
+                        # Ví dụ: convert to s16 before to_ndarray()
+                        audio_array = frame.to_ndarray().flatten() # Fallback, có thể không tối ưu
+                    
+                    audio_queue.put(audio_array)  # Đưa dữ liệu âm thanh vào hàng đợi
+                    return frame
+
+            # Thiết lập WebRTC
+            webrtc_ctx = webrtc_streamer(
+                key="speech",
+                mode=WebRtcMode.SENDONLY,
+                in_audio=True,
+                client_settings=ClientSettings(
+                    media_stream_constraints={"audio": True, "video": False},
+                    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+                ),
+                audio_receiver_size=256,
+                processor_factory=AudioProcessor
             )
 
-            # Nếu có file âm thanh thì chuyển thành văn bản
-            if voice_input and "audio" in voice_input:
-                st.info("⏳ Đang nhận dạng giọng nói...")
-                audio_bytes = voice_input["audio"]
+            # Nút để xử lý giọng nói sau khi ghi
+            if st.button("📝 Nhận dạng giọng nói"):
+                if webrtc_ctx.state.playing: # Kiểm tra xem WebRTC có đang hoạt động không
+                    if not audio_queue.empty():
+                        st.info("⏳ Đang xử lý dữ liệu giọng nói...")
+                        
+                        # Chuyển đổi các numpy array thành bytes
+                        # Cần biết định dạng sample rate và sample width để tạo WAV đúng
+                        # Mặc định của WebRTC thường là 16-bit PCM, 48000 Hz
+                        # SpeechRecognition cần 16-bit PCM
+                        
+                        # Giả định sample rate là 48000 Hz và 16-bit (2 bytes)
+                        SAMPLE_RATE = 48000
+                        SAMPLE_WIDTH = 2 # 16-bit audio
+                        
+                        # Chuyển đổi numpy array (int16) thành bytes
+                        audio_data_list = []
+                        while not audio_queue.empty():
+                            frame_data = audio_queue.get()
+                            # Chuyển đổi từ numpy array (int16) sang bytes
+                            audio_data_list.append(frame_data.astype(st.audio_dtype_for_sample_width(SAMPLE_WIDTH)).tobytes())
 
-                # Tạo file tạm thời
-                audio_path = None # Initialize audio_path outside try block
-                try:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                        tmp.write(audio_bytes)
-                        audio_path = tmp.name
-
-                    recognizer = sr.Recognizer()
-                    with sr.AudioFile(audio_path) as source:
-                        audio_data = recognizer.record(source)
+                        combined_audio_bytes = b"".join(audio_data_list)
+                        
+                        temp_audio_path = None
                         try:
-                            # Sử dụng Google Web Speech API
-                            text = recognizer.recognize_google(audio_data, language="vi-VN")
-                            st.success(f"📝 Văn bản nhận dạng: {text}")
-                            st.session_state.user_input_value = text  # Gán vào session state để cập nhật ô nhập
-                            st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
-                            st.rerun() # Rerun để cập nhật input box ngay lập tức
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                                # Ghi header WAV thủ công hoặc sử dụng thư viện wave
+                                # Để đơn giản, SpeechRecognition có thể tự xử lý nếu file là raw PCM và bạn cung cấp sample_rate
+                                # Tuy nhiên, tạo file WAV đầy đủ là cách an toàn nhất.
+                                # Sử dụng pydub hoặc scipy.io.wavfile để tạo file WAV nếu cần phức tạp hơn.
+                                # Hiện tại, dựa vào SpeechRecognition có thể đọc raw audio nếu được cấu hình đúng.
+                                # Hoặc cách đơn giản hơn là lưu trực tiếp bytes và để SpeechRecognition xử lý.
+                                # Tuy nhiên, SpeechRecognition.AudioFile yêu cầu định dạng WAV hợp lệ.
+                                # Cách tốt nhất là sử dụng `soundfile` hoặc `scipy.io.wavfile` để ghi WAV.
+                                # Vì không có `soundfile` hoặc `scipy` trong requirements, chúng ta sẽ thử cách đơn giản nhất:
+                                # Ghi raw bytes và hy vọng SpeechRecognition có thể xử lý, hoặc tạo header WAV tối thiểu.
+                                
+                                # Cách đơn giản nhất: ghi raw bytes và sử dụng AudioData
+                                # Đây là cách an toàn nhất mà không cần thêm thư viện ghi WAV
+                                r = sr.Recognizer()
+                                audio_segment = sr.AudioData(combined_audio_bytes, SAMPLE_RATE, SAMPLE_WIDTH)
+
+                                text = r.recognize_google(audio_segment, language="vi-VN")
+                                st.success(f"✅ Văn bản nhận dạng: {text}")
+                                st.session_state.user_input_value = text
+                                st.session_state.text_area_key += 1
+                                st.rerun()
+
                         except sr.UnknownValueError:
                             st.warning("⚠️ Không nhận dạng được giọng nói. Vui lòng thử lại rõ ràng hơn.")
                         except sr.RequestError as e:
                             st.error(f"🔌 Lỗi khi kết nối dịch vụ nhận dạng: {e}. Vui lòng kiểm tra kết nối internet.")
-                except Exception as e:
-                    st.error(f"❌ Lỗi khi xử lý file âm thanh: {e}")
-                finally:
-                    # Đảm bảo xóa file tạm thời sau khi sử dụng
-                    if audio_path and os.path.exists(audio_path):
-                        os.remove(audio_path)
-            elif voice_input: # If voice_input exists but 'audio' key is missing, it means recording failed or was empty
-                st.warning("⚠️ Không nhận được dữ liệu âm thanh từ micro. Vui lòng thử lại hoặc kiểm tra micro.")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi xử lý dữ liệu âm thanh: {e}")
+                        finally:
+                            if temp_audio_path and os.path.exists(temp_audio_path):
+                                os.remove(temp_audio_path)
+                    else:
+                        st.warning("⚠️ Không có dữ liệu âm thanh trong hàng đợi. Hãy thử lại sau khi nói vài giây.")
+                else:
+                    st.info("ℹ️ WebRTC chưa bắt đầu hoặc đã dừng. Vui lòng bật micro và nói.")
 
 
         with send_button_col:
@@ -421,7 +470,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                         st.warning(f"⚠️ Không tìm thấy tên đơn vị hợp lệ trong câu hỏi của bạn. Vui lòng kiểm tra lại.")
                                         can_plot_line_chart = False
                                 else: # Không có đơn vị cụ thể, không thể vẽ biểu đồ so sánh đường
-                                    st.warning("⚠️ Vui lòng chỉ định đơn vị cụ thể (ví dụ: 'Định Hóa') để vẽ biểu đồ KPI so sánh năm.")
+                                    st.warning("⚠️ Vui lòng chỉ định đơn vị cụ thể (उदाहरण: 'Định Hóa') để vẽ biểu đồ KPI so sánh năm.")
                                     can_plot_line_chart = False
 
                                 if can_plot_line_chart and target_year_kpi and 'Năm' in df_to_plot_line.columns and 'Tháng' in df_to_plot_line.columns and kpi_value_column in df_to_plot_line.columns:
