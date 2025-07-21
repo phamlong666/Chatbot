@@ -10,5 +10,3 @@ easyocr
 torch
 torchvision
 torchaudio
-pip install SpeechRecognition
-pip install PyAudio
