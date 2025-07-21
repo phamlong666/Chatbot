@@ -209,6 +209,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning("⚠️ Chưa cấu hình API key OpenAI để sử dụng chức năng chuyển đổi giọng nói.")
             elif audio: # Nếu audio không có 'audio_base64' (ví dụ: ghi âm thất bại)
                 st.warning("⚠️ Không nhận được dữ liệu âm thanh từ micro. Vui lòng thử lại hoặc kiểm tra micro.")
+                st.json(audio) # Thêm dòng này để hiển thị chi tiết đối tượng audio
 
 
         with send_button_col:
