@@ -180,12 +180,14 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             # Debug: Hiển thị toàn bộ dữ liệu audio nhận được từ mic_recorder
             # st.write("Raw audio data from mic_recorder:", audio) 
 
-            if audio and 'audio_base64' in audio:
+            # Đã thay đổi điều kiện kiểm tra từ 'audio_base64' sang 'bytes'
+            if audio and 'bytes' in audio:
                 if client_ai:
                     with st.spinner("Đang chuyển đổi giọng nói thành văn bản..."):
                         try:
-                            # Giải mã base64 thành bytes
-                            audio_bytes = base64.b64decode(audio['audio_base64'])
+                            # Giải mã base64 thành bytes từ khóa 'bytes'
+                            # Lưu ý: 'bytes' ở đây thực chất là chuỗi base64, cần giải mã
+                            audio_bytes = base64.b64decode(audio['bytes']) 
                             # Tạo một file object trong bộ nhớ
                             audio_file = io.BytesIO(audio_bytes)
                             audio_file.name = f"recorded_audio.{audio.get('format', 'webm')}" # Đặt tên file với định dạng
@@ -207,7 +209,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.error(f"❌ Lỗi khi chuyển đổi giọng nói: {e}. Vui lòng kiểm tra API key OpenAI và đảm bảo có đủ tín dụng.")
                 else:
                     st.warning("⚠️ Chưa cấu hình API key OpenAI để sử dụng chức năng chuyển đổi giọng nói.")
-            elif audio: # Nếu audio không có 'audio_base64' (ví dụ: ghi âm thất bại)
+            elif audio: # Nếu audio không có 'bytes' (ví dụ: ghi âm thất bại)
                 st.warning("⚠️ Không nhận được dữ liệu âm thanh từ micro. Vui lòng thử lại hoặc kiểm tra micro.")
                 st.json(audio) # Thêm dòng này để hiển thị chi tiết đối tượng audio
 
