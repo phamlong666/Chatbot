@@ -13,18 +13,6 @@ import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
 import json # Import json để đọc file câu hỏi mẫu
 
-# Thêm thư viện cho nhận dạng giọng nói
-try:
-    import speech_recognition as sr
-    SPEECH_RECOGNITION_AVAILABLE = True
-except ImportError:
-    st.warning("⚠️ Thư viện 'SpeechRecognition' không được tìm thấy. Chức năng ghi âm sẽ không hoạt động. Vui lòng cài đặt: pip install SpeechRecognition PyAudio")
-    SPEECH_RECOGNITION_AVAILABLE = False
-except Exception as e:
-    st.warning(f"⚠️ Lỗi khi tải thư viện SpeechRecognition: {e}. Chức năng ghi âm sẽ không hoạt động.")
-    SPEECH_RECOGNITION_AVAILABLE = False
-
-
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
 
@@ -171,53 +159,24 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.user_input_value = ""
     if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
-    
-    # Sử dụng columns để đặt ô nhập liệu và nút Micro trên cùng một hàng
-    input_col, mic_col = st.columns([9, 1])
+    # Khởi tạo key động cho text_area
+    if 'text_area_key' not in st.session_state:
+        st.session_state.text_area_key = 0
 
-    with input_col:
-        # Ô nhập liệu chính cho câu hỏi của người dùng
-        user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input_text_area", value=st.session_state.user_input_value)
+    # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
+    with st.form(key='chat_form'):
+        # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
+        input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
 
-    with mic_col:
-        # Nút Micro, tách biệt khỏi form để tránh xung đột DOM
-        if SPEECH_RECOGNITION_AVAILABLE:
-            # Thêm khoảng trống để căn chỉnh nút với ô nhập liệu
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-            mic_button_pressed = st.button("🎤", key="mic_button_outside_form")
-        else:
-            mic_button_pressed = False
-            st.markdown("<div style='height: 56px;'></div>", unsafe_allow_html=True) # Giữ khoảng trống nếu nút không hiển thị
+        with input_col:
+            # Sử dụng key động cho text_input để cho phép nhấn Enter gửi lệnh
+            user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
 
-    # Form riêng cho các nút Gửi và Xóa (để vẫn có thể dùng Enter để gửi)
-    with st.form(key='chat_form_buttons'):
-        send_button_col, clear_button_col = st.columns([1, 1])
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
+
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
-
-    # Xử lý khi nút Micro được nhấn
-    if mic_button_pressed and SPEECH_RECOGNITION_AVAILABLE:
-        r = sr.Recognizer()
-        with st.spinner("Đang nghe... Vui lòng nói vào microphone của bạn."):
-            try:
-                with sr.Microphone() as source:
-                    r.adjust_for_ambient_noise(source) # Điều chỉnh độ ồn môi trường
-                    audio = r.listen(source)
-                
-                # Sử dụng Google Web Speech API để nhận dạng giọng nói
-                text = r.recognize_google(audio, language="vi-VN") # Ngôn ngữ tiếng Việt
-                st.session_state.user_input_value = text
-                st.success(f"✅ Đã nhận dạng: {text}")
-                st.rerun() # Kích hoạt rerun để cập nhật ô nhập liệu ngay lập tức
-            except sr.UnknownValueError:
-                st.warning("⚠️ Không thể nhận dạng giọng nói. Vui lòng thử lại.")
-            except sr.RequestError as e:
-                st.error(f"❌ Lỗi kết nối với dịch vụ nhận dạng giọng nói; {e}")
-            except Exception as e:
-                st.error(f"❌ Lỗi ghi âm hoặc nhận dạng giọng nói: {e}")
-
 
     # Thêm dropdown lựa chọn câu hỏi mẫu
     if sample_questions:
@@ -228,9 +187,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             key="sample_question_selector"
         )
         # Sửa lỗi: So sánh với giá trị hiện tại của user_msg thay vì một key cố định
-        if selected_sample_question and selected_sample_question != st.session_state.user_input_value: # So sánh với giá trị trong session_state
+        if selected_sample_question and selected_sample_question != user_msg:
             st.session_state.user_input_value = selected_sample_question
-            st.rerun() # Rerun để cập nhật the input box immediately
+            st.session_state.text_area_key += 1 # Force re-render of the text_input
+            st.rerun() # Rerun to update the input box immediately
 
     if clear_button_pressed:
         st.session_state.user_input_value = ""
@@ -238,11 +198,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
         st.session_state.current_qa_display = "" # Clear displayed QA as well
+        st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
         st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
-    # user_msg là giá trị hiện tại của text_input
-    if send_button_pressed or (user_msg and user_msg != st.session_state.last_processed_user_msg):
+    if send_button_pressed:
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
             st.session_state.user_input_value = "" # Reset input value to clear the box for next input
