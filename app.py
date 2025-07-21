@@ -13,6 +13,18 @@ import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
 import json # Import json để đọc file câu hỏi mẫu
 
+# Thêm thư viện cho nhận dạng giọng nói
+try:
+    import speech_recognition as sr
+    SPEECH_RECOGNITION_AVAILABLE = True
+except ImportError:
+    st.warning("⚠️ Thư viện 'SpeechRecognition' không được tìm thấy. Chức năng ghi âm sẽ không hoạt động. Vui lòng cài đặt: pip install SpeechRecognition PyAudio")
+    SPEECH_RECOGNITION_AVAILABLE = False
+except Exception as e:
+    st.warning(f"⚠️ Lỗi khi tải thư viện SpeechRecognition: {e}. Chức năng ghi âm sẽ không hoạt động.")
+    SPEECH_RECOGNITION_AVAILABLE = False
+
+
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
 
@@ -165,8 +177,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
     # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
     with st.form(key='chat_form'):
-        # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
-        input_col, send_button_col, clear_button_col = st.columns([10, 1, 1])
+        # Tạo ô nhập liệu và nút Gửi/Xóa/Micro trong một hàng
+        input_col, send_button_col, clear_button_col, mic_button_col = st.columns([9, 1, 1, 1]) # Thêm cột cho nút Micro
 
         with input_col:
             # Sử dụng key động cho text_input để cho phép nhấn Enter gửi lệnh
@@ -177,6 +189,37 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
+        
+        with mic_button_col:
+            # Nút Micro
+            if SPEECH_RECOGNITION_AVAILABLE:
+                mic_button_pressed = st.form_submit_button("🎤")
+            else:
+                mic_button_pressed = False
+                st.markdown("<div style='height: 32px;'></div>", unsafe_allow_html=True) # Giữ khoảng trống nếu nút không hiển thị
+
+    # Xử lý khi nút Micro được nhấn
+    if mic_button_pressed and SPEECH_RECOGNITION_AVAILABLE:
+        r = sr.Recognizer()
+        with st.spinner("Đang nghe... Vui lòng nói vào microphone của bạn."):
+            try:
+                with sr.Microphone() as source:
+                    r.adjust_for_ambient_noise(source) # Điều chỉnh độ ồn môi trường
+                    audio = r.listen(source)
+                
+                # Sử dụng Google Web Speech API để nhận dạng giọng nói
+                text = r.recognize_google(audio, language="vi-VN") # Ngôn ngữ tiếng Việt
+                st.session_state.user_input_value = text
+                st.session_state.text_area_key += 1 # Force re-render of the text_input
+                st.success(f"✅ Đã nhận dạng: {text}")
+                st.rerun() # Rerun để cập nhật ô nhập liệu
+            except sr.UnknownValueError:
+                st.warning("⚠️ Không thể nhận dạng giọng nói. Vui lòng thử lại.")
+            except sr.RequestError as e:
+                st.error(f"❌ Lỗi kết nối với dịch vụ nhận dạng giọng nói; {e}")
+            except Exception as e:
+                st.error(f"❌ Lỗi ghi âm hoặc nhận dạng giọng nói: {e}")
+
 
     # Thêm dropdown lựa chọn câu hỏi mẫu
     if sample_questions:
@@ -187,10 +230,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             key="sample_question_selector"
         )
         # Sửa lỗi: So sánh với giá trị hiện tại của user_msg thay vì một key cố định
-        if selected_sample_question and selected_sample_question != user_msg:
+        if selected_sample_question and selected_sample_question != st.session_state.user_input_value: # So sánh với giá trị trong session_state
             st.session_state.user_input_value = selected_sample_question
             st.session_state.text_area_key += 1 # Force re-render of the text_input
-            st.rerun() # Rerun to update the input box immediately
+            st.rerun() # Rerun để cập nhật the input box immediately
 
     if clear_button_pressed:
         st.session_state.user_input_value = ""
