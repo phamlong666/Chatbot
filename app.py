@@ -177,6 +177,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         with mic_col:
             audio = mic_recorder(key="mic")
             
+            # Debug: Hiển thị toàn bộ dữ liệu audio nhận được từ mic_recorder
+            # st.write("Raw audio data from mic_recorder:", audio) 
+
             if audio and 'audio_base64' in audio:
                 if client_ai:
                     with st.spinner("Đang chuyển đổi giọng nói thành văn bản..."):
@@ -188,14 +191,16 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             audio_file.name = f"recorded_audio.{audio.get('format', 'webm')}" # Đặt tên file với định dạng
 
                             # Gửi đến OpenAI Whisper API
-                            transcription = client_ai.audio.transcriptions.create(
+                            transcription_obj = client_ai.audio.transcriptions.create(
                                 model="whisper-1",
                                 file=audio_file,
-                                response_format="text",
+                                response_format="json", # Yêu cầu JSON để lấy text
                                 language="vi" # Chỉ định ngôn ngữ tiếng Việt
                             )
-                            st.info(f"Đã nhận dạng được giọng nói: '{transcription}'")
-                            st.session_state.user_input_value = transcription
+                            transcription_text = transcription_obj.text # Lấy văn bản từ đối tượng phản hồi
+                            
+                            st.info(f"Đã nhận dạng được giọng nói: '{transcription_text}'")
+                            st.session_state.user_input_value = transcription_text
                             st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
                             st.rerun() # Rerun để cập nhật input box ngay lập tức
                         except Exception as e:
