@@ -48,7 +48,9 @@ if "openai_api_key" in st.secrets:
     openai_api_key = st.secrets["openai_api_key"]
     st.success("✅ Đã kết nối OpenAI API key từ Streamlit secrets.")
 else:
-    st.warning("⚠️ Không tìm thấy API key OpenAI trong `st.secrets`. Chức năng chatbot tổng quát sẽ không hoạt động. Vui lòng cấu hình 'openai_api_key' trong file `.streamlit/secrets.toml`.")
+    # Cảnh báo này đã được xóa theo yêu cầu của người dùng.
+    # st.warning("⚠️ Không tìm thấy API key OpenAI trong `st.secrets`. Chức năng chatbot tổng quát sẽ không hoạt động. Vui lòng cấu hình 'openai_api_key' trong file `.streamlit/secrets.toml`.")
+    pass # Không hiển thị cảnh báo nữa
 
 if openai_api_key:
     client_ai = OpenAI(api_key=openai_api_key)
