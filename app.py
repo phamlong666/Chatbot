@@ -14,8 +14,10 @@ import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
 import json # Import json để đọc file câu hỏi mẫu
 from streamlit_mic_recorder import mic_recorder  # Thêm thư viện hỗ trợ micro
-import base64 # Thêm thư viện base64 để giải mã dữ liệu âm thanh
-import io # Thêm thư viện io để xử lý dữ liệu âm thanh trong bộ nhớ
+
+# New imports for speech_recognition method
+import speech_recognition as sr
+import tempfile
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -46,18 +48,12 @@ if "openai_api_key" in st.secrets:
     openai_api_key = st.secrets["openai_api_key"]
     st.success("✅ Đã kết nối OpenAI API key từ Streamlit secrets.")
 else:
-    # Sử dụng API key được cung cấp trực tiếp cho mục đích trình diễn.
-    # Cảnh báo: Cách này KHÔNG an toàn cho môi trường sản phẩm.
-    # Vui lòng chuyển API key vào `st.secrets` (file `.streamlit/secrets.toml`) để bảo mật tốt hơn.
-    openai_api_key = "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"
-    st.warning("⚠️ Cảnh báo: API key OpenAI đang được nhúng trực tiếp trong mã. Điều này KHÔNG an toàn cho môi trường sản phẩm. Vui lòng chuyển API key vào `st.secrets` (file `.streamlit/secrets.toml`) để bảo mật tốt hơn.")
+    st.warning("⚠️ Không tìm thấy API key OpenAI trong `st.secrets`. Chức năng chatbot tổng quát sẽ không hoạt động. Vui lòng cấu hình 'openai_api_key' trong file `.streamlit/secrets.toml`.")
 
 if openai_api_key:
     client_ai = OpenAI(api_key=openai_api_key)
-    # st.success("✅ Đã kết nối OpenAI API key.") # Bỏ dòng này vì đã có success/warning ở trên
 else:
     client_ai = None
-    st.error("❌ Không tìm thấy API key OpenAI. Vui lòng cấu hình 'openai_api_key' trong `st.secrets` hoặc cung cấp trực tiếp.")
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
@@ -185,43 +181,49 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1]) # Tỷ lệ mới cho các nút
 
         with mic_col:
-            audio = mic_recorder(key="mic")
-            
-            # Debug: Hiển thị toàn bộ dữ liệu audio nhận được từ mic_recorder
-            # st.write("Raw audio data from mic_recorder:", audio) 
+            # Ghi âm – không cần API (dùng SpeechRecognition của Google)
+            voice_input = mic_recorder(
+                start_prompt="🎙 Nhấn để nói",
+                stop_prompt="⏹ Dừng ghi",
+                just_once=True,
+                use_container_width=False,
+                key="voice_only" # Sử dụng key mới của người dùng
+            )
 
-            # Đã thay đổi điều kiện kiểm tra từ 'audio_base64' sang 'bytes'
-            if audio and 'bytes' in audio:
-                if client_ai:
-                    with st.spinner("Đang chuyển đổi giọng nói thành văn bản..."):
+            # Nếu có file âm thanh thì chuyển thành văn bản
+            if voice_input and "audio" in voice_input:
+                st.info("⏳ Đang nhận dạng giọng nói...")
+                audio_bytes = voice_input["audio"]
+
+                # Tạo file tạm thời
+                audio_path = None # Initialize audio_path outside try block
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+                        tmp.write(audio_bytes)
+                        audio_path = tmp.name
+
+                    recognizer = sr.Recognizer()
+                    with sr.AudioFile(audio_path) as source:
+                        audio_data = recognizer.record(source)
                         try:
-                            # Giải mã base64 thành bytes từ khóa 'bytes'
-                            # Lưu ý: 'bytes' ở đây thực chất là chuỗi base64, cần giải mã
-                            audio_bytes = base64.b64decode(audio['bytes']) 
-                            # Tạo một file object trong bộ nhớ
-                            audio_file = io.BytesIO(audio_bytes)
-                            audio_file.name = f"recorded_audio.{audio.get('format', 'webm')}" # Đặt tên file với định dạng
-
-                            # Gửi đến OpenAI Whisper API
-                            transcription_obj = client_ai.audio.transcriptions.create(
-                                model="whisper-1",
-                                file=audio_file,
-                                response_format="json", # Yêu cầu JSON để lấy text
-                                language="vi" # Chỉ định ngôn ngữ tiếng Việt
-                            )
-                            transcription_text = transcription_obj.text # Lấy văn bản từ đối tượng phản hồi
-                            
-                            st.info(f"Đã nhận dạng được giọng nói: '{transcription_text}'")
-                            st.session_state.user_input_value = transcription_text
+                            # Sử dụng Google Web Speech API
+                            text = recognizer.recognize_google(audio_data, language="vi-VN")
+                            st.success(f"📝 Văn bản nhận dạng: {text}")
+                            st.session_state.user_input_value = text  # Gán vào session state để cập nhật ô nhập
                             st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
                             st.rerun() # Rerun để cập nhật input box ngay lập tức
-                        except Exception as e:
-                            st.error(f"❌ Lỗi khi chuyển đổi giọng nói: {e}. Vui lòng kiểm tra API key OpenAI và đảm bảo có đủ tín dụng.")
-                else:
-                    st.warning("⚠️ Chưa cấu hình API key OpenAI để sử dụng chức năng chuyển đổi giọng nói.")
-            elif audio: # Nếu audio không có 'bytes' (ví dụ: ghi âm thất bại)
+                        except sr.UnknownValueError:
+                            st.warning("⚠️ Không nhận dạng được giọng nói. Vui lòng thử lại rõ ràng hơn.")
+                        except sr.RequestError as e:
+                            st.error(f"🔌 Lỗi khi kết nối dịch vụ nhận dạng: {e}. Vui lòng kiểm tra kết nối internet.")
+                except Exception as e:
+                    st.error(f"❌ Lỗi khi xử lý file âm thanh: {e}")
+                finally:
+                    # Đảm bảo xóa file tạm thời sau khi sử dụng
+                    if audio_path and os.path.exists(audio_path):
+                        os.remove(audio_path)
+            elif voice_input: # If voice_input exists but 'audio' key is missing, it means recording failed or was empty
                 st.warning("⚠️ Không nhận được dữ liệu âm thanh từ micro. Vui lòng thử lại hoặc kiểm tra micro.")
-                st.json(audio) # Thêm dòng này để hiển thị chi tiết đối tượng audio
 
 
         with send_button_col:
