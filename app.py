@@ -209,9 +209,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 text = r.recognize_google(audio, language="vi-VN") # Ngôn ngữ tiếng Việt
                 st.session_state.user_input_value = text
                 st.success(f"✅ Đã nhận dạng: {text}")
-                # Không cần st.rerun() ngay lập tức ở đây, vì Streamlit sẽ rerun khi form được submit
-                # hoặc khi người dùng tương tác với các widget khác.
-                # Tuy nhiên, để cập nhật ô input ngay lập tức, cần rerun.
+                # Kích hoạt rerun để cập nhật ô nhập liệu ngay lập tức
                 st.rerun() 
             except sr.UnknownValueError:
                 st.warning("⚠️ Không thể nhận dạng giọng nói. Vui lòng thử lại.")
@@ -243,7 +241,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
-    if send_button_pressed:
+    # Chỉ xử lý nếu user_msg khác rỗng HOẶC nút gửi được nhấn
+    if send_button_pressed or (user_msg and user_msg != st.session_state.last_processed_user_msg):
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
             st.session_state.user_input_value = "" # Reset input value to clear the box for next input
