@@ -14,6 +14,8 @@ import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
 import json # Import json để đọc file câu hỏi mẫu
 from streamlit_mic_recorder import mic_recorder  # Thêm thư viện hỗ trợ micro
+import base64 # Thêm thư viện base64 để giải mã dữ liệu âm thanh
+import io # Thêm thư viện io để xử lý dữ liệu âm thanh trong bộ nhớ
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -174,12 +176,35 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
         with mic_col:
             audio = mic_recorder(key="mic")
-            # Thêm debug info để kiểm tra kết quả từ mic_recorder
-            if audio:
-                st.info(f"Đã nhận dạng được giọng nói: '{audio.get('text', 'Không có văn bản')}'")
-                st.session_state.user_input_value = audio['text'] if 'text' in audio else ""
-                st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
-                st.rerun() # Rerun để cập nhật input box ngay lập tức
+            
+            if audio and 'audio_base64' in audio:
+                if client_ai:
+                    with st.spinner("Đang chuyển đổi giọng nói thành văn bản..."):
+                        try:
+                            # Giải mã base64 thành bytes
+                            audio_bytes = base64.b64decode(audio['audio_base64'])
+                            # Tạo một file object trong bộ nhớ
+                            audio_file = io.BytesIO(audio_bytes)
+                            audio_file.name = f"recorded_audio.{audio.get('format', 'webm')}" # Đặt tên file với định dạng
+
+                            # Gửi đến OpenAI Whisper API
+                            transcription = client_ai.audio.transcriptions.create(
+                                model="whisper-1",
+                                file=audio_file,
+                                response_format="text",
+                                language="vi" # Chỉ định ngôn ngữ tiếng Việt
+                            )
+                            st.info(f"Đã nhận dạng được giọng nói: '{transcription}'")
+                            st.session_state.user_input_value = transcription
+                            st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
+                            st.rerun() # Rerun để cập nhật input box ngay lập tức
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi chuyển đổi giọng nói: {e}. Vui lòng kiểm tra API key OpenAI và đảm bảo có đủ tín dụng.")
+                else:
+                    st.warning("⚠️ Chưa cấu hình API key OpenAI để sử dụng chức năng chuyển đổi giọng nói.")
+            elif audio: # Nếu audio không có 'audio_base64' (ví dụ: ghi âm thất bại)
+                st.warning("⚠️ Không nhận được dữ liệu âm thanh từ micro. Vui lòng thử lại hoặc kiểm tra micro.")
+
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
