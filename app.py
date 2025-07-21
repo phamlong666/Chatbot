@@ -171,18 +171,16 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.user_input_value = ""
     if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
-    # Khởi tạo key động cho text_area - KHÔNG CẦN THIẾT NỮA VÌ ĐÃ XÓA CÁC LỆNH TĂNG KEY
-    # if 'text_area_key' not in st.session_state:
-    #     st.session_state.text_area_key = 0
-
+    
     # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
-    with st.form(key='chat_form'):
+    # Đảm bảo key của form là duy nhất và không thay đổi
+    with st.form(key='chat_form_main'): 
         # Tạo ô nhập liệu và nút Gửi/Xóa/Micro trong một hàng
         input_col, send_button_col, clear_button_col, mic_button_col = st.columns([9, 1, 1, 1]) # Thêm cột cho nút Micro
 
         with input_col:
             # Sử dụng key cố định cho text_input, giá trị được điều khiển bởi session_state.user_input_value
-            user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input_form", value=st.session_state.user_input_value)
+            user_msg = st.text_input("Bạn muốn hỏi gì?", key="user_input_text_area", value=st.session_state.user_input_value)
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -210,9 +208,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 # Sử dụng Google Web Speech API để nhận dạng giọng nói
                 text = r.recognize_google(audio, language="vi-VN") # Ngôn ngữ tiếng Việt
                 st.session_state.user_input_value = text
-                # st.session_state.text_area_key += 1 # ĐÃ XÓA DÒNG NÀY
                 st.success(f"✅ Đã nhận dạng: {text}")
-                st.rerun() # Rerun để cập nhật ô nhập liệu
+                # Không cần st.rerun() ngay lập tức ở đây, vì Streamlit sẽ rerun khi form được submit
+                # hoặc khi người dùng tương tác với các widget khác.
+                # Tuy nhiên, để cập nhật ô input ngay lập tức, cần rerun.
+                st.rerun() 
             except sr.UnknownValueError:
                 st.warning("⚠️ Không thể nhận dạng giọng nói. Vui lòng thử lại.")
             except sr.RequestError as e:
@@ -232,7 +232,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         # Sửa lỗi: So sánh với giá trị hiện tại của user_msg thay vì một key cố định
         if selected_sample_question and selected_sample_question != st.session_state.user_input_value: # So sánh với giá trị trong session_state
             st.session_state.user_input_value = selected_sample_question
-            # st.session_state.text_area_key += 1 # ĐÃ XÓA DÒNG NÀY
             st.rerun() # Rerun để cập nhật the input box immediately
 
     if clear_button_pressed:
@@ -241,7 +240,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
         st.session_state.current_qa_display = "" # Clear displayed QA as well
-        # st.session_state.text_area_key += 1 # ĐÃ XÓA DÒNG NÀY
         st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
