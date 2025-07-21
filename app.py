@@ -40,14 +40,24 @@ else:
     st.error("❌ Không tìm thấy google_service_account trong secrets. Vui lòng cấu hình.")
     st.stop() # Dừng ứng dụng nếu không có secrets
 
-# Lấy API key OpenAI từ secrets
+# Lấy API key OpenAI
+openai_api_key = None
 if "openai_api_key" in st.secrets:
     openai_api_key = st.secrets["openai_api_key"]
+    st.success("✅ Đã kết nối OpenAI API key từ Streamlit secrets.")
+else:
+    # Sử dụng API key được cung cấp trực tiếp cho mục đích trình diễn.
+    # Cảnh báo: Cách này KHÔNG an toàn cho môi trường sản phẩm.
+    # Vui lòng chuyển API key vào `st.secrets` (file `.streamlit/secrets.toml`) để bảo mật tốt hơn.
+    openai_api_key = "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"
+    st.warning("⚠️ Cảnh báo: API key OpenAI đang được nhúng trực tiếp trong mã. Điều này KHÔNG an toàn cho môi trường sản phẩm. Vui lòng chuyển API key vào `st.secrets` (file `.streamlit/secrets.toml`) để bảo mật tốt hơn.")
+
+if openai_api_key:
     client_ai = OpenAI(api_key=openai_api_key)
-    st.success("✅ Đã kết nối OpenAI API key.")
+    # st.success("✅ Đã kết nối OpenAI API key.") # Bỏ dòng này vì đã có success/warning ở trên
 else:
     client_ai = None
-    st.warning("Chưa cấu hình API key OpenAI. Vui lòng thêm 'openai_api_key' vào st.secrets để sử dụng chatbot cho các câu hỏi tổng quát.")
+    st.error("❌ Không tìm thấy API key OpenAI. Vui lòng cấu hình 'openai_api_key' trong `st.secrets` hoặc cung cấp trực tiếp.")
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
