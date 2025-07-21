@@ -165,20 +165,21 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     if 'text_area_key' not in st.session_state:
         st.session_state.text_area_key = 0
 
-    # Sử dụng st.form để cho phép nhấn Enter gửi câu hỏi
-    with st.form(key='chat_form'):
-        # Tạo ô nhập liệu và nút Gửi/Xóa trong một hàng
-        input_col, mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1, 1])
+    # Ô nhập liệu chính (đã di chuyển ra ngoài form)
+    user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
 
-        with input_col:
-            # Sử dụng key động cho text_input để cho phép nhấn Enter gửi lệnh
-            user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
+    # Nút micro và nút Gửi/Xóa trong một form riêng
+    with st.form(key='chat_buttons_form'):
+        mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1]) # Tỷ lệ mới cho các nút
 
         with mic_col:
             audio = mic_recorder(key="mic")
+            # Thêm debug info để kiểm tra kết quả từ mic_recorder
             if audio:
+                st.info(f"Đã nhận dạng được giọng nói: '{audio.get('text', 'Không có văn bản')}'")
                 st.session_state.user_input_value = audio['text'] if 'text' in audio else ""
-                st.rerun()
+                st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
+                st.rerun() # Rerun để cập nhật input box ngay lập tức
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -210,6 +211,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.rerun() # Rerun để xóa nội dung input ngay lập tức
 
     # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
+    # Logic xử lý câu hỏi chính chỉ chạy khi nút "Gửi" được nhấn
     if send_button_pressed:
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
@@ -783,7 +785,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         # Đảm bảo cột 'Thuộc xã/phường' tồn tại và lọc dữ liệu
                         if location_name and 'Thuộc xã/phường' in df_lanhdao.columns:
                             # Sử dụng str.contains để tìm kiếm linh hoạt hơn (không cần khớp chính xác)
-                            # asType(str) để đảm bảo cột là kiểu chuỗi trước khi dùng str.lower()
+                            # asType(str) để đảm bảo cột là kiểu chuỗi và xử lý NaN
                             filtered_df_lanhdao = df_lanhdao[df_lanhdao['Thuộc xã/phường'].astype(str).str.lower().str.contains(location_name.lower(), na=False)]
 
                             if filtered_df_lanhdao.empty:
