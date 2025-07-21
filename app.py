@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
@@ -8,7 +9,7 @@ import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
 import re # Thêm thư thư viện regex để trích xuất tên sheet
 import os # Import os for path handling
 from pathlib import Path # Import Path for robust path handling
-from fuzzywuzzy import fuzz # Import fuzzywuzzy để so sánh chuỗi
+import fuzzywuzzy.fuzz as fuzz # Import fuzzywuzzy để so sánh chuỗi
 import datetime # Import datetime để lấy năm hiện tại
 import easyocr # Import easyocr cho chức năng OCR
 import json # Import json để đọc file câu hỏi mẫu
@@ -110,7 +111,7 @@ def load_sample_questions(file_path="sample_questions.json"):
             st.error("Định dạng file sample_questions.json không hợp lệ. Vui lòng đảm bảo nó là một danh sách các chuỗi hoặc đối tượng có khóa 'text'.")
             return []
     except FileNotFoundError:
-        st.warning(f⚠️ Không tìm thấy file: {file_path}. Vui lòng tạo file chứa các câu hỏi mẫu để sử dụng chức năng này.")
+        st.warning(f"⚠️ Không tìm thấy file: {file_path}. Vui lòng tạo file chứa các câu hỏi mẫu để sử dụng chức năng này.")
         return []
     except json.JSONDecodeError:
         st.error(f"❌ Lỗi đọc file JSON: {file_path}. Vui lòng kiểm tra cú pháp JSON của file.")
