@@ -136,7 +136,7 @@ def load_sample_questions(file_path="sample_questions.json"):
     except FileNotFoundError:
         st.warning(f"⚠️ Không tìm thấy file: {file_path}. Vui lòng tạo file chứa các câu hỏi mẫu để sử dụng chức năng này.")
         return []
-    except json.JSONDecodeError:
+    except json.JSONDecode_Error:
         st.error(f"❌ Lỗi đọc file JSON: {file_path}. Vui lòng kiểm tra cú pháp JSON của file.")
         return []
 
@@ -184,9 +184,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.user_input_value = ""
     if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
-    # Khởi tạo key động cho text_area (không còn cần thiết cho input chính nhưng giữ lại nếu có chỗ khác dùng)
-    # if 'text_area_key' not in st.session_state: # Dòng này không còn cần thiết
-    #     st.session_state.text_area_key = 0
     # ✅ Ghi âm nằm ngoài form, xử lý trạng thái với session_state
     if "audio_processed" not in st.session_state:
         st.session_state.audio_processed = False
@@ -245,25 +242,30 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     except Exception as e:
         st.warning(f"Không thể đọc file câu hỏi mẫu: {e}")
 
-    # Giao diện chọn câu hỏi
-    selected_sample_question = st.selectbox("Chọn câu hỏi từ danh sách:", options=[""] + sample_questions, index=0, key="sample_question_selector")
+    # Callback function for selectbox
+    def on_sample_question_select():
+        # Khi một câu hỏi mẫu được chọn, cập nhật user_input_value
+        st.session_state.user_input_value = st.session_state.sample_question_selector
+        # Sau khi cập nhật, có thể muốn reset selectbox để nó không giữ lựa chọn cũ
+        # st.session_state.sample_question_selector = "" # Tùy chọn: nếu muốn reset selectbox
 
-    # Logic để cập nhật user_input_value khi chọn câu hỏi mẫu
-    # So sánh với giá trị hiện tại của user_input_value để tránh rerun không cần thiết
-    if selected_sample_question and selected_sample_question != st.session_state.get("user_input_value", ""):
-        st.session_state.user_input_value = selected_sample_question
-        st.session_state.sample_question_selector = "" # ✅ Reset lại để không bị giữ lựa chọn
-        st.rerun()
+    # Giao diện chọn câu hỏi
+    selected_sample_question = st.selectbox(
+        "Chọn câu hỏi từ danh sách:", 
+        options=[""] + sample_questions, 
+        index=0, 
+        key="sample_question_selector",
+        on_change=on_sample_question_select # Thêm callback function
+    )
 
     # ✅ Ưu tiên lấy nội dung nhập tay/micro trước, sau đó là câu hỏi mẫu
+    # Logic này sẽ được kích hoạt sau khi on_change callback chạy (nếu có)
     question_to_process = st.session_state.user_input_value.strip()
-    if not question_to_process and selected_sample_question:
-        question_to_process = selected_sample_question.strip()
+    # Không cần kiểm tra selected_sample_question ở đây nữa vì nó đã được xử lý qua callback
 
     # Xử lý nút Xóa
     if clear_button_pressed:
         st.session_state.user_input_value = ""
-        # st.session_state.text_input_key = "" # Dòng này không còn cần thiết
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
