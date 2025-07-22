@@ -206,7 +206,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             if audio_path and os.path.exists(audio_path):
                 os.remove(audio_path)
 
-    # 🔄 Bổ sung form bấm gửi/xóa ở dưới
+    #   Bổ sung form bấm gửi/xóa ở dưới
     with st.form(key='chat_buttons_form'):
         mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1])
         
@@ -233,29 +233,34 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Logic để cập nhật user_input_value khi chọn câu hỏi mẫu
     # So sánh với giá trị hiện tại của text_input_key để tránh rerun không cần thiết
     if selected_sample_question and selected_sample_question != st.session_state.get("text_input_key", ""):
-        st.session_state.user_input_value = selected_sample_question # Cập nhật session state
-        st.rerun() # Rerun để cập nhật ô nhập liệu
+        st.session_state.user_input_value = selected_sample_question
+        st.session_state.sample_question_selector = "" # ✅ Reset lại để không bị giữ lựa chọn
+        st.rerun()
 
-    # Xác định câu hỏi cuối cùng để xử lý
+    # ✅ Ưu tiên lấy nội dung nhập tay hoặc micro trước, chỉ fallback sang sample nếu rỗng
     user_input_from_state = st.session_state.get("user_input_value", "")
-    question_to_process = selected_sample_question if selected_sample_question else user_input_from_state
+    if user_input_from_state.strip():
+        question_to_process = user_input_from_state.strip()
+    else:
+        question_to_process = selected_sample_question.strip() if selected_sample_question else ""
 
+    # Xử lý nút Xóa
     if clear_button_pressed:
-        st.session_state.user_input_value = "" # Xóa giá trị trong session state
-        st.session_state.text_input_key = "" # Xóa giá trị trong widget nhập liệu
+        st.session_state.user_input_value = ""
+        st.session_state.text_input_key = ""
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
         st.session_state.current_qa_display = ""
-        st.session_state.audio_processed = False # ✅ reset để micro hoạt động lại lần sau
+        st.session_state.audio_processed = False
         st.rerun()
 
-    # Logic xử lý câu hỏi chính chỉ chạy khi nút "Gửi" được nhấn
-    if send_button_pressed and question_to_process: # Sử dụng biến question_to_process đã được xác định
+    # Xử lý khi nhấn nút Gửi
+    if send_button_pressed and question_to_process:
         st.info(f"📨 Đang xử lý câu hỏi: {question_to_process}")
-        st.session_state.last_processed_user_msg = question_to_process # Cập nhật tin nhắn cuối cùng đã xử lý
-        st.session_state.user_input_value = "" # Đặt lại giá trị ẩn
-        st.session_state.audio_processed = False # ✅ reset để micro hoạt động lại lần sau
+        st.session_state.last_processed_user_msg = question_to_process
+        st.session_state.user_input_value = ""
+        st.session_state.audio_processed = False
 
         # Reset QA results and display for a new query
         st.session_state.qa_results = []
@@ -1100,7 +1105,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                                     labels=bo_phan_counts.index, 
                                                                     autopct='%1.1f%%', 
                                                                     startangle=90, 
-                                                                    colors=colors.colors,
+                                                                    colors=colors[:len(bo_phan_counts)], # Sử dụng đủ màu cho số lượng phần tử
                                                                     pctdistance=0.85)
                                 for autotext in autotexts:
                                     autotext.set_color('black')
@@ -1279,3 +1284,4 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
+ 
