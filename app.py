@@ -170,8 +170,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Khởi tạo key động cho text_area (không còn cần thiết cho input chính nhưng giữ lại nếu có chỗ khác dùng)
     if 'text_area_key' not in st.session_state:
         st.session_state.text_area_key = 0
+    # ✅ Ghi âm nằm ngoài form, xử lý trạng thái với session_state
+    if "audio_processed" not in st.session_state:
+        st.session_state.audio_processed = False
 
-    # Ghi âm nằm ngoài form, chạy độc lập
     audio_bytes = audio_recorder(
         text="🎙 Nhấn để nói",
         recording_color="#e8b62c",
@@ -179,7 +181,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         icon_size="2x"
     )
 
-    if audio_bytes:
+    if audio_bytes and not st.session_state.audio_processed:
         st.info("⏳ Đang xử lý giọng nói...")
         audio_path = None
         try:
@@ -193,7 +195,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 try:
                     text = recognizer.recognize_google(audio_data, language="vi-VN")
                     st.success(f"📝 Văn bản: {text}")
-                    st.session_state.user_input_value = text # Cập nhật session state
+                    st.session_state.user_input_value = text
+                    st.session_state.audio_processed = True  # ✅ đánh dấu đã xử lý
                     st.rerun() # Rerun để cập nhật ô nhập liệu
                 except sr.UnknownValueError:
                     st.warning("⚠️ Không nhận dạng được giọng nói.")
@@ -238,6 +241,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
         st.session_state.current_qa_display = ""
+        st.session_state.audio_processed = False # ✅ reset để micro hoạt động lại lần sau
         st.rerun()
 
     # Logic xử lý câu hỏi chính chỉ chạy khi nút "Gửi" được nhấn
@@ -249,6 +253,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.session_state.user_input_value = "" # Đặt lại giá trị ẩn
             st.session_state.text_input_key = "" # Xóa nội dung trong ô nhập liệu sau khi gửi
             user_msg_lower = user_msg.lower()
+            st.session_state.audio_processed = False # ✅ reset để micro hoạt động lại lần sau
 
             # Reset QA results and display for a new query
             st.session_state.qa_results = []
