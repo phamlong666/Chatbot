@@ -167,87 +167,87 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.user_input_value = ""
     if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
-    # Khởi tạo key động cho text_area
+    # Khởi tạo key động cho text_area (không còn cần thiết cho input chính nhưng giữ lại nếu có chỗ khác dùng)
     if 'text_area_key' not in st.session_state:
         st.session_state.text_area_key = 0
 
-    # Ô nhập liệu chính (đã di chuyển ra ngoài form)
-    # Prompt mới cho text_input
-    user_msg = st.text_input("📥 Nhập lệnh hoặc dùng micro để nói:", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
+    # Ghi âm nằm ngoài form, chạy độc lập
+    audio_bytes = audio_recorder(
+        text="🎙 Nhấn để nói",
+        recording_color="#e8b62c",
+        neutral_color="#6aa36f",
+        icon_size="2x"
+    )
 
-    # Nút micro và nút Gửi/Xóa trong một form riêng
-    with st.form(key='chat_buttons_form'):
-        mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1]) # Tỷ lệ mới cho các nút
+    if audio_bytes:
+        st.info("⏳ Đang xử lý giọng nói...")
+        audio_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                f.write(audio_bytes)
+                audio_path = f.name
 
-        with mic_col:
-            # ✅ Ghi âm bằng thư viện audio_recorder
-            audio_bytes = audio_recorder(text="🎙 Nhấn để nói", recording_color="#e8b62c", neutral_color="#6aa36f", icon_size="2x")
-
-            if audio_bytes:
-                st.info("⏳ Đang xử lý giọng nói...")
-                audio_path = None
+            recognizer = sr.Recognizer()
+            with sr.AudioFile(audio_path) as source:
+                audio_data = recognizer.record(source)
                 try:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-                        f.write(audio_bytes)
-                        audio_path = f.name
+                    text = recognizer.recognize_google(audio_data, language="vi-VN")
+                    st.success(f"📝 Văn bản: {text}")
+                    st.session_state.user_input_value = text # Cập nhật session state
+                    st.rerun() # Rerun để cập nhật ô nhập liệu
+                except sr.UnknownValueError:
+                    st.warning("⚠️ Không nhận dạng được giọng nói.")
+                except sr.RequestError as e:
+                    st.error(f"❌ Lỗi nhận dạng: {e}")
+        finally:
+            if audio_path and os.path.exists(audio_path):
+                os.remove(audio_path)
 
-                    recognizer = sr.Recognizer()
-                    with sr.AudioFile(audio_path) as source:
-                        audio_data = recognizer.record(source)
-                        try:
-                            text = recognizer.recognize_google(audio_data, language="vi-VN")
-                            st.success(f"📝 Văn bản: {text}")
-                            st.session_state.user_input_value = text
-                            st.session_state.text_area_key += 1
-                            st.rerun()
-                        except sr.UnknownValueError:
-                            st.warning("⚠️ Không nhận dạng được giọng nói. Vui lòng thử lại rõ ràng hơn.")
-                        except sr.RequestError as e:
-                            st.error(f"❌ Lỗi kết nối dịch vụ nhận dạng: {e}. Vui lòng kiểm tra kết nối internet.")
-                except Exception as e:
-                    st.error(f"❌ Lỗi khi xử lý file âm thanh: {e}")
-                finally:
-                    if audio_path and os.path.exists(audio_path):
-                        os.remove(audio_path)
+    # 🔄 Bổ sung form bấm gửi/xóa ở dưới
+    with st.form(key='chat_buttons_form'):
+        mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1])
+        
+        with mic_col:
+            # Đây là ô nhập liệu chính hiện tại, giá trị được lấy từ session_state.user_input_value
+            user_msg_input_in_form = st.text_input("Nhập lệnh hoặc dùng micro để nói:", value=st.session_state.get("user_input_value", ""), key="text_input_key")
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
-
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
 
     # ✅ Xử lý lệnh từ micro hoặc nhập tay hoặc chọn câu hỏi
     st.markdown("### 📝 Hoặc chọn câu hỏi mẫu:")
-    # Sử dụng options cứng từ đoạn mã mới của bạn
     selected_sample_question = st.selectbox(
         "Chọn câu hỏi từ danh sách:", 
         options=["", "lấy danh sách lãnh đạo xã Định Hóa", "Ai là giám đốc Điện lực?"], 
         index=0,
-        key="sample_question_selector" # Giữ nguyên key để tránh lỗi
+        key="sample_question_selector"
     )
 
     # Logic để cập nhật user_input_value khi chọn câu hỏi mẫu
-    if selected_sample_question and selected_sample_question != st.session_state.user_input_value:
-        st.session_state.user_input_value = selected_sample_question
-        st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
-        st.rerun() # Rerun để cập nhật input box ngay lập tức
-
+    # So sánh với giá trị hiện tại của text_input_key để tránh rerun không cần thiết
+    if selected_sample_question and selected_sample_question != st.session_state.get("text_input_key", ""):
+        st.session_state.user_input_value = selected_sample_question # Cập nhật session state
+        st.rerun() # Rerun để cập nhật ô nhập liệu
 
     if clear_button_pressed:
-        st.session_state.user_input_value = ""
+        st.session_state.user_input_value = "" # Xóa giá trị trong session state
+        st.session_state.text_input_key = "" # Xóa giá trị trong widget nhập liệu
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
-        st.session_state.current_qa_display = "" # Clear displayed QA as well
-        st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
-        st.rerun() # Rerun để xóa nội dung input ngay lập tức
+        st.session_state.current_qa_display = ""
+        st.rerun()
 
-    # Kiểm tra nếu nút "Gửi" được nhấn HOẶC người dùng đã nhập tin nhắn mới và nhấn Enter
     # Logic xử lý câu hỏi chính chỉ chạy khi nút "Gửi" được nhấn
     if send_button_pressed:
+        # Lấy giá trị từ ô nhập liệu chính (text_input_key) để xử lý
+        user_msg = st.session_state.get("text_input_key", "")
         if user_msg: # Chỉ xử lý nếu có nội dung nhập vào
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn cuối cùng đã xử lý
-            st.session_state.user_input_value = "" # Reset input value to clear the box for next input
+            st.session_state.user_input_value = "" # Đặt lại giá trị ẩn
+            st.session_state.text_input_key = "" # Xóa nội dung trong ô nhập liệu sau khi gửi
             user_msg_lower = user_msg.lower()
 
             # Reset QA results and display for a new query
