@@ -180,13 +180,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.qa_results = []
     if 'qa_index' not in st.session_state:
         st.session_state.qa_index = 0
-    if 'user_input_value' not in st.session_state:
+    if 'user_input_value' not in st.session_state: # Sử dụng user_input_value làm key chính cho input
         st.session_state.user_input_value = ""
     if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
     # Khởi tạo key động cho text_area (không còn cần thiết cho input chính nhưng giữ lại nếu có chỗ khác dùng)
-    if 'text_area_key' not in st.session_state:
-        st.session_state.text_area_key = 0
+    # if 'text_area_key' not in st.session_state: # Dòng này không còn cần thiết
+    #     st.session_state.text_area_key = 0
     # ✅ Ghi âm nằm ngoài form, xử lý trạng thái với session_state
     if "audio_processed" not in st.session_state:
         st.session_state.audio_processed = False
@@ -212,7 +212,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 try:
                     text = recognizer.recognize_google(audio_data, language="vi-VN")
                     st.success(f"📝 Văn bản: {text}")
-                    st.session_state.user_input_value = text
+                    st.session_state.user_input_value = text # Cập nhật giá trị input từ audio
                     st.session_state.audio_processed = True  # ✅ đánh dấu đã xử lý
                     st.rerun() # Rerun để cập nhật ô nhập liệu
                 except sr.UnknownValueError:
@@ -229,7 +229,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         
         with mic_col:
             # Đây là ô nhập liệu chính hiện tại, giá trị được lấy từ session_state.user_input_value
-            user_msg_input_in_form = st.text_input("Nhập lệnh hoặc dùng micro để nói:", value=st.session_state.get("user_input_value", ""), key="text_input_key")
+            # Key của text_input giờ là user_input_value để nó tự động cập nhật session_state đó
+            user_msg_input_in_form = st.text_input("Nhập lệnh hoặc dùng micro để nói:", value=st.session_state.get("user_input_value", ""), key="user_input_value")
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -248,23 +249,21 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     selected_sample_question = st.selectbox("Chọn câu hỏi từ danh sách:", options=[""] + sample_questions, index=0, key="sample_question_selector")
 
     # Logic để cập nhật user_input_value khi chọn câu hỏi mẫu
-    # So sánh với giá trị hiện tại của text_input_key để tránh rerun không cần thiết
-    if selected_sample_question and selected_sample_question != st.session_state.get("text_input_key", ""):
+    # So sánh với giá trị hiện tại của user_input_value để tránh rerun không cần thiết
+    if selected_sample_question and selected_sample_question != st.session_state.get("user_input_value", ""):
         st.session_state.user_input_value = selected_sample_question
         st.session_state.sample_question_selector = "" # ✅ Reset lại để không bị giữ lựa chọn
         st.rerun()
 
-    # ✅ Ưu tiên lấy nội dung nhập tay hoặc micro trước, chỉ fallback sang sample nếu rỗng
-    user_input_from_state = st.session_state.get("user_input_value", "")
-    if user_input_from_state.strip():
-        question_to_process = user_input_from_state.strip()
-    else:
-        question_to_process = selected_sample_question.strip() if selected_sample_question else ""
+    # ✅ Ưu tiên lấy nội dung nhập tay/micro trước, sau đó là câu hỏi mẫu
+    question_to_process = st.session_state.user_input_value.strip()
+    if not question_to_process and selected_sample_question:
+        question_to_process = selected_sample_question.strip()
 
     # Xử lý nút Xóa
     if clear_button_pressed:
         st.session_state.user_input_value = ""
-        st.session_state.text_input_key = ""
+        # st.session_state.text_input_key = "" # Dòng này không còn cần thiết
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
