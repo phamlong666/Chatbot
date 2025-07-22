@@ -17,6 +17,7 @@ import json # Import json để đọc file câu hỏi mẫu
 # Imports for speech_recognition method
 import speech_recognition as sr
 import tempfile
+from streamlit_mic_recorder import mic_recorder # Thêm thư viện hỗ trợ micro
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")

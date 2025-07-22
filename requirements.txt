@@ -12,5 +12,3 @@ easyocr
 torch
 torchvision
 torchaudio
-streamlit-webrtc
-av
