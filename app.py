@@ -276,7 +276,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     if send_button_pressed and question_to_process:
         st.info(f"📨 Đang xử lý câu hỏi: {question_to_process}")
         st.session_state.last_processed_user_msg = question_to_process
-        st.session_state.user_input_value = ""
+        # st.session_state.user_input_value = "" # Comment out this line to keep the input after submission
         st.session_state.audio_processed = False
 
         # Reset QA results and display for a new query
