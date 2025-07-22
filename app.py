@@ -53,10 +53,11 @@ if openai_api_key:
 else:
     client_ai = None
 
+spreadsheet_url = "https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit"
+
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
     try:
-        spreadsheet_url = "https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit"
         sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
         
         if sheet_name == "KPI":
@@ -101,6 +102,22 @@ def normalize_text(text):
 # Tải dữ liệu từ sheet "Hỏi-Trả lời" một lần khi ứng dụng khởi động
 qa_data = get_sheet_data("Hỏi-Trả lời")
 qa_df = pd.DataFrame(qa_data) if qa_data else pd.DataFrame()
+
+# Hàm lấy dữ liệu từ tất cả sheet trong file (từ app - Copy (2).py)
+@st.cache_data
+def load_all_sheets():
+    spreadsheet = client.open_by_url(spreadsheet_url)
+    sheet_names = [ws.title for ws in spreadsheet.worksheets()]
+    data = {}
+    for name in sheet_names:
+        try:
+            records = spreadsheet.worksheet(name).get_all_records()
+            data[name] = pd.DataFrame(records)
+        except:
+            data[name] = pd.DataFrame()
+    return data
+
+all_data = load_all_sheets() # Dữ liệu từ app - Copy (2).py
 
 # Hàm để đọc câu hỏi từ file JSON
 def load_sample_questions(file_path="sample_questions.json"):
@@ -1284,4 +1301,3 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
- 
