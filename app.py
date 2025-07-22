@@ -5,19 +5,17 @@ from google.oauth2.service_account import Credentials
 from openai import OpenAI
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm # Thêm thư viện cm để tạo màu sắc
-import re # Thêm thư thư viện regex để trích xuất tên sheet
-import os # Import os for path handling
-from pathlib import Path # Import Path for robust path handling
-import fuzzywuzzy.fuzz as fuzz # Import fuzzywuzzy để so sánh chuỗi
-import datetime # Import datetime để lấy năm hiện tại
-import easyocr # Import easyocr cho chức năng OCR
-import json # Import json để đọc file câu hỏi mẫu
-
-# Imports for speech_recognition method
+import matplotlib.cm as cm
+import re
+import os
+from pathlib import Path
+import fuzzywuzzy.fuzz as fuzz
+import datetime
+import easyocr
+import json
 import speech_recognition as sr
 import tempfile
-from streamlit_mic_recorder import mic_recorder # Thêm thư viện hỗ trợ micro
+from audio_recorder_streamlit import audio_recorder  # ✅ Thay thế thư viện mic_recorder bằng thư viện ổn định hơn
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -174,28 +172,20 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.text_area_key = 0
 
     # Ô nhập liệu chính (đã di chuyển ra ngoài form)
-    user_msg = st.text_input("Bạn muốn hỏi gì?", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
+    # Prompt mới cho text_input
+    user_msg = st.text_input("📥 Nhập lệnh hoặc dùng micro để nói:", key=f"user_input_form_{st.session_state.text_area_key}", value=st.session_state.user_input_value)
 
     # Nút micro và nút Gửi/Xóa trong một form riêng
     with st.form(key='chat_buttons_form'):
         mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1]) # Tỷ lệ mới cho các nút
 
         with mic_col:
-            # Ghi âm từ micro, KHÔNG dùng speech_to_text
-            voice_input = mic_recorder(
-                start_prompt="🎙 Nhấn để ghi âm",
-                stop_prompt="⏹ Dừng lại",
-                just_once=True,
-                use_container_width=False,
-                key="voice_input_mic_recorder" # Đổi key để tránh xung đột nếu có
-            )
+            # ✅ Ghi âm bằng thư viện audio_recorder
+            audio_bytes = audio_recorder(text="🎙 Nhấn để nói", recording_color="#e8b62c", neutral_color="#6aa36f", icon_size="2x")
 
-            # Nhận dạng giọng nói nếu có file audio
-            if voice_input and "audio" in voice_input:
+            if audio_bytes:
                 st.info("⏳ Đang xử lý giọng nói...")
-                audio_bytes = voice_input["audio"]
-
-                audio_path = None # Khởi tạo biến để đảm bảo nó được định nghĩa
+                audio_path = None
                 try:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
                         f.write(audio_bytes)
@@ -207,9 +197,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         try:
                             text = recognizer.recognize_google(audio_data, language="vi-VN")
                             st.success(f"📝 Văn bản: {text}")
-                            st.session_state.user_input_value = text  # Gán cho chatbot xử lý tiếp
-                            st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
-                            st.rerun() # Rerun để cập nhật input box ngay lập tức
+                            st.session_state.user_input_value = text
+                            st.session_state.text_area_key += 1
+                            st.rerun()
                         except sr.UnknownValueError:
                             st.warning("⚠️ Không nhận dạng được giọng nói. Vui lòng thử lại rõ ràng hơn.")
                         except sr.RequestError as e:
@@ -217,12 +207,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 except Exception as e:
                     st.error(f"❌ Lỗi khi xử lý file âm thanh: {e}")
                 finally:
-                    # Đảm bảo xóa file tạm thời sau khi sử dụng
                     if audio_path and os.path.exists(audio_path):
                         os.remove(audio_path)
-            elif voice_input: # Nếu voice_input tồn tại nhưng không có key 'audio', tức là ghi âm không thành công
-                st.warning("⚠️ Không nhận được dữ liệu âm thanh từ micro. Vui lòng thử lại hoặc kiểm tra micro.")
-
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
@@ -263,7 +249,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
             # Reset QA results and display for a new query
             st.session_state.qa_results = []
-            st.session_state.qa_index = 0
+            st.session_state.qa_index = 0 # Fix: Changed from qa_session_state.qa_index to qa_index
             st.session_state.current_qa_display = "" # Clear previous display
 
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
@@ -504,10 +490,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 if not df_kpi_year.empty:
                                     # Ensure 'Điểm KPI' is numeric and handle commas
                                     df_kpi_year.loc[:, 'Điểm KPI'] = df_kpi_year['Điểm KPI'].astype(str).str.replace(',', '.', regex=False)
-                                    df_kpi_year.loc[:, 'Điểm KPI'] = pd.to_numeric(df_kpi_year['Điểm KPI'], errors='coerce')
+                                    df_kpi_year.loc[:, 'Điểm KPI'] = pd.to_numeric(df_kpi_year[kpi_value_column], errors='coerce')
                                     
                                     # Drop rows where 'Điểm KPI' is NaN after conversion
-                                    df_kpi_year = df_kpi_year.dropna(subset=['Điểm KPI'])
+                                    df_kpi_year = df_kpi_year.dropna(subset=[kpi_value_column])
 
                                     unit_kpis_aggregated = {}
                                     
@@ -521,7 +507,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                     # Filter for specific month
                                                     monthly_data = unit_data[unit_data['Tháng'] == target_month_kpi]
                                                     if not monthly_data.empty:
-                                                        unit_kpis_aggregated[selected_unit] = monthly_data['Điểm KPI'].mean() # Mean for that specific month
+                                                        unit_kpis_aggregated[selected_unit] = monthly_data[kpi_value_column].mean() # Mean for that specific month
                                                     else:
                                                         st.warning(f"⚠️ Không có dữ liệu KPI cho đơn vị '{selected_unit}' trong tháng {target_month_kpi} năm {target_year_kpi}.")
                                                         can_plot_bar_chart = False
@@ -529,13 +515,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                     current_month = datetime.datetime.now().month
                                                     cumulative_data = unit_data[unit_data['Tháng'] <= current_month]
                                                     if not cumulative_data.empty:
-                                                        unit_kpis_aggregated[selected_unit] = cumulative_data['Điểm KPI'].mean() # Mean for cumulative months
+                                                        unit_kpis_aggregated[selected_unit] = cumulative_data[kpi_value_column].mean() # Mean for cumulative months
                                                     else:
                                                         st.warning(f"⚠️ Không có dữ liệu KPI lũy kế cho đơn vị '{selected_unit}' đến tháng {current_month} năm {target_year_kpi}.")
                                                         can_plot_bar_chart = False
                                                 else:
                                                     # Default: mean for the whole year for the specific unit
-                                                    unit_kpis_aggregated[selected_unit] = unit_data['Điểm KPI'].mean()
+                                                    unit_kpis_aggregated[selected_unit] = unit_data[kpi_value_column].mean()
                                             else:
                                                 st.warning(f"⚠️ Không có dữ liệu KPI cho đơn vị '{selected_unit}' trong năm {target_year_kpi}.")
                                                 can_plot_bar_chart = False
@@ -548,7 +534,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 # Filter for specific month for all units
                                                 monthly_data_all_units = df_kpi_year[df_kpi_year['Tháng'] == target_month_kpi]
                                                 if not monthly_data_all_units.empty:
-                                                    unit_kpis_aggregated = monthly_data_all_units.groupby('Đơn vị')['Điểm KPI'].mean().to_dict()
+                                                    unit_kpis_aggregated = monthly_data_all_units.groupby('Đơn vị')[kpi_value_column].mean().to_dict()
                                                 else:
                                                     st.warning(f"⚠️ Không có dữ liệu KPI cho tháng {target_month_kpi} năm {target_year_kpi} cho bất kỳ đơn vị nào.")
                                                     can_plot_bar_chart = False
@@ -556,13 +542,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 current_month = datetime.datetime.now().month
                                                 cumulative_data_all_units = df_kpi_year[df_kpi_year['Tháng'] <= current_month]
                                                 if not cumulative_data_all_units.empty:
-                                                    unit_kpis_aggregated = cumulative_data_all_units.groupby('Đơn vị')['Điểm KPI'].mean().to_dict()
+                                                    unit_kpis_aggregated = cumulative_data_all_units.groupby('Đơn vị')[kpi_value_column].mean().to_dict()
                                                 else:
                                                     st.warning(f"⚠️ Không có dữ liệu KPI lũy kế đến tháng {current_month} năm {target_year_kpi} cho bất kỳ đơn vị nào.")
                                                     can_plot_bar_chart = False
                                             else:
                                                 # Default: mean for the whole year for all units
-                                                unit_kpis_aggregated = df_kpi_year.groupby('Đơn vị')['Điểm KPI'].mean().to_dict()
+                                                unit_kpis_aggregated = df_kpi_year.groupby('Đơn vị')[kpi_value_column].mean().to_dict()
                                         else:
                                             st.warning("⚠️ Không tìm thấy cột 'Đơn vị' trong sheet 'KPI' để tổng hợp dữ liệu.")
                                             can_plot_bar_chart = False

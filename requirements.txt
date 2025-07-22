@@ -1,6 +1,6 @@
 streamlit
+audio-recorder-streamlit
 SpeechRecognition
-streamlit-mic-recorder
 gspread
 google-auth-oauthlib
 openai
@@ -12,3 +12,4 @@ easyocr
 torch
 torchvision
 torchaudio
+
