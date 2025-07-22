@@ -252,7 +252,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
     # Logic xử lý câu hỏi chính chỉ chạy khi nút "Gửi" được nhấn
     if send_button_pressed and question_to_process: # Sử dụng biến question_to_process đã được xác định
-        st.info(f"  Đang xử lý câu hỏi: {question_to_process}")
+        st.info(f"📨 Đang xử lý câu hỏi: {question_to_process}")
         st.session_state.last_processed_user_msg = question_to_process # Cập nhật tin nhắn cuối cùng đã xử lý
         st.session_state.user_input_value = "" # Đặt lại giá trị ẩn
         st.session_state.audio_processed = False # ✅ reset để micro hoạt động lại lần sau
@@ -360,6 +360,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.warning("⚠️ Không tìm thấy cột 'Tháng' trong sheet 'KPI'. Một số chức năng KPI có thể không hoạt động.")
                         df_kpi = pd.DataFrame() # Đảm bảo df_kpi rỗng nếu không có cột Tháng
 
+                    # Định nghĩa kpi_value_column ở đây để nó có thể truy cập được
+                    kpi_value_column = 'Điểm KPI' # Cột giá trị KPI cố định
 
                     if not df_kpi.empty:
                         st.subheader("Dữ liệu KPI")
@@ -398,7 +400,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         if target_year_kpi and "so sánh" in user_msg_lower:
                             st.subheader(f"Biểu đồ KPI theo tháng cho năm {target_year_kpi} và các năm trước")
 
-                            kpi_value_column = 'Điểm KPI' # Cột giá trị KPI cố định
                             can_plot_line_chart = True
 
                             if unit_name_from_query: # Nếu có đơn vị cụ thể trong câu hỏi
@@ -501,8 +502,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                             if not df_kpi_year.empty:
                                 # Ensure 'Điểm KPI' is numeric and handle commas
-                                df_kpi_year.loc[:, 'Điểm KPI'] = df_kpi_year['Điểm KPI'].astype(str).str.replace(',', '.', regex=False)
-                                df_kpi_year.loc[:, 'Điểm KPI'] = pd.to_numeric(df_kpi_year[kpi_value_column], errors='coerce')
+                                df_kpi_year.loc[:, kpi_value_column] = df_kpi_year[kpi_value_column].astype(str).str.replace(',', '.', regex=False)
+                                df_kpi_year.loc[:, kpi_value_column] = pd.to_numeric(df_kpi_year[kpi_value_column], errors='coerce')
                                 
                                 # Drop rows where 'Điểm KPI' is NaN after conversion
                                 df_kpi_year = df_kpi_year.dropna(subset=[kpi_value_column])
@@ -1278,4 +1279,3 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
- 
