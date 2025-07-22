@@ -123,8 +123,8 @@ def load_sample_questions(file_path="sample_questions.json"):
         st.error(f"❌ Lỗi đọc file JSON: {file_path}. Vui lòng kiểm tra cú pháp JSON của file.")
         return []
 
-# Tải các câu hỏi mẫu khi ứng dụng khởi động
-sample_questions = load_sample_questions()
+# Tải các câu hỏi mẫu khi ứng dụng khởi động (giữ lại hàm, nhưng sẽ dùng options cứng cho selectbox)
+sample_questions_from_file = load_sample_questions()
 
 # --- Bắt đầu bố cục mới: Logo ở trái, phần còn lại của chatbot căn giữa ---
 
@@ -216,19 +216,22 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
 
-    # Thêm dropdown lựa chọn câu hỏi mẫu
-    if sample_questions:
-        st.markdown("### 📝 Hoặc chọn câu hỏi mẫu:")
-        selected_sample_question = st.selectbox(
-            "Chọn câu hỏi từ danh sách:",
-            [""] + sample_questions, # Thêm lựa chọn trống ở đầu
-            key="sample_question_selector"
-        )
-        # Sửa lỗi: So sánh với giá trị hiện tại của user_msg thay vì một key cố định
-        if selected_sample_question and selected_sample_question != user_msg:
-            st.session_state.user_input_value = selected_sample_question
-            st.session_state.text_area_key += 1 # Force re-render of the text_input
-            st.rerun() # Rerun to update the input box immediately
+    # ✅ Xử lý lệnh từ micro hoặc nhập tay hoặc chọn câu hỏi
+    st.markdown("### 📝 Hoặc chọn câu hỏi mẫu:")
+    # Sử dụng options cứng từ đoạn mã mới của bạn
+    selected_sample_question = st.selectbox(
+        "Chọn câu hỏi từ danh sách:", 
+        options=["", "lấy danh sách lãnh đạo xã Định Hóa", "Ai là giám đốc Điện lực?"], 
+        index=0,
+        key="sample_question_selector" # Giữ nguyên key để tránh lỗi
+    )
+
+    # Logic để cập nhật user_input_value khi chọn câu hỏi mẫu
+    if selected_sample_question and selected_sample_question != st.session_state.user_input_value:
+        st.session_state.user_input_value = selected_sample_question
+        st.session_state.text_area_key += 1 # Tăng key để buộc text_input re-render
+        st.rerun() # Rerun để cập nhật input box ngay lập tức
+
 
     if clear_button_pressed:
         st.session_state.user_input_value = ""
@@ -249,7 +252,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
             # Reset QA results and display for a new query
             st.session_state.qa_results = []
-            st.session_state.qa_index = 0 # Fix: Changed from qa_session_state.qa_index to qa_index
+            st.session_state.qa_index = 0 
             st.session_state.current_qa_display = "" # Clear previous display
 
             # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
