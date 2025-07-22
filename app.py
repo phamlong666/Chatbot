@@ -30,30 +30,41 @@ plt.rcParams['ytick.labelsize'] = 10
 plt.rcParams['figure.titlesize'] = 16
 
 # ======================== KẾT NỐI GOOGLE SHEET ========================
-SERVICE_ACCOUNT_FILE = "service_account.json"
+# Tên file service account JSON (từ snippet của người dùng)
+SERVICE_ACCOUNT_FILE = "sotaygpt-fba5e9b3e6fd.json"
 
 @st.cache_resource
 def get_gspread_client():
-    """Kết nối tới Google Sheets API bằng service_account.json."""
+    """
+    Kết nối tới Google Sheets API bằng file service_account.json.
+    Sử dụng @st.cache_resource để chỉ chạy một lần.
+    """
     try:
+        # Kiểm tra sự tồn tại của file service account
         if not Path(SERVICE_ACCOUNT_FILE).exists():
-            st.error(f"❌ Lỗi: Không tìm thấy file {SERVICE_ACCOUNT_FILE}. Vui lòng tải lên file này.")
-            st.stop()
+            st.error(f"❌ Lỗi: Không tìm thấy file '{SERVICE_ACCOUNT_FILE}'. Vui lòng tải lên file này.")
+            st.stop() # Dừng ứng dụng nếu file không tồn tại
         
+        # Định nghĩa các phạm vi quyền truy cập cần thiết
         scope = [
             "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
+            "https://www.googleapis.com/auth/drive" # Thêm quyền truy cập Google Drive
         ]
+        # Tạo thông tin xác thực từ file service account
         creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=scope)
+        # Ủy quyền và trả về đối tượng gspread client
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"❌ Lỗi kết nối Google Sheets: {e}. Vui lòng kiểm tra file '{SERVICE_ACCOUNT_FILE}' và quyền truy cập.")
-        st.stop()
+        st.error(f"❌ Lỗi kết nối Google Sheets: {e}. Vui lòng kiểm tra file '{SERVICE_ACCOUNT_FILE}' và quyền truy cập của nó.")
+        st.stop() # Dừng ứng dụng nếu có lỗi kết nối
 
-@st.cache_data(ttl=3600) # Cache dữ liệu trong 1 giờ để tăng tốc độ
+@st.cache_data(ttl=3600) # Cache dữ liệu trong 1 giờ để tăng tốc độ truy xuất
 def get_sheet_data(sheet_name):
-    """Lấy dữ liệu từ một sheet cụ thể trong Google Spreadsheet."""
-    client = get_gspread_client()
+    """
+    Lấy dữ liệu từ một sheet cụ thể trong Google Spreadsheet.
+    Sử dụng @st.cache_data để cache dữ liệu và tránh tải lại liên tục.
+    """
+    client = get_gspread_client() # Lấy gspread client đã được cache
     spreadsheet_url = "https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit?usp=sharing"
     try:
         sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
@@ -61,7 +72,7 @@ def get_sheet_data(sheet_name):
         if sheet_name == "KPI":
             all_values = sheet.get_all_values()
             if all_values:
-                # Đảm bảo tiêu đề là duy nhất trước khi tạo DataFrame
+                # Xử lý tiêu đề trùng lặp để tạo DataFrame hợp lệ
                 headers = all_values[0]
                 seen_headers = {}
                 unique_headers = []
@@ -81,7 +92,7 @@ def get_sheet_data(sheet_name):
             else:
                 return [] # Trả về list rỗng nếu không có dữ liệu
         else:
-            return sheet.get_all_records()
+            return sheet.get_all_records() # Trả về list of dictionaries cho các sheet khác
     except gspread.exceptions.WorksheetNotFound:
         st.error(f"❌ Không tìm thấy sheet '{sheet_name}'. Vui lòng kiểm tra tên sheet.")
         return None
@@ -90,7 +101,8 @@ def get_sheet_data(sheet_name):
         return None
 
 # Tải dữ liệu từ sheet "Hỏi-Trả lời" một lần khi ứng dụng khởi động
-qa_df = pd.DataFrame(get_sheet_data("Hỏi-Trả lời")) if get_sheet_data("Hỏi-Trả lời") else pd.DataFrame()
+# qa_df được sử dụng global trong find_answer_from_sheet
+qa_df = pd.DataFrame(get_sheet_data("Hỏi-Trả lời")) if get_sheet_data("Hỏi-Trả lời") is not None else pd.DataFrame()
 
 def normalize_text(text):
     """Chuẩn hóa chuỗi để so sánh chính xác hơn (loại bỏ dấu cách thừa, chuyển về chữ thường)."""
@@ -99,8 +111,11 @@ def normalize_text(text):
     return ""
 
 def find_answer_from_sheet(question_text):
-    """Tìm câu trả lời trong sheet 'Hỏi-Trả lời' dựa trên câu hỏi."""
-    global qa_df # Đảm bảo qa_df được truy cập toàn cục
+    """
+    Tìm câu trả lời trong sheet 'Hỏi-Trả lời' dựa trên câu hỏi.
+    Trả về một danh sách các câu trả lời phù hợp (có thể rỗng).
+    """
+    global qa_df 
     all_matches = []
     
     # Kiểm tra khớp chính xác 100% cho cú pháp "An toàn:..."
@@ -135,9 +150,8 @@ def find_answer_from_sheet(question_text):
 openai_api_key = None
 if "openai_api_key" in st.secrets:
     openai_api_key = st.secrets["openai_api_key"]
-    # st.success("✅ Đã kết nối OpenAI API key từ Streamlit secrets.") # Bỏ comment nếu muốn hiển thị
 else:
-    pass # Không hiển thị cảnh báo nếu không có API key, chỉ khi cố gắng gọi API
+    pass
 
 if openai_api_key:
     client_ai = OpenAI(api_key=openai_api_key)
@@ -207,59 +221,63 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     if 'text_input_key' not in st.session_state: # Đảm bảo key này tồn tại
         st.session_state.text_input_key = ""
 
-    # ======================== GIAO DIỆN NHẬP LIỆU (FORM) ========================
-    with st.form(key='chat_buttons_form'):
-        mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1])
+    # ======================== GHI ÂM GIỌNG NÓI ========================
+    # Ghi âm nằm ngoài form để có thể xử lý và cập nhật text_input ngay lập tức
+    if "audio_processed" not in st.session_state:
+        st.session_state.audio_processed = False
 
-        with mic_col:
-            # Ô nhập liệu chính
-            user_msg_input_in_form = st.text_input(
-                "Nhập lệnh hoặc dùng micro để nói:",
-                value=st.session_state.get("user_input_value", ""),
-                key="text_input_key"
-            )
+    audio_bytes = audio_recorder(
+        text="🎙 Nhấn để nói",
+        recording_color="#e8b62c",
+        neutral_color="#6aa36f",
+        icon_size="2x"
+    )
 
-            # Ghi âm giọng nói
-            audio_bytes = audio_recorder(
-                text="🎙 Nhấn để nói",
-                recording_color="#e8b62c",
-                neutral_color="#6aa36f",
-                icon_size="2x"
-            )
+    if audio_bytes and not st.session_state.audio_processed:
+        st.info("⏳ Đang xử lý giọng nói...")
+        audio_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                f.write(audio_bytes)
+                audio_path = f.name
 
-            if audio_bytes:
-                st.info("⏳ Đang xử lý giọng nói...")
-                audio_path = None
+            recognizer = sr.Recognizer()
+            with sr.AudioFile(audio_path) as source:
+                audio_data = recognizer.record(source)
                 try:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-                        f.write(audio_bytes)
-                        audio_path = f.name
+                    text = recognizer.recognize_google(audio_data, language="vi-VN")
+                    st.success(f"📝 Văn bản: {text}")
+                    st.session_state.user_input_value = text # Cập nhật session state để hiển thị trong text_input
+                    st.session_state.audio_processed = True  # Đánh dấu đã xử lý
+                    st.rerun() # Rerun để cập nhật ô nhập liệu ngay lập tức
+                except sr.UnknownValueError:
+                    st.warning("⚠️ Không nhận dạng được giọng nói. Vui lòng thử lại rõ ràng hơn.")
+                except sr.RequestError as e:
+                    st.error(f"❌ Lỗi kết nối dịch vụ nhận dạng: {e}. Vui lòng kiểm tra kết nối internet.")
+        except Exception as e:
+            st.error(f"❌ Lỗi khi xử lý file âm thanh: {e}")
+        finally:
+            if audio_path and os.path.exists(audio_path):
+                os.remove(audio_path)
 
-                    recognizer = sr.Recognizer()
-                    with sr.AudioFile(audio_path) as source:
-                        audio_data = recognizer.record(source)
-                        try:
-                            text = recognizer.recognize_google(audio_data, language="vi-VN")
-                            st.success(f"📝 Văn bản: {text}")
-                            st.session_state.user_input_value = text # Cập nhật session state để hiển thị trong text_input
-                            st.rerun() # Rerun để cập nhật ô nhập liệu ngay lập tức
-                        except sr.UnknownValueError:
-                            st.warning("⚠️ Không nhận dạng được giọng nói. Vui lòng thử lại rõ ràng hơn.")
-                        except sr.RequestError as e:
-                            st.error(f"❌ Lỗi kết nối dịch vụ nhận dạng: {e}. Vui lòng kiểm tra kết nối internet.")
-                except Exception as e:
-                    st.error(f"❌ Lỗi khi xử lý file âm thanh: {e}")
-                finally:
-                    if audio_path and os.path.exists(audio_path):
-                        os.remove(audio_path)
+    # ======================== Ô NHẬP LIỆU VÀ NÚT GỬI/XÓA ========================
+    # Ô nhập liệu chính (nằm ngoài form để có thể được cập nhật bởi ghi âm)
+    user_msg_input = st.text_input(
+        "Nhập lệnh hoặc dùng micro để nói:",
+        value=st.session_state.get("user_input_value", ""),
+        key="text_input_key"
+    )
+
+    # Form chứa các nút Gửi và Xóa (để kiểm soát việc gửi dữ liệu)
+    with st.form(key='chat_buttons_form'):
+        send_button_col, clear_button_col = st.columns([1, 1]) # Chỉ cần 2 cột cho nút
 
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
-
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
 
-    # Giao diện chọn câu hỏi mẫu
+    # ======================== CHỌN CÂU HỎI MẪU ========================
     selected_sample_question = st.selectbox(
         "📋 Hoặc chọn câu hỏi từ danh sách:",
         options=[""] + sample_questions_from_file, # Sử dụng biến đã tải từ file
@@ -268,9 +286,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     )
 
     # Logic để cập nhật user_input_value khi chọn câu hỏi mẫu
+    # Nếu có câu hỏi mẫu được chọn VÀ nó khác với nội dung hiện tại trong ô nhập liệu
     if selected_sample_question and selected_sample_question != st.session_state.get("text_input_key", ""):
-        st.session_state.user_input_value = selected_sample_question
-        st.rerun()
+        st.session_state.user_input_value = selected_sample_question # Cập nhật session state
+        st.session_state.audio_processed = False # Reset trạng thái audio để cho phép ghi âm lại
+        st.rerun() # Rerun để cập nhật ô nhập liệu ngay lập tức
 
     # Xác định câu hỏi cuối cùng để xử lý
     # Ưu tiên giá trị từ ô text_input_key (người dùng nhập hoặc từ micro)
@@ -279,21 +299,25 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     if not question_to_process:
         question_to_process = selected_sample_question
 
+    # ======================== XỬ LÝ NÚT XÓA ========================
     if clear_button_pressed:
-        st.session_state.user_input_value = ""
+        st.session_state.user_input_value = "" # Xóa giá trị trong session state
         st.session_state.text_input_key = "" # Xóa nội dung trong ô nhập liệu
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
         st.session_state.last_processed_user_msg = ""
         st.session_state.current_qa_display = ""
+        st.session_state.audio_processed = False # Reset trạng thái audio để cho phép ghi âm lại
         st.rerun()
 
+    # ======================== XỬ LÝ NÚT GỬI ========================
     # Logic xử lý câu hỏi chính chỉ chạy khi nút "Gửi" được nhấn và có câu hỏi
     if send_button_pressed and question_to_process:
         st.info(f"📨 Đang xử lý câu hỏi: {question_to_process}")
         st.session_state.last_processed_user_msg = question_to_process
         st.session_state.user_input_value = "" # Xóa giá trị ẩn sau khi gửi
         st.session_state.text_input_key = "" # Xóa nội dung trong ô nhập liệu sau khi gửi
+        st.session_state.audio_processed = False # Reset trạng thái audio để cho phép ghi âm lại
 
         # Reset QA results and display for a new query
         st.session_state.qa_results = []
@@ -305,6 +329,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         # --- Ưu tiên tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
         qa_answers = find_answer_from_sheet(question_to_process)
 
+        # Kiểm tra nếu có câu trả lời từ QA sheet và không phải là thông báo lỗi
         if qa_answers and not (len(qa_answers) == 1 and qa_answers[0].startswith("⚠️ Không tìm thấy")):
             st.session_state.qa_results = qa_answers
             st.session_state.qa_index = 0
@@ -511,9 +536,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                                 can_plot_bar_chart = False
                                         elif is_cumulative:
                                             current_month = datetime.datetime.now().month
-                                            cumulative_data_all_units = df_kpi_year[df_kpi_year['Tháng'] <= current_month]
-                                            if not cumulative_data_all_units.empty:
-                                                unit_kpis_aggregated = cumulative_data_all_units.groupby('Đơn vị')[kpi_value_column].mean().to_dict()
+                                            cumulative_data = unit_data[unit_data['Tháng'] <= current_month]
+                                            if not cumulative_data.empty:
+                                                unit_kpis_aggregated = cumulative_data.groupby('Đơn vị')[kpi_value_column].mean().to_dict()
                                             else:
                                                 st.warning(f"⚠️ Không có dữ liệu KPI lũy kế đến tháng {current_month} năm {target_year_kpi} cho bất kỳ đơn vị nào.")
                                                 can_plot_bar_chart = False
