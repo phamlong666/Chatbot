@@ -2,9 +2,12 @@
 import json
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-with open("sotaygpt-a62c7a821ff3.json") as source:
-    SERVICE_ACCOUNT_INFO = json.load(source)
 
+import streamlit as st
+from google.oauth2.service_account import Credentials
+
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+SERVICE_ACCOUNT_INFO = st.secrets["google_service_account"]
 creds = Credentials.from_service_account_info(SERVICE_ACCOUNT_INFO, scopes=SCOPES)
 client = gspread.authorize(creds)
 
