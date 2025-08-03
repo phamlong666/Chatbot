@@ -1285,3 +1285,28 @@ if uploaded_image is not None:
 
     st.session_state.user_input_value = extracted_text
     st.rerun()
+
+
+
+# --- Đọc dữ liệu từ Google Sheet ---
+import gspread
+from google.oauth2.service_account import Credentials
+
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+SERVICE_ACCOUNT_INFO = st.secrets["google_service_account"]
+creds = Credentials.from_service_account_info(SERVICE_ACCOUNT_INFO, scopes=SCOPES)
+client = gspread.authorize(creds)
+
+@st.cache_data
+def load_data():
+    try:
+        spreadsheet = client.open("Hỏi-Trả lời")
+        worksheet = spreadsheet.worksheet("Q&A")
+        data = worksheet.get_all_records()
+        return data
+    except Exception as e:
+        st.error(f"❌ Lỗi khi mở Google Sheet 'Hỏi-Trả lời': {e}")
+        return []
+
+qa_data = load_data()
+qa_df = pd.DataFrame(qa_data) if qa_data else pd.DataFrame()
