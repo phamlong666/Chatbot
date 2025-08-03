@@ -1,7 +1,7 @@
 import gspread
 import json
-import re # Đã thêm
-import pandas as pd # Đã thêm
+import re
+import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
 from audio_recorder_streamlit import audio_recorder
@@ -17,16 +17,17 @@ from fuzzywuzzy import fuzz
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
 # Check for secrets before proceeding
-if "google_service_account" in st.secrets:
-    info = st.secrets["google_service_account"]
-    try:
-        creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-        client = gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"❌ Lỗi xác thực Google Service Account: {e}. Vui lòng kiểm tra lại file bí mật.")
-    st.stop()
-else:
+if "google_service_account" not in st.secrets:
     st.error("❌ Không tìm thấy google_service_account trong secrets. Vui lòng cấu hình.")
+    st.stop()
+    
+# If secrets are found, try to authenticate
+info = st.secrets["google_service_account"]
+try:
+    creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+    client = gspread.authorize(creds)
+except Exception as e:
+    st.error(f"❌ Lỗi xác thực Google Service Account: {e}. Vui lòng kiểm tra lại file bí mật.")
     st.stop()
 
 # Lấy API key OpenAI
