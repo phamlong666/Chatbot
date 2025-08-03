@@ -84,7 +84,7 @@ def normalize_text(text):
 
 # Tải dữ liệu từ sheet "Hỏi-Trả lời" một lần khi ứng dụng khởi động
 qa_data = get_sheet_data("Hỏi-Trả lời")
-qa_df = pd.DataFrame(qa_data) if qa_data else pd.DataFrame()
+qa_df = pd.DataFrame(qa_data) if 'qa_data' in locals() and qa_data else pd.DataFrame()
 
 # Hàm lấy dữ liệu từ tất cả sheet trong file (từ app - Copy (2).py)
 @st.cache_data
