@@ -24,7 +24,7 @@ if "google_service_account" in st.secrets:
         client = gspread.authorize(creds)
     except Exception as e:
         st.error(f"❌ Lỗi xác thực Google Service Account: {e}. Vui lòng kiểm tra lại file bí mật.")
-        st.stop()
+    st.stop()
 else:
     st.error("❌ Không tìm thấy google_service_account trong secrets. Vui lòng cấu hình.")
     st.stop()
