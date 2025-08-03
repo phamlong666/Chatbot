@@ -29,6 +29,25 @@ plt.rcParams['xtick.labelsize'] = 14
 plt.rcParams['ytick.labelsize'] = 14
 plt.rcParams['figure.titlesize'] = 16
 
+
+# --- Bổ sung từ file JSON mới ---
+SERVICE_ACCOUNT_INFO = {
+  "type": "service_account",
+  "project_id": "sotaygpt",
+  "private_key_id": "a62c7a821ff3e483c91a89b8434d1e3761b1c226",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDGJ+tNE55ij3ER\nQ0/ygtv2fitqegxldSXmq0qbVXjPLL27H9xR66rqRPijX9cNFOPVfThh29ZZQLT8\nAXM4qYAF30/XH1qj+A671ydVd+rU4BM72gCKBKN7hyJZ1UyAO0X6p/k54PO5vl26\nKVFu8wGNjrd6U4PUVSW/CJng2grbOncJ5mT6+Yn5TbzBmyHfuWBpgn9IE9DwvW4F\nQmUDUwb/h90T0ludqJ0o2gv8Jt/0NSMUo6nsJliaSPCH4/BWmkGVO274Y/rS+2YD\nJopm3pWcQ2IROtpTkpDBHMWXICQPqwEQWrmzFBqD4+9Pz47zyP1n5RowU2237u4m\nMlaKw+hhAgMBAAECggEABZbNp7xkbMI//a0o3Z28R40Se2va2qe9vG5bads0z58i\n8Nq6s6LSjM4KN012Otu6e2SPSQ9S0eylzi/aSKBbSI8eaOJtA4/1Fm5AoUQDHyL8\n1+TTvBDabZsHqIIAKOPDGwlO2ceTCEuqyBvvPJJlGlGKskwVvVDzghpjgLiVss48\nIUOe4sxbTV7YluMQjX3izeNjnMiBXu4qVmO49AbgXMVGly0NezB3VEUGupRRlCfn\n7wX6gdfgKJX4rMrh9V2UUDdZP/5l8PiGpwB8VCCezuqcd/DG1kwKkxPbPOdKOEV8\njz3daPTU+B0qOHBm5OxFITtVXtocTWpT/2zEJhbk4wKBgQDtSgdb/Pk7+Om5tOQ6\nsMqSFQw6ZwM3yuxzXG8GtKVC6cj86M1QQ5SGKfnVF1weUVLAexgHI3hsqja67Qll\nJpZUcZiiY5Woc4lFhwq7p5ksnRBT/h11uCDlGSbeHU8jrW+NYzhe6O5P5wjvtBu1\nsUAk8trQio+vvuHghBkCgVp8twKBgQDVx/Av61cxlFjwLsMHg1n07kxgI1D5nYlX\npfpxzMxRiGWRgxR22zpy/XETbOv45ccFVgscv+bFlMmsZLIjj+o2Ju/xcQ4JVk9Z\nQxnA86CvNOAvKrGKIMIVB/G0rtq/fgpPoxqlvONlPruDyHzAogBJU6tE2AoS7uxP\n72jPzFTbpwKBgQCWhPMOIvZmWIrKRjjQEf0tlTRgh5++8HX055l2A3khbPMVmwdB\n9txsDoxv45WHlcaMWojvXkyxgXeeM2ZWR5fskPJlcA4rAL7+356rUrETX75PyU4e\nsmILcVz6YFUnKIkugtXrPo6NGNzOUM2S/5DU30h2KK7kqIzXwnOq5yrjGQKBgFb4\nnkiAb9qlxYEBJSrbTy+L+tppw7mpU4Sq67Z8YOsSmG+Yaizoh2DcprIGcAG0SUFs\nfdzWXWYoX9uYo7hABkK9mIQbQGCgEmv4FnQfKVHeKw5FSjEtnoe70aN2N1wMRNmd\nO2wN6lz4JoU4fThJL+Ck/1pkocSOGulyNqvDLwqlAoGASt1n6RnLpWx9ERia0wRo\n/7kXl/cujL6g2Bfm4lJiOBhkP7WOs4aDWEveBv8U6k/3jzb4wppVR8JeITJc5o5j\n6Lo6lFDfQ20CvMINqsVUge7q5GxH/pGpql4NB7vnMi/UhgHV4+DUbhxdToj3xx6M\nNb7fbk3uyAhFrIRdvfnEDOo=\n-----END PRIVATE KEY-----\n",
+  "client_email": "gpt-sheets-access@sotaygpt.iam.gserviceaccount.com",
+  "client_id": "107334859586184185776",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/gpt-sheets-access%40sotaygpt.iam.gserviceaccount.com"
+}
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_info(SERVICE_ACCOUNT_INFO, scopes=SCOPES)
+client = gspread.authorize(creds)
+
+
 # Kết nối Google Sheets
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
