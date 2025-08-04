@@ -308,7 +308,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         key="selected_sample_question",
         on_change=on_sample_question_select
     )
-
+    
     # Hàm để xử lý câu hỏi về lãnh đạo xã
     def handle_lanh_dao(question):
         if "lãnh đạo" in normalize_text(question) and any(xa in normalize_text(question) for xa in ["định hóa", "kim phượng", "phượng tiến", "trung hội", "bình yên", "phú đình", "bình thành", "lam vỹ"]):
@@ -343,7 +343,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 st.error(f"Lỗi khi xử lý dữ liệu lãnh đạo xã: {e}")
                 return True
         return False
-
+    
     # Hàm để xử lý câu hỏi về TBA theo đường dây
     def handle_tba(question):
         if "tba" in normalize_text(question) and "đường dây" in normalize_text(question):
@@ -370,6 +370,23 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 st.error(f"Lỗi khi lấy dữ liệu TBA: {e}")
                 return True
         return False
+
+    # Hàm để xử lý câu hỏi về CBCNV
+    def handle_cbcnv(question):
+        if "cbcnv" in normalize_text(question) or "cán bộ công nhân viên" in normalize_text(question):
+            try:
+                sheet_cbcnv = all_data.get("CBCNV")
+                if sheet_cbcnv is not None and not sheet_cbcnv.empty:
+                    st.subheader("👨‍👩‍👧‍👦 Danh sách Cán bộ Công nhân viên")
+                    st.dataframe(sheet_cbcnv.reset_index(drop=True))
+                    return True
+                else:
+                    st.warning("⚠️ Không tìm thấy sheet 'CBCNV' hoặc sheet rỗng.")
+                    return True
+            except Exception as e:
+                st.error(f"Lỗi khi xử lý dữ liệu CBCNV: {e}")
+                return True
+        return False
     
     # Xử lý khi người dùng nhấn nút "Gửi"
     if send_button_pressed:
@@ -380,7 +397,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             is_handled = False
             normalized_user_msg = normalize_text(user_msg)
 
-            # --- Bắt đầu phần mã đã được sửa lỗi ---
+            # --- Bắt đầu phần mã đã được sửa lỗi và cập nhật ---
             if "lấy thông tin kpi của các đơn vị lũy kế năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet_name = "KPI"
                 sheet_data = get_sheet_data(sheet_name)
@@ -511,12 +528,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             
             elif "lấy thông tin lãnh đạo xã định hóa" in normalized_user_msg:
                 try:
-                    sheet_name = "Lãnh đạo xã"
+                    sheet_name = "Danh sách lãnh đạo xã, phường"
                     sheet_data = get_sheet_data(sheet_name)
                     if sheet_data:
                         df = pd.DataFrame(sheet_data)
                     
-                        xa_col = find_column_name(df, ['xã', 'xa'])
+                        xa_col = find_column_name(df, ['xã', 'xa', 'thuộc xã/phường', 'xã/phường'])
                         if xa_col:
                             df_filtered = df[df[xa_col].fillna('').str.strip().str.lower() == 'định hóa']
                             st.subheader("👨‍💼 Thông tin lãnh đạo xã Định Hóa")
@@ -528,8 +545,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 except Exception as e:
                     st.error(f"Lỗi khi xử lý dữ liệu lãnh đạo xã: {e}")
                 is_handled = True
+                
+            elif "cbcnv" in normalized_user_msg or "cán bộ công nhân viên" in normalized_user_msg:
+                is_handled = handle_cbcnv(user_msg)
 
-            # --- Kết thúc phần mã đã được sửa lỗi ---
+            # --- Kết thúc phần mã đã được sửa lỗi và cập nhật ---
 
 
             # --- Xử lý các câu hỏi chung về Sự cố, KPI ---
@@ -600,6 +620,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     is_handled = handle_lanh_dao(user_msg)
                 elif "tba" in normalized_user_msg:
                     is_handled = handle_tba(user_msg)
+                elif "cbcnv" in normalized_user_msg or "cán bộ công nhân viên" in normalized_user_msg:
+                    is_handled = handle_cbcnv(user_msg)
                 
                 # --- Nếu vẫn chưa được xử lý, dùng fuzzy search hoặc gọi AI ---
                 if not is_handled:
