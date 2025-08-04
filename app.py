@@ -15,7 +15,7 @@ import easyocr
 import json
 import speech_recognition as sr
 import tempfile
-import numpy as np
+import numpy as np # Thêm import numpy
 from cryptography.fernet import Fernet
 from audio_recorder_streamlit import audio_recorder
 
@@ -73,30 +73,29 @@ else:
 openai_api_key = None
 if "openai_api_key" in st.secrets:
     openai_api_key = st.secrets["openai_api_key"]
-    # st.success("✅ Đã kết nối OpenAI API key từ Streamlit secrets.")
+    st.success("✅ Đã kết nối OpenAI API key từ Streamlit secrets.")
 else:
-    st.warning("⚠️ Không tìm thấy 'openai_api_key' trong secrets.toml. Các chức năng xử lý câu hỏi phức tạp sẽ không hoạt động.")
+    pass # Không hiển thị cảnh báo nữa
 
 if openai_api_key:
     client_ai = OpenAI(api_key=openai_api_key)
 else:
     client_ai = None
 
-# URL của Google Sheets
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit"
 
-# --- CÁC HÀM XỬ LÝ DỮ LIỆU TỪ GOOGLE SHEETS VÀ TẠO CÂU TRẢ LỜI ---
+# === BẮT ĐẦU PHẦN CODE ĐƯỢC CHUYỂN TỪ app2.py SANG ===
+# Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
-    """
-    Hàm để lấy dữ liệu từ một sheet cụ thể và xử lý các tiêu đề trùng lặp cho sheet KPI.
-    """
     try:
         sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
         
         if sheet_name == "KPI":
             all_values = sheet.get_all_values()
             if all_values:
+                # Đảm bảo tiêu đề là duy nhất trước khi tạo DataFrame
                 headers = all_values[0]
+                # Tạo danh sách tiêu đề duy nhất bằng cách thêm số nếu có trùng lặp
                 seen_headers = {}
                 unique_headers = []
                 for h in headers:
@@ -109,10 +108,11 @@ def get_sheet_data(sheet_name):
                     unique_headers.append(h)
 
                 data = all_values[1:]
+                
                 df_temp = pd.DataFrame(data, columns=unique_headers)
-                return df_temp.to_dict('records')
+                return df_temp.to_dict('records') # Return as list of dictionaries
             else:
-                return []
+                return [] # Return empty list if no values
         else:
             return sheet.get_all_records()
     except gspread.exceptions.WorksheetNotFound:
@@ -122,11 +122,10 @@ def get_sheet_data(sheet_name):
         st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}. Vui lòng kiểm tra định dạng tiêu đề của sheet. Nếu có tiêu đề trùng lặp, hãy đảm bảo chúng là duy nhất.")
         return None
 
+# Hàm chuẩn hóa chuỗi để so sánh chính xác hơn (loại bỏ dấu cách thừa, chuyển về chữ thường)
 def normalize_text(text):
-    """
-    Hàm chuẩn hóa chuỗi để so sánh chính xác hơn (loại bỏ dấu cách thừa, chuyển về chữ thường).
-    """
     if isinstance(text, str):
+        # Chuyển về chữ thường, loại bỏ dấu cách thừa ở đầu/cuối và thay thế nhiều dấu cách bằng một dấu cách
         return re.sub(r'\s+', ' ', text).strip().lower()
     return ""
 
@@ -134,307 +133,90 @@ def normalize_text(text):
 qa_data = get_sheet_data("Hỏi-Trả lời")
 qa_df = pd.DataFrame(qa_data) if qa_data else pd.DataFrame()
 
+# Hàm lấy dữ liệu từ tất cả sheet trong file
 @st.cache_data
 def load_all_sheets():
-    """
-    Tải dữ liệu từ tất cả sheet trong file Google Sheets.
-    """
-    try:
-        spreadsheet = client.open_by_url(spreadsheet_url)
-        sheet_names = [ws.title for ws in spreadsheet.worksheets()]
-        data = {}
-        for name in sheet_names:
-            try:
-                # Dùng hàm get_sheet_data để xử lý cả KPI
-                records = get_sheet_data(name)
-                if records is not None:
-                    data[name] = pd.DataFrame(records)
-            except Exception as e:
-                st.warning(f"⚠️ Lỗi khi tải dữ liệu từ sheet '{name}': {e}")
-                data[name] = pd.DataFrame()
-        return data
-    except Exception as e:
-        st.error(f"❌ Lỗi khi tải danh sách các sheet: {e}")
-        return {}
+    spreadsheet = client.open_by_url(spreadsheet_url)
+    sheet_names = [ws.title for ws in spreadsheet.worksheets()]
+    data = {}
+    for name in sheet_names:
+        try:
+            records = spreadsheet.worksheet(name).get_all_records()
+            data[name] = pd.DataFrame(records)
+        except:
+            data[name] = pd.DataFrame()
+    return data
 
 all_data = load_all_sheets()
 
+# Hàm để đọc câu hỏi từ file JSON
 def load_sample_questions(file_path="sample_questions.json"):
-    """
-    Hàm để đọc câu hỏi từ file JSON.
-    """
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             questions_data = json.load(f)
+        # Nếu định dạng là list of strings
         if isinstance(questions_data, list) and all(isinstance(q, str) for q in questions_data):
             return questions_data
+        # Nếu định dạng là list of dictionaries (nếu sau này bạn muốn thêm id hoặc mô tả)
         elif isinstance(questions_data, list) and all(isinstance(q, dict) and "text" in q for q in questions_data):
             return [q["text"] for q in questions_data]
         else:
-            st.error("Định dạng file sample_questions.json không hợp lệ.")
+            st.error("Định dạng file sample_questions.json không hợp lệ. Vui lòng đảm bảo nó là một danh sách các chuỗi hoặc đối tượng có khóa 'text'.")
             return []
     except FileNotFoundError:
-        st.warning(f"⚠️ Không tìm thấy file: {file_path}.")
+        st.warning(f"⚠️ Không tìm thấy file: {file_path}. Vui lòng tạo file chứa các câu hỏi mẫu để sử dụng chức năng này.")
         return []
-    except json.JSONDecodeError:
-        st.error(f"❌ Lỗi đọc file JSON: {file_path}.")
+    except json.JSONDecode_Error:
+        st.error(f"❌ Lỗi đọc file JSON: {file_path}. Vui lòng kiểm tra cú pháp JSON của file.")
         return []
 
+# Tải các câu hỏi mẫu khi ứng dụng khởi động
 sample_questions_from_file = load_sample_questions()
+# === KẾT THÚC PHẦN CODE ĐƯỢC CHUYỂN TỪ app2.py SANG ===
 
-def find_similar_questions(user_question, data, threshold=80):
-    """
-    Tìm các câu hỏi tương tự trong DataFrame QA sử dụng thư viện fuzzywuzzy.
-    Trả về một danh sách các câu trả lời tương ứng.
-    """
-    normalized_user_question = normalize_text(user_question)
-    
-    similar_q_a = []
-    if not data.empty:
-        for index, row in data.iterrows():
-            question = row.get("Câu hỏi", "")
-            answer = row.get("Trả lời", "")
-            if question and answer:
-                normalized_question = normalize_text(question)
-                similarity_ratio = fuzz.ratio(normalized_user_question, normalized_question)
-                if similarity_ratio >= threshold:
-                    similar_q_a.append((similarity_ratio, answer))
-    
-    # Sắp xếp kết quả theo độ tương tự giảm dần
-    similar_q_a.sort(key=lambda x: x[0], reverse=True)
-    
-    # Chỉ trả về phần câu trả lời
-    return [item[1] for item in similar_q_a]
-
-def plot_bar_chart(df, x_col, y_col, title, unit=""):
-    """
-    Hàm để vẽ biểu đồ cột.
-    """
-    df_sorted = df.sort_values(by=y_col, ascending=False)
-    
-    colors = cm.viridis(np.linspace(0, 1, len(df_sorted)))
-    
-    fig, ax = plt.subplots(figsize=(12, 8))
-    bars = ax.bar(df_sorted[x_col], df_sorted[y_col], color=colors)
-    
-    ax.set_xlabel(x_col)
-    ax.set_ylabel(f"{y_col} ({unit})")
-    ax.set_title(title, pad=20)
-    plt.xticks(rotation=45, ha='right')
-    
-    for bar in bars:
-        height = bar.get_height()
-        ax.annotate(f'{height:,.0f}',
-                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                    xytext=(0, 3),
-                    textcoords="offset points",
-                    ha='center',
-                    va='bottom')
-    
-    plt.tight_layout()
-    st.pyplot(fig)
-
-def plot_line_chart(df, x_col, y_col, title, unit=""):
-    """
-    Hàm để vẽ biểu đồ đường.
-    """
-    fig, ax = plt.subplots(figsize=(12, 8))
-    ax.plot(df[x_col], df[y_col], marker='o', linestyle='-', color='b')
-    ax.set_xlabel(x_col)
-    ax.set_ylabel(f"{y_col} ({unit})")
-    ax.set_title(title)
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    st.pyplot(fig)
-
-def plot_pie_chart(df, values_col, names_col, title):
-    """
-    Hàm để vẽ biểu đồ tròn.
-    """
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.pie(df[values_col], labels=df[names_col], autopct='%1.1f%%', startangle=90, colors=cm.Paired(np.arange(len(df))))
-    ax.axis('equal')
-    ax.set_title(title)
-    plt.tight_layout()
-    st.pyplot(fig)
-
-def process_complex_query(user_question, all_data, client_ai):
-    """
-    Sử dụng OpenAI API để xử lý các câu hỏi phức tạp hơn.
-    """
-    if client_ai is None:
-        st.warning("❌ Không tìm thấy OpenAI API key. Vui lòng cấu hình để sử dụng chức năng này.")
-        return None
-
-    system_prompt = f"""
-    Bạn là một trợ lý ảo chuyên xử lý dữ liệu và tạo báo cáo cho Đội Quản lý đường lưới khu vực Định Hóa.
-    Bạn có quyền truy cập vào các bộ dữ liệu sau từ Google Sheets:
-    - Sheet 'KPI': Thông tin KPI hàng tháng.
-    - Sheet 'CBCNV': Thông tin cán bộ công nhân viên.
-    - Sheet 'Sự cố': Thông tin các sự cố.
-    - Sheet 'Lãnh đạo': Thông tin lãnh đạo các xã.
-
-    Dữ liệu thô hiện có của bạn (chỉ hiển thị vài dòng đầu) là:
-    {json.dumps({name: data.head(2).to_dict('records') for name, data in all_data.items()}, ensure_ascii=False, indent=2)}
-
-    Yêu cầu của bạn là:
-    1. Phân tích câu hỏi của người dùng để xác định sheet dữ liệu cần dùng và các thông tin cần trích xuất.
-    2. Dựa trên phân tích, đưa ra một JSON Object duy nhất chứa các thông tin sau:
-        - "sheet_name": Tên sheet cần truy vấn (ví dụ: "KPI", "CBCNV", "Sự cố", "Lãnh đạo").
-        - "action": Hành động cần thực hiện ("trả lời", "vẽ biểu đồ", "so sánh").
-        - "filters": Một dictionary chứa các bộ lọc (ví dụ: {{"Thời gian": "tháng 6 năm 2025"}}).
-        - "chart_type": (Nếu action là "vẽ biểu đồ") Loại biểu đồ cần vẽ ("cột", "đường", "tròn").
-        - "x_axis": (Nếu cần vẽ biểu đồ) Tên cột cho trục x.
-        - "y_axis": (Nếu cần vẽ biểu đồ) Tên cột cho trục y.
-        - "compare_with": (Nếu action là "so sánh") Thông tin so sánh (ví dụ: "cùng kỳ", "năm trước").
-        - "sort_by": (Nếu cần sắp xếp) Tên cột để sắp xếp.
-        - "sort_order": (Nếu cần sắp xếp) Thứ tự sắp xếp ("tăng dần", "giảm dần").
-    3. Nếu không thể tạo JSON hợp lệ, hãy trả lời bằng một câu văn bản thông thường.
-    4. Cần đảm bảo các trường trong JSON phải chính xác và không bị thiếu. Nếu một trường không có, không cần đưa vào JSON.
-
-    Ví dụ về JSON bạn cần tạo:
-    - Câu hỏi: "Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần"
-    - JSON: {{"sheet_name": "KPI", "action": "trả lời", "filters": {{"Thời gian": "tháng 6 năm 2025"}}, "sort_by": "Chỉ tiêu", "sort_order": "giảm dần"}}
-    - Câu hỏi: "Lấy thông tin CBCNV và vẽ biểu đồ theo độ tuổi"
-    - JSON: {{"sheet_name": "CBCNV", "action": "vẽ biểu đồ", "filters": {{}}, "chart_type": "cột", "x_axis": "Độ tuổi", "y_axis": "Số lượng"}}
-
-    Chú ý: Hạn chế tối đa việc tạo ra các trường không cần thiết trong JSON. Hãy đưa ra một JSON object duy nhất và hợp lệ.
-    """
-
-    try:
-        response = client_ai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_question}
-            ],
-            temperature=0
-        )
-        json_output = response.choices[0].message.content
-        st.write(f"Đã nhận JSON từ API: {json_output}") # Để debug
-        return json.loads(json_output)
-    except json.JSONDecodeError:
-        st.error("❌ API trả về JSON không hợp lệ. Vui lòng thử lại hoặc thay đổi câu hỏi.")
-        return None
-    except Exception as e:
-        st.error(f"❌ Lỗi khi gọi OpenAI API: {e}. Vui lòng kiểm tra API key hoặc thử lại.")
-        return None
-
-def generate_complex_answer(query_json, all_data):
-    """
-    Xử lý JSON object từ OpenAI để tạo câu trả lời hoặc biểu đồ.
-    """
-    if query_json is None:
-        return "Xin lỗi, không thể xử lý yêu cầu của bạn do lỗi phân tích JSON từ API."
-        
-    sheet_name = query_json.get("sheet_name")
-    action = query_json.get("action")
-    filters = query_json.get("filters", {})
-    
-    if not sheet_name or sheet_name not in all_data:
-        return f"Xin lỗi, tôi không tìm thấy sheet '{sheet_name}' hoặc không thể xử lý yêu cầu này."
-
-    df = all_data[sheet_name]
-    if df.empty:
-        return f"Dữ liệu trong sheet '{sheet_name}' đang trống. Vui lòng cập nhật dữ liệu."
-
-    filtered_df = df.copy()
-
-    # Áp dụng bộ lọc
-    for key, value in filters.items():
-        if key in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df[key].astype(str).str.contains(value, case=False, na=False, regex=True)]
-    
-    if filtered_df.empty:
-        return f"Xin lỗi, không có dữ liệu nào phù hợp với bộ lọc bạn đã yêu cầu."
-
-    # Xử lý các hành động
-    if action == "trả lời":
-        sort_by = query_json.get("sort_by")
-        sort_order = query_json.get("sort_order")
-        
-        if sort_by and sort_by in filtered_df.columns:
-            ascending = sort_order != "giảm dần"
-            # Thử chuyển đổi sang số để sắp xếp nếu có thể
-            try:
-                filtered_df[sort_by] = pd.to_numeric(filtered_df[sort_by], errors='coerce')
-                filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending, na_position='last')
-            except:
-                filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending)
-        
-        markdown_table = filtered_df.to_markdown(index=False)
-        return f"Dưới đây là kết quả của bạn:\n\n{markdown_table}"
-    
-    elif action == "vẽ biểu đồ":
-        chart_type = query_json.get("chart_type")
-        x_axis = query_json.get("x_axis")
-        y_axis = query_json.get("y_axis")
-        
-        if not x_axis or not y_axis or x_axis not in filtered_df.columns or y_axis not in filtered_df.columns:
-            return "Xin lỗi, không đủ thông tin để vẽ biểu đồ (thiếu trục x hoặc y)."
-
-        filtered_df[y_axis] = pd.to_numeric(filtered_df[y_axis], errors='coerce')
-        filtered_df.dropna(subset=[y_axis], inplace=True)
-        
-        title = f"Biểu đồ {chart_type} của {y_axis} theo {x_axis}"
-        
-        if chart_type == "cột":
-            plot_bar_chart(filtered_df, x_axis, y_axis, title)
-            return "Biểu đồ đã được tạo thành công."
-        elif chart_type == "đường":
-            plot_line_chart(filtered_df, x_axis, y_axis, title)
-            return "Biểu đồ đã được tạo thành công."
-        elif chart_type == "tròn":
-            plot_pie_chart(filtered_df, y_axis, x_axis, title)
-            return "Biểu đồ đã được tạo thành công."
-        else:
-            return f"Loại biểu đồ '{chart_type}' không được hỗ trợ."
-    
-    elif action == "so sánh":
-        compare_with = query_json.get("compare_with")
-        # Logic so sánh phức tạp hơn sẽ cần triển khai ở đây
-        return "Tính năng so sánh đang được phát triển, vui lòng thử lại sau."
-        
-    else:
-        return f"Hành động '{action}' không được hỗ trợ."
-
-# Hàm OCR: đọc text từ ảnh
-def extract_text_from_image(image_path):
-    """
-    Extracts Vietnamese text from an image file using EasyOCR.
-    """
-    reader = easyocr.Reader(['vi'])
-    result = reader.readtext(image_path, detail=0)
-    text = " ".join(result)
-    return text
 
 # --- Bắt đầu bố cục mới: Logo ở trái, phần còn lại của chatbot căn giữa ---
-header_col1, header_col2 = st.columns([1, 8])
+
+# Phần header: Logo và tiêu đề, được đặt ở đầu trang và logo căn trái
+header_col1, header_col2 = st.columns([1, 8]) # Tỷ lệ cho logo và tiêu đề
 
 with header_col1:
     public_logo_url = "https://raw.githubusercontent.com/phamlong666/Chatbot/main/logo_hinh_tron.png"
     try:
-        st.image(public_logo_url, width=100)
-    except Exception as e:
-        st.error(f"❌ Lỗi khi hiển thị logo: {e}.")
+        st.image(public_logo_url, width=100) # Kích thước 100px
+    except Exception as e_public_url:
+        st.error(f"❌ Lỗi khi hiển thị logo từ URL: {e_public_url}. Vui lòng đảm bảo URL là liên kết TRỰC TIẾP đến file ảnh (kết thúc bằng .jpg, .png, v.v.) và kiểm tra kết nối internet.")
+        logo_path = Path(__file__).parent / "logo_hinh_tron.jpg"
+        try:
+            if logo_path.exists():
+                st.image(str(logo_path), width=100)
+            else:
+                st.error(f"❌ Không tìm thấy file ảnh logo tại: {logo_path}. Vui lòng đảm bảo file 'logo_hinh_tron.jpg' nằm cùng thư mục với file app.py của bạn khi triển khai.")
+        except Exception as e_local_file:
+            st.error(f"❌ Lỗi khi hiển thị ảnh logo từ file cục bộ: {e_local_file}.")
 
 with header_col2:
+    # Đã thay đổi st.title thành st.markdown để tùy chỉnh cỡ chữ
     st.markdown("<h1 style='font-size: 30px;'>🤖 Chatbot Đội QLĐLKV Định Hóa</h1>", unsafe_allow_html=True)
 
+# Phần nội dung chính của chatbot (ô nhập liệu, nút, kết quả) sẽ được căn giữa
+# Tạo 3 cột: cột trái rỗng (để tạo khoảng trống), cột giữa chứa nội dung chatbot, cột phải rỗng
+# Đã thay đổi tỷ lệ từ [1, 3, 1] sang [1, 5, 1] để mở rộng không gian chat
 col_left_spacer, col_main_content, col_right_spacer = st.columns([1, 5, 1])
 
-with col_main_content:
+with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột này
+    # Khởi tạo session state để lưu trữ tin nhắn cuối cùng đã xử lý
     if 'last_processed_user_msg' not in st.session_state:
         st.session_state.last_processed_user_msg = ""
     if 'qa_results' not in st.session_state:
         st.session_state.qa_results = []
     if 'qa_index' not in st.session_state:
         st.session_state.qa_index = 0
-    if 'user_input_value' not in st.session_state:
+    if 'user_input_value' not in st.session_state: # Sử dụng user_input_value làm key chính cho input
         st.session_state.user_input_value = ""
-    if 'current_qa_display' not in st.session_state:
+    if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
+    # ✅ Ghi âm nằm ngoài form, xử lý trạng thái với session_state
     if "audio_processed" not in st.session_state:
         st.session_state.audio_processed = False
 
@@ -459,9 +241,9 @@ with col_main_content:
                 try:
                     text = recognizer.recognize_google(audio_data, language="vi-VN")
                     st.success(f"📝 Văn bản: {text}")
-                    st.session_state.user_input_value = text
-                    st.session_state.audio_processed = True
-                    st.rerun()
+                    st.session_state.user_input_value = text # Cập nhật giá trị input từ audio
+                    st.session_state.audio_processed = True  # ✅ đánh dấu đã xử lý
+                    st.rerun() # Rerun để cập nhật ô nhập liệu
                 except sr.UnknownValueError:
                     st.warning("⚠️ Không nhận dạng được giọng nói.")
                 except sr.RequestError as e:
@@ -470,10 +252,13 @@ with col_main_content:
             if audio_path and os.path.exists(audio_path):
                 os.remove(audio_path)
 
+    # Bổ sung form bấm gửi/xóa ở dưới
     with st.form(key='chat_buttons_form'):
         mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1])
         
         with mic_col:
+            # Đây là ô nhập liệu chính hiện tại, giá trị được lấy từ session_state.user_input_value
+            # Key của text_input giờ là user_input_value để nó tự động cập nhật session_state đó
             user_msg_input_in_form = st.text_input("Nhập lệnh hoặc dùng micro để nói:", value=st.session_state.get("user_input_value", ""), key="user_input_value")
 
         with send_button_col:
@@ -481,20 +266,59 @@ with col_main_content:
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
 
-    def on_sample_question_select():
-        st.session_state.user_input_value = st.session_state.sample_question_selector
-        st.session_state.audio_processed = False
+    # Đọc câu hỏi mẫu từ file
+    sample_questions = []
+    try:
+        with open("sample_questions.json", "r", encoding="utf-8") as f:
+            sample_questions = json.load(f)
+    except Exception as e:
+        st.warning(f"Không thể đọc file câu hỏi mẫu: {e}")
 
+    # Callback function for selectbox
+    def on_sample_question_select():
+        # Khi một câu hỏi mẫu được chọn, cập nhật user_input_value
+        st.session_state.user_input_value = st.session_state.sample_question_selector
+    
+    # Giao diện chọn câu hỏi
     selected_sample_question = st.selectbox(
-        "Chọn câu hỏi từ danh sách:",
-        options=[""] + sample_questions_from_file,
-        index=0,
-        key="sample_question_selector",
+        "Chọn câu hỏi từ danh sách:", 
+        options=[""] + sample_questions, 
+        index=0, 
+        key="sample_question_selector", 
         on_change=on_sample_question_select
     )
-    
-    question_to_process = st.session_state.user_input_value.strip()
 
+    # Hàm chính để xử lý câu hỏi người dùng
+    def process_user_query(user_query, qa_df, sample_questions):
+        # Lọc các câu hỏi mẫu để tìm câu hỏi gần giống nhất
+        best_match_q = ""
+        best_ratio = 0
+        
+        # Chỉ xử lý nếu câu hỏi của người dùng nằm trong danh sách câu hỏi mẫu
+        if user_query.strip() in sample_questions:
+            best_match_q = user_query.strip()
+            best_ratio = 100
+        else:
+            st.warning("⚠️ Câu hỏi của bạn không nằm trong danh sách câu hỏi mẫu.")
+            return []
+
+        # Nếu tìm thấy câu hỏi phù hợp trong danh sách mẫu, tìm câu trả lời trong qa_df
+        if best_ratio > 70: # Chỉ chấp nhận các câu hỏi có độ tương đồng cao
+            # Sử dụng normalize_text để so sánh không phân biệt chữ hoa/thường và khoảng trắng
+            normalized_query = normalize_text(best_match_q)
+            
+            # Lọc các kết quả có câu hỏi tương tự từ qa_df
+            qa_results = qa_df[
+                qa_df.apply(lambda row: fuzz.ratio(normalized_query, normalize_text(row['Câu hỏi'])) > 70, axis=1)
+            ]
+
+            if not qa_results.empty:
+                # Trả về danh sách các câu trả lời
+                return list(qa_results['Câu trả lời'])
+        return []
+
+
+    # Xử lý nút Xóa
     if clear_button_pressed:
         st.session_state.user_input_value = ""
         st.session_state.qa_results = []
@@ -504,49 +328,55 @@ with col_main_content:
         st.session_state.audio_processed = False
         st.rerun()
 
-    if send_button_pressed and question_to_process:
+    # Xử lý khi nhấn nút Gửi
+    if send_button_pressed and st.session_state.user_input_value.strip():
+        question_to_process = st.session_state.user_input_value.strip()
         st.info(f"📨 Đang xử lý câu hỏi: {question_to_process}")
+        
         st.session_state.last_processed_user_msg = question_to_process
         st.session_state.audio_processed = False
+        
+        # Reset QA results và display cho truy vấn mới
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
         st.session_state.current_qa_display = ""
         
-        matching_answers = find_similar_questions(question_to_process, qa_df)
+        # Lấy câu trả lời dựa trên câu hỏi người dùng và dữ liệu QA từ sheet
+        qa_results = process_user_query(question_to_process, qa_df, sample_questions_from_file)
         
-        if matching_answers:
-            st.session_state.qa_results = matching_answers
+        if qa_results:
+            st.session_state.qa_results = qa_results
+            st.session_state.current_qa_display = qa_results[0]
             st.session_state.qa_index = 1
-            st.session_state.current_qa_display = st.session_state.qa_results[0]
-            st.success("✅ Đã tìm thấy câu trả lời tương tự trong cơ sở dữ liệu có sẵn.")
         else:
-            if client_ai:
-                st.info("💡 Không tìm thấy câu trả lời trực tiếp. Đang sử dụng OpenAI để xử lý...")
-                query_json = process_complex_query(question_to_process, all_data, client_ai)
-                if query_json:
-                    answer = generate_complex_answer(query_json, all_data)
-                    st.session_state.current_qa_display = answer
-                else:
-                    st.session_state.current_qa_display = "Xin lỗi, không thể xử lý yêu cầu của bạn."
-            else:
-                st.session_state.current_qa_display = "Xin lỗi, không tìm thấy OpenAI API key để xử lý yêu cầu này."
+            st.warning("⚠️ Không tìm thấy câu trả lời tương tự trong cơ sở dữ liệu.")
+            st.session_state.qa_results = []
         
-        st.rerun()
+        st.rerun() # Rerun để hiển thị kết quả
 
+    # Hiển thị câu trả lời (nếu có)
     if st.session_state.current_qa_display:
         st.info("Câu trả lời:")
-        
-        if "Biểu đồ đã được tạo thành công." not in st.session_state.current_qa_display:
-            st.write(st.session_state.current_qa_display)
+        st.write(st.session_state.current_qa_display)
 
+    # Nút "Tìm tiếp" chỉ hiển thị khi có nhiều hơn một kết quả QA và chưa hiển thị hết
     if st.session_state.qa_results and st.session_state.qa_index < len(st.session_state.qa_results):
         if st.button("Tìm tiếp"):
             st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
             st.session_state.qa_index += 1
-            st.rerun()
+            st.rerun() # Rerun để hiển thị kết quả tiếp theo
     elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
         st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
 
+
+# Hàm OCR: đọc text từ ảnh
+def extract_text_from_image(image_path):
+    reader = easyocr.Reader(['vi'])
+    result = reader.readtext(image_path, detail=0)
+    text = " ".join(result)
+    return text
+
+# --- Tải ảnh chứa câu hỏi ---
 st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
 uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
 
@@ -562,13 +392,14 @@ if uploaded_image is not None:
         if extracted_text:
             st.info("Văn bản được trích xuất từ ảnh:")
             st.code(extracted_text, language="text")
+            # Tự động điền văn bản đã trích xuất vào ô nhập liệu
             st.session_state.user_input_value = extracted_text
             st.success("✅ Đã điền văn bản vào ô nhập liệu. Bạn có thể chỉnh sửa và nhấn 'Gửi'.")
-            st.rerun()
+            st.rerun() # Tải lại ứng dụng để cập nhật input
         else:
             st.warning("⚠️ Không thể trích xuất văn bản từ ảnh. Vui lòng thử lại với ảnh khác rõ hơn.")
     except Exception as e:
-        st.error(f"❌ Lỗi trong quá trình xử lý ảnh: {e}")
+        st.error(f"❌ Lỗi xử lý ảnh: {e}")
     finally:
         if temp_image_path.exists():
             os.remove(temp_image_path)
