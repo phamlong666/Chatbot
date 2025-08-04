@@ -16,15 +16,14 @@ import json
 import speech_recognition as sr
 import tempfile
 import numpy as np # Thêm import numpy
-# Thư viện này cần được cài đặt: pip install cryptography
 from cryptography.fernet import Fernet
-from audio_recorder_streamlit import audio_recorder  # ✅ Thay thế thư viện mic_recorder bằng thư viện ổn định hơn
+from audio_recorder_streamlit import audio_recorder
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
 
 # Cấu hình Matplotlib để hiển thị tiếng Việt
-plt.rcParams['font.family'] = 'DejaVu Sans' # Hoặc 'Arial', 'Times New Roman' nếu có
+plt.rcParams['font.family'] = 'DejaVu Sans'
 plt.rcParams['font.size'] = 14
 plt.rcParams['axes.labelsize'] = 14
 plt.rcParams['axes.titlesize'] = 14
@@ -37,39 +36,38 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 if "gdrive_service_account" in st.secrets:
     try:
-        # Lấy key mã hóa từ secrets.toml
-        encryption_key_for_decryption = st.secrets["gdrive_service_account"]["encryption_key_for_decryption"]
-        
-        # Lấy private key đã mã hóa
-        encrypted_private_key = st.secrets["gdrive_service_account"]["encrypted_private_key"]
-        
-        # Giải mã private key
+        encryption_key_for_decryption = st.secrets["gdrive_service_account"].get("encryption_key_for_decryption")
+        encrypted_private_key = st.secrets["gdrive_service_account"].get("encrypted_private_key")
+
+        if not encryption_key_for_decryption or not encrypted_private_key:
+            raise ValueError("Thiếu encryption_key hoặc encrypted_private_key trong secrets.toml")
+
         f = Fernet(encryption_key_for_decryption.encode())
         decrypted_private_key = f.decrypt(encrypted_private_key.encode()).decode()
 
-        # Tạo một dictionary tương tự như secrets cũ, nhưng dùng key đã giải mã
         info = {
             "type": st.secrets["gdrive_service_account"]["type"],
             "project_id": st.secrets["gdrive_service_account"]["project_id"],
             "private_key_id": st.secrets["gdrive_service_account"]["private_key_id"],
-            "private_key": decrypted_private_key, # Sử dụng key đã được giải mã
+            "private_key": decrypted_private_key,
             "client_email": st.secrets["gdrive_service_account"]["client_email"],
             "client_id": st.secrets["gdrive_service_account"]["client_id"],
             "auth_uri": st.secrets["gdrive_service_account"]["auth_uri"],
             "token_uri": st.secrets["gdrive_service_account"]["token_uri"],
             "auth_provider_x509_cert_url": st.secrets["gdrive_service_account"]["auth_provider_x509_cert_url"],
-            "client_x509_cert_url": st.secrets["gdrive_service_account"]["client_x509_cert_url"],
-            "universe_domain": st.secrets["gdrive_service_account"]["universe_domain"],
+            "client_x509_cert_url": st.secrets["gdrive_service_account"]["client_x509_cert_url"]
         }
-        
+
         creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         client = gspread.authorize(creds)
+        st.success("✅ Đã kết nối Google Sheets thành công!")
+
     except Exception as e:
         st.error(f"❌ Lỗi khi giải mã hoặc kết nối Google Sheets: {e}. Vui lòng kiểm tra lại cấu hình secrets.toml.")
-        st.stop() # Dừng ứng dụng nếu có lỗi kết nối
+        st.stop()
 else:
-    st.error("❌ Không tìm thấy gdrive_service_account trong secrets. Vui lòng cấu hình.")
-    st.stop() # Dừng ứng dụng nếu không có secrets
+    st.error("❌ Không tìm thấy 'gdrive_service_account' trong secrets. Vui lòng cấu hình.")
+    st.stop()
 
 # Lấy API key OpenAI
 openai_api_key = None
