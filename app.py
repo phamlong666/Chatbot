@@ -246,26 +246,25 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning("⚠️ Không nhận dạng được giọng nói.")
                 except sr.RequestError as e:
                     st.error(f"❌ Lỗi nhận dạng: {e}")
-        finally:
-            if audio_path and os.path.exists(audio_path):
-                os.remove(audio_path)
+                finally:
+                    if audio_path and os.path.exists(audio_path):
+                        os.remove(audio_path)
+        except Exception as e:
+            st.error(f"❌ Lỗi khi xử lý file âm thanh: {e}")
 
-    #   Bổ sung form bấm gửi/xóa ở dưới
+    # Bổ sung form bấm gửi/xóa ở dưới
     with st.form(key='chat_buttons_form'):
         mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1])
-        
         with mic_col:
             # Đây là ô nhập liệu chính hiện tại, giá trị được lấy từ session_state.user_input_value
             # Key của text_input giờ là user_input_value để nó tự động cập nhật session_state đó
             user_msg_input_in_form = st.text_input("Nhập lệnh hoặc dùng micro để nói:", value=st.session_state.get("user_input_value", ""), key="user_input_value")
-
         with send_button_col:
             send_button_pressed = st.form_submit_button("Gửi")
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
 
-    # Đọc câu hỏi mẫu từ file
-    sample_questions = []
+    # Đọc câu hỏi mẫu từ file sample_questions = []
     try:
         with open("sample_questions.json", "r", encoding="utf-8") as f:
             sample_questions = json.load(f)
@@ -275,170 +274,146 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Callback function for selectbox
     def on_sample_question_select():
         # Khi một câu hỏi mẫu được chọn, cập nhật user_input_value
-        st.session_state.user_input_value = st.session_state.sample_question_selector
-        # Sau khi cập nhật, có thể muốn reset selectbox để nó không giữ lựa chọn cũ
-        # st.session_state.sample_question_selector = "" # Tùy chọn: nếu muốn reset selectbox
+        st.session_state.user_input_value = st.session_state.selected_sample_question
 
-    # Giao diện chọn câu hỏi
-    selected_sample_question = st.selectbox(
-        "Chọn câu hỏi từ danh sách:", 
-        options=[""] + sample_questions, 
-        index=0, 
-        key="sample_question_selector",
-        on_change=on_sample_question_select # Thêm callback function
+    st.markdown("---")
+    st.markdown("#### 🤔 Hoặc chọn câu hỏi mẫu:")
+    # Thêm câu hỏi mẫu vào selectbox, dùng callback để cập nhật input
+    st.selectbox(
+        "Chọn một câu hỏi mẫu từ danh sách",
+        options=[""] + sample_questions, # Thêm option rỗng ở đầu
+        key="selected_sample_question",
+        on_change=on_sample_question_select
     )
 
-    # ✅ Ưu tiên lấy nội dung nhập tay/micro trước, sau đó là câu hỏi mẫu
-    # Logic này sẽ được kích hoạt sau khi on_change callback chạy (nếu có)
-    question_to_process = st.session_state.user_input_value.strip()
-    # Không cần kiểm tra selected_sample_question ở đây nữa vì nó đã được xử lý qua callback
+    # Xử lý khi người dùng nhấn nút "Gửi"
+    if send_button_pressed:
+        user_msg = st.session_state.user_input_value
+        if user_msg and user_msg != st.session_state.last_processed_user_msg:
+            st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn đã xử lý cuối cùng
+            
+            # Xử lý các câu hỏi liên quan đến biểu đồ KPI
+            if "biểu đồ" in normalize_text(user_msg) or "thống kê" in normalize_text(user_msg) or "kpi" in normalize_text(user_msg):
+                with st.spinner("⏳ Đang tạo biểu đồ..."):
+                    kpi_data = get_sheet_data("KPI")
+                    if kpi_data:
+                        try:
+                            kpi_df = pd.DataFrame(kpi_data)
+                            st.subheader("📈 Biểu đồ KPI")
+                            
+                            # Chuyển đổi cột "Ngày" sang datetime để sắp xếp
+                            kpi_df['Ngày'] = pd.to_datetime(kpi_df['Ngày'], format='%d/%m/%Y', errors='coerce')
+                            kpi_df = kpi_df.sort_values(by='Ngày')
+                            
+                            # Chuyển đổi các cột số
+                            for col in ['Số vụ', 'Số tiền']:
+                                kpi_df[col] = pd.to_numeric(kpi_df[col].astype(str).str.replace(',', ''), errors='coerce')
+                            
+                            # Tạo layout 2 cột cho biểu đồ
+                            chart_col1, chart_col2 = st.columns(2)
+                            
+                            with chart_col1:
+                                fig_vu, ax_vu = plt.subplots(figsize=(10, 6))
+                                ax_vu.bar(kpi_df['Ngày'], kpi_df['Số vụ'], color='skyblue')
+                                ax_vu.set_title("Số vụ theo ngày")
+                                ax_vu.set_xlabel("Ngày")
+                                ax_vu.set_ylabel("Số vụ")
+                                ax_vu.tick_params(axis='x', rotation=45)
+                                ax_vu.grid(axis='y', linestyle='--', alpha=0.7)
+                                st.pyplot(fig_vu)
+                            
+                            with chart_col2:
+                                # Tạo biểu đồ cột cho "Số tiền" với màu gradient
+                                fig_tien, ax_tien = plt.subplots(figsize=(10, 6))
+                                # Tạo màu gradient
+                                colors = cm.viridis(np.linspace(0, 1, len(kpi_df['Số tiền'])))
+                                ax_tien.bar(kpi_df['Ngày'], kpi_df['Số tiền'], color=colors)
+                                ax_tien.set_title("Tổng số tiền theo ngày")
+                                ax_tien.set_xlabel("Ngày")
+                                ax_tien.set_ylabel("Số tiền (triệu đồng)")
+                                ax_tien.tick_params(axis='x', rotation=45)
+                                ax_tien.grid(axis='y', linestyle='--', alpha=0.7)
+                                # Định dạng y-axis
+                                ax_tien.get_yaxis().set_major_formatter(
+                                    plt.FuncFormatter(lambda x, p: format(int(x), ','))
+                                )
+                                st.pyplot(fig_tien)
+                            
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi tạo biểu đồ: {e}")
+                    else:
+                        st.info("⚠️ Không có dữ liệu KPI để tạo biểu đồ.")
 
-    # Xử lý nút Xóa
+                # Dừng lại để tránh xử lý tiếp với AI
+                st.stop() 
+            
+            # Xử lý các câu hỏi thông thường bằng fuzzy search
+            with st.spinner('⏳ Đang tìm kiếm câu trả lời...'):
+                best_match = None
+                highest_score = 0
+                
+                # Iterate through all QA entries
+                for index, row in qa_df.iterrows():
+                    question = normalize_text(row['Câu hỏi'])
+                    score = fuzz.ratio(normalize_text(user_msg), question)
+                    
+                    if score > highest_score:
+                        highest_score = score
+                        best_match = row
+
+                # Chỉ hiển thị nếu độ khớp cao hơn ngưỡng chấp nhận
+                if highest_score >= 80: # Ngưỡng 80 là hợp lý cho tiếng Việt
+                    
+                    # Lọc tất cả các câu trả lời tương tự (cùng độ khớp cao nhất)
+                    # Điều này để xử lý trường hợp có nhiều câu hỏi tương tự với cùng một câu trả lời
+                    st.session_state.qa_results = []
+                    
+                    for index, row in qa_df.iterrows():
+                        question = normalize_text(row['Câu hỏi'])
+                        score = fuzz.ratio(normalize_text(user_msg), question)
+                        
+                        if score == highest_score:
+                            st.session_state.qa_results.append(row['Câu trả lời'])
+                    
+                    # Reset index và hiển thị câu trả lời đầu tiên
+                    st.session_state.qa_index = 0
+                    st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
+                    st.session_state.qa_index += 1
+                
+                    st.rerun() # Rerun để cập nhật giao diện
+                else:
+                    # Nếu không tìm thấy câu hỏi tương tự trong sheet "Hỏi-Trả lời", sử dụng OpenAI
+                    if client_ai:
+                        with st.spinner("⏳ Không tìm thấy câu trả lời trong Sổ tay, đang hỏi AI..."):\
+                            try:
+                                # Tạo một prompt đơn giản
+                                prompt = f"Dựa trên câu hỏi sau, hãy trả lời một cách ngắn gọn, súc tích và chỉ tập trung vào thông tin cần thiết: '{user_msg}'"
+                                response = client_ai.chat.completions.create(
+                                    model="gpt-3.5-turbo",
+                                    messages=[{"role": "user", "content": prompt}]
+                                )
+                                # Xử lý và hiển thị phản hồi từ OpenAI
+                                if response.choices and len(response.choices) > 0:
+                                    ai_answer = response.choices[0].message.content
+                                    st.info("Câu trả lời từ AI:")
+                                    st.write(ai_answer)
+                                else:
+                                    st.warning("⚠️ AI không đưa ra được câu trả lời.")
+                            except Exception as ai_e:
+                                st.error(f"❌ Lỗi khi kết nối đến OpenAI: {ai_e}. Vui lòng kiểm tra lại API key hoặc kết nối internet.")
+                    else:
+                        st.warning("⚠️ Không tìm thấy câu trả lời tương tự và OpenAI API key chưa được cấu hình. Vui lòng thêm API key để sử dụng tính năng AI.")
+
+    # Xử lý khi người dùng nhấn nút "Xóa"
     if clear_button_pressed:
         st.session_state.user_input_value = ""
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
-        st.session_state.last_processed_user_msg = ""
         st.session_state.current_qa_display = ""
-        st.session_state.audio_processed = False
+        st.session_state.audio_processed = False # Reset trạng thái audio
         st.rerun()
 
-    # Xử lý khi nhấn nút Gửi
-    if send_button_pressed and question_to_process:
-        st.info(f"📨 Đang xử lý câu hỏi: {question_to_process}")
-        st.session_state.last_processed_user_msg = question_to_process
-        # st.session_state.user_input_value = "" # Comment out this line to keep the input after submission
-        st.session_state.audio_processed = False
-
-        # Reset QA results and display for a new query
-        st.session_state.qa_results = []
-        st.session_state.qa_index = 0 
-        st.session_state.current_qa_display = "" # Clear previous display
-
-        user_msg_lower = question_to_process.lower() # Bây giờ user_msg_lower được lấy từ question_to_process
-
-        # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
-        found_qa_answer = False
-
-        # NEW LOGIC: Kiểm tra cú pháp "An toàn:..." để yêu cầu khớp chính xác 100% sau khi chuẩn hóa
-        if user_msg_lower.startswith("an toàn:"):
-            # Trích xuất và chuẩn hóa phần câu hỏi thực tế sau "An toàn:"
-            specific_question_for_safety = normalize_text(user_msg_lower.replace("an toàn:", "").strip())
-
-            if not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
-                exact_match_found_for_safety = False
-                for index, row in qa_df.iterrows():
-                    question_from_sheet_normalized = normalize_text(str(row['Câu hỏi']))
-
-                    # So sánh chính xác 100% sau khi đã chuẩn hóa
-                    if specific_question_for_safety == question_from_sheet_normalized:
-                        st.session_state.qa_results.append(str(row['Câu trả lời']))
-                        exact_match_found_for_safety = True
-                        found_qa_answer = True
-                        # Không break để vẫn có thể tìm các câu trả lời khác nếu có nhiều bản ghi giống hệt
-
-                if not exact_match_found_for_safety:
-                    st.warning("⚠️ Không tìm thấy câu trả lời chính xác 100% cho yêu cầu 'An toàn:' của bạn. Vui lòng đảm bảo câu hỏi khớp hoàn toàn (có thể bỏ qua dấu cách thừa).")
-                    found_qa_answer = True # Đánh dấu là đã xử lý nhánh này, dù không tìm thấy khớp đủ cao
-
-        # Logic hiện có cho các câu hỏi chung (khớp tương đối)
-        # Chỉ chạy nếu chưa tìm thấy câu trả lời từ nhánh "An toàn:"
-        if not found_qa_answer and not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
-
-            # Collect all relevant answers with their scores
-            all_matches = []
-            for index, row in qa_df.iterrows():
-                question_from_sheet = str(row['Câu hỏi']).lower()
-                score = fuzz.ratio(user_msg_lower, question_from_sheet)
-
-                if score >= 60: # Threshold for similarity
-                    all_matches.append({'question': str(row['Câu hỏi']), 'answer': str(row['Câu trả lời']), 'score': score})
-
-            # Sort matches by score in descending order
-            all_matches.sort(key=lambda x: x['score'], reverse=True)
-
-            if all_matches:
-                # Store only the answers in session state for "Tìm tiếp" functionality
-                st.session_state.qa_results = [match['answer'] for match in all_matches]
-                st.session_state.qa_index = 0 # Start with the first result
-                found_qa_answer = True
-            else:
-                found_qa_answer = False # No matches found
-
-        if found_qa_answer:
-            # Set the initial display content
-            if st.session_state.qa_results:
-                st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
-                if len(st.session_state.qa_results) > 1:
-                    st.session_state.qa_index += 1 # Move to the next index for "Tìm tiếp"
-            pass # Đã tìm thấy câu trả lời từ QA sheet, không làm gì thêm
-        else:
-            # Xử lý truy vấn để lấy dữ liệu từ BẤT KỲ sheet nào (ƯU TIÊN HÀNG ĐẦU)
-            if "lấy dữ liệu sheet" in user_msg_lower:
-                match = re.search(r"lấy dữ liệu sheet\s+['\"]?([^'\"]+)['\"]?", user_msg_lower)
-                if match:
-                    sheet_name_from_query = match.group(1).strip()
-                    st.info(f"Đang cố gắng lấy dữ liệu từ sheet: **{sheet_name_from_query}**")
-                    records = get_sheet_data(sheet_name_from_query)
-                    if records:
-                        df_any_sheet = pd.DataFrame(records)
-                        if not df_any_sheet.empty:
-                            st.subheader(f"Dữ liệu từ sheet '{sheet_name_from_query}':")
-                            st.dataframe(df_any_sheet)
-                            st.success(f"✅ Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
-                        else:
-                            st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
-                    else:
-                        st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
-            # Xử lý truy vấn liên quan đến KPI (sheet "KPI")
-            elif "kpi" in user_msg_lower or "chỉ số hiệu suất" in user_msg_lower or "kết quả hoạt động" in user_msg_lower:
-                records = get_sheet_data("KPI") # Tên sheet KPI
-                if records:
-                    df_kpi = pd.DataFrame(records)
-                    # Cải thiện: Trích xuất năm từ chuỗi "Năm YYYY" trước khi chuyển đổi sang số
-                    if 'Năm' in df_kpi.columns:
-                        # Đảm bảo cột 'Năm' là chuỗi và xử lý các giá trị không phải chuỗi
-                        df_kpi['Năm'] = df_kpi['Năm'].astype(str).str.extract(r'(\d{4})')[0]
-                        df_kpi['Năm'] = pd.to_numeric(df_kpi['Năm'], errors='coerce').dropna().astype(int)
-                    else:
-                        st.warning("⚠️ Không tìm thấy cột 'Năm' trong sheet 'KPI'. Một số chức năng KPI có thể không hoạt động.")
-                        df_kpi = pd.DataFrame() # Đảm bảo df_kpi rỗng nếu không có cột Năm
-                    # NEW: Chuyển đổi cột 'Tháng' sang kiểu số nguyên một cách vững chắc
-                    if 'Tháng' in df_kpi.columns:
-                        df_kpi['Tháng'] = pd.to_numeric(df_kpi['Tháng'], errors='coerce').dropna().astype(int)
-                    else:
-                        st.warning("⚠️ Không tìm thấy cột 'Tháng' trong sheet 'KPI'. Một số chức năng KPI có thể không hoạt động.")
-                        df_kpi = pd.DataFrame()
-            else:
-                # Gọi OpenAI để tạo phản hồi cho các truy vấn khác
-                if client_ai:
-                    with st.spinner("Đang xử lý với OpenAI..."):
-                        try:
-                            # Chuẩn bị context và prompt
-                            prompt = (
-                                f"Bạn là một trợ lý AI thông minh và thân thiện, chuyên tư vấn về các hoạt động của Đội Quản lý đường lâm nghiệp khu vực Định Hóa. "
-                                f"Dưới đây là một số dữ liệu bạn có thể tham khảo: \n\n"
-                                f"Dữ liệu các sheet: {all_data}\n\n" # Bổ sung tất cả dữ liệu
-                                f"Câu hỏi của người dùng: {question_to_process}\n\n"
-                                f"Dựa trên các dữ liệu trên, hãy trả lời câu hỏi của người dùng. Nếu dữ liệu không đủ, hãy trả lời một cách lịch sự rằng bạn không thể trả lời câu hỏi đó."
-                            )
-                            response = client_ai.chat.completions.create(
-                                model="gpt-3.5-turbo",
-                                messages=[
-                                    {"role": "system", "content": prompt}
-                                ],
-                                max_tokens=2500,
-                                temperature=0.5
-                            )
-                            ai_response = response.choices[0].message.content
-                            st.info("Câu trả lời từ OpenAI:")
-                            st.write(ai_response)
-                        except Exception as e:
-                            st.error(f"❌ Lỗi khi gọi OpenAI API: {e}. Vui lòng kiểm tra lại API key hoặc kết nối internet.")
-                else:
-                    st.error("❌ Không tìm thấy API key OpenAI. Vui lòng cấu hình trong secrets.toml.")
-
-    # Hiển thị câu trả lời từ Google Sheet nếu có
+    # Hiển thị kết quả tìm kiếm từ Google Sheets
     if st.session_state.current_qa_display:
         st.info("Câu trả lời:")
         st.write(st.session_state.current_qa_display)
@@ -481,7 +456,7 @@ if uploaded_image is not None:
             st.success("✅ Đã điền văn bản vào ô nhập liệu. Bạn có thể chỉnh sửa và nhấn 'Gửi'.")
             st.rerun() # Tải lại ứng dụng để cập nhật input
         else:
-            st.warning("⚠️ Không trích xuất được văn bản từ ảnh. Vui lòng thử lại với ảnh rõ hơn.")
+            st.warning("⚠️ Không thể trích xuất văn bản từ ảnh. Vui lòng thử lại với ảnh khác rõ hơn.")
     except Exception as e:
         st.error(f"❌ Lỗi khi xử lý ảnh: {e}")
     finally:
