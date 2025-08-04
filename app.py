@@ -15,6 +15,7 @@ import easyocr
 import json
 import speech_recognition as sr
 import tempfile
+import numpy as np # Thêm import numpy
 # Thư viện này cần được cài đặt: pip install cryptography
 from cryptography.fernet import Fernet
 from audio_recorder_streamlit import audio_recorder  # ✅ Thay thế thư viện mic_recorder bằng thư viện ổn định hơn
@@ -344,9 +345,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     else:
                         st.info("⚠️ Không có dữ liệu KPI để tạo biểu đồ.")
 
-                # Dừng lại để tránh xử lý tiếp với AI
-                st.stop() 
-            
             # Xử lý các câu hỏi thông thường bằng fuzzy search
             with st.spinner('⏳ Đang tìm kiếm câu trả lời...'):
                 best_match = None
@@ -384,7 +382,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 else:
                     # Nếu không tìm thấy câu hỏi tương tự trong sheet "Hỏi-Trả lời", sử dụng OpenAI
                     if client_ai:
-                        with st.spinner("⏳ Không tìm thấy câu trả lời trong Sổ tay, đang hỏi AI..."):\
+                        with st.spinner("⏳ Không tìm thấy câu trả lời trong Sổ tay, đang hỏi AI..."):
                             try:
                                 # Tạo một prompt đơn giản
                                 prompt = f"Dựa trên câu hỏi sau, hãy trả lời một cách ngắn gọn, súc tích và chỉ tập trung vào thông tin cần thiết: '{user_msg}'"
@@ -428,37 +426,37 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
 
 
-# Hàm OCR: đọc text từ ảnh
-def extract_text_from_image(image_path):
-    reader = easyocr.Reader(['vi'])
-    result = reader.readtext(image_path, detail=0)
-    text = " ".join(result)
-    return text
+    # Hàm OCR: đọc text từ ảnh
+    def extract_text_from_image(image_path):
+        reader = easyocr.Reader(['vi'])
+        result = reader.readtext(image_path, detail=0)
+        text = " ".join(result)
+        return text
 
-# --- Đặt đoạn này vào cuối file app.py ---
-st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
-uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
+    # --- Tải ảnh chứa câu hỏi ---
+    st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
+    uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
 
-if uploaded_image is not None:
-    temp_image_path = Path("temp_uploaded_image.jpg")
-    try:
-        with open(temp_image_path, "wb") as f:
-            f.write(uploaded_image.getbuffer())
-        
-        with st.spinner("⏳ Đang xử lý ảnh và trích xuất văn bản..."):
-            extracted_text = extract_text_from_image(str(temp_image_path))
-        
-        if extracted_text:
-            st.info("Văn bản được trích xuất từ ảnh:")
-            st.code(extracted_text, language="text")
-            # Tự động điền văn bản đã trích xuất vào ô nhập liệu
-            st.session_state.user_input_value = extracted_text
-            st.success("✅ Đã điền văn bản vào ô nhập liệu. Bạn có thể chỉnh sửa và nhấn 'Gửi'.")
-            st.rerun() # Tải lại ứng dụng để cập nhật input
-        else:
-            st.warning("⚠️ Không thể trích xuất văn bản từ ảnh. Vui lòng thử lại với ảnh khác rõ hơn.")
-    except Exception as e:
-        st.error(f"❌ Lỗi khi xử lý ảnh: {e}")
-    finally:
-        if temp_image_path.exists():
-            os.remove(temp_image_path)
+    if uploaded_image is not None:
+        temp_image_path = Path("temp_uploaded_image.jpg")
+        try:
+            with open(temp_image_path, "wb") as f:
+                f.write(uploaded_image.getbuffer())
+            
+            with st.spinner("⏳ Đang xử lý ảnh và trích xuất văn bản..."):
+                extracted_text = extract_text_from_image(str(temp_image_path))
+            
+            if extracted_text:
+                st.info("Văn bản được trích xuất từ ảnh:")
+                st.code(extracted_text, language="text")
+                # Tự động điền văn bản đã trích xuất vào ô nhập liệu
+                st.session_state.user_input_value = extracted_text
+                st.success("✅ Đã điền văn bản vào ô nhập liệu. Bạn có thể chỉnh sửa và nhấn 'Gửi'.")
+                st.rerun() # Tải lại ứng dụng để cập nhật input
+            else:
+                st.warning("⚠️ Không thể trích xuất văn bản từ ảnh. Vui lòng thử lại với ảnh khác rõ hơn.")
+        except Exception as e:
+            st.error(f"❌ Lỗi khi xử lý ảnh: {e}")
+        finally:
+            if temp_image_path.exists():
+                os.remove(temp_image_path)
