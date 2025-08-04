@@ -15,6 +15,8 @@ import easyocr
 import json
 import speech_recognition as sr
 import tempfile
+# Thư viện này cần được cài đặt: pip install cryptography
+from cryptography.fernet import Fernet
 from audio_recorder_streamlit import audio_recorder  # ✅ Thay thế thư viện mic_recorder bằng thư viện ổn định hơn
 
 # Cấu hình Streamlit page để sử dụng layout rộng
@@ -29,15 +31,43 @@ plt.rcParams['xtick.labelsize'] = 14
 plt.rcParams['ytick.labelsize'] = 14
 plt.rcParams['figure.titlesize'] = 16
 
-# Kết nối Google Sheets
+# Kết nối Google Sheets với private key đã được mã hóa
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-if "google_service_account" in st.secrets:
-    info = st.secrets["google_service_account"]
-    creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-    client = gspread.authorize(creds)
+if "gdrive_service_account" in st.secrets:
+    try:
+        # Lấy key mã hóa từ secrets.toml
+        encryption_key_for_decryption = st.secrets["gdrive_service_account"]["encryption_key_for_decryption"]
+        
+        # Lấy private key đã mã hóa
+        encrypted_private_key = st.secrets["gdrive_service_account"]["encrypted_private_key"]
+        
+        # Giải mã private key
+        f = Fernet(encryption_key_for_decryption.encode())
+        decrypted_private_key = f.decrypt(encrypted_private_key.encode()).decode()
+
+        # Tạo một dictionary tương tự như secrets cũ, nhưng dùng key đã giải mã
+        info = {
+            "type": st.secrets["gdrive_service_account"]["type"],
+            "project_id": st.secrets["gdrive_service_account"]["project_id"],
+            "private_key_id": st.secrets["gdrive_service_account"]["private_key_id"],
+            "private_key": decrypted_private_key, # Sử dụng key đã được giải mã
+            "client_email": st.secrets["gdrive_service_account"]["client_email"],
+            "client_id": st.secrets["gdrive_service_account"]["client_id"],
+            "auth_uri": st.secrets["gdrive_service_account"]["auth_uri"],
+            "token_uri": st.secrets["gdrive_service_account"]["token_uri"],
+            "auth_provider_x509_cert_url": st.secrets["gdrive_service_account"]["auth_provider_x509_cert_url"],
+            "client_x509_cert_url": st.secrets["gdrive_service_account"]["client_x509_cert_url"],
+            "universe_domain": st.secrets["gdrive_service_account"]["universe_domain"],
+        }
+        
+        creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+        client = gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"❌ Lỗi khi giải mã hoặc kết nối Google Sheets: {e}. Vui lòng kiểm tra lại cấu hình secrets.toml.")
+        st.stop() # Dừng ứng dụng nếu có lỗi kết nối
 else:
-    st.error("❌ Không tìm thấy google_service_account trong secrets. Vui lòng cấu hình.")
+    st.error("❌ Không tìm thấy gdrive_service_account trong secrets. Vui lòng cấu hình.")
     st.stop() # Dừng ứng dụng nếu không có secrets
 
 # Lấy API key OpenAI
@@ -282,92 +312,135 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
         # Reset QA results and display for a new query
         st.session_state.qa_results = []
-        st.session_state.qa_index = 0
-        st.session_state.current_qa_display = ""  # Clear previous display
+        st.session_state.qa_index = 0 
+        st.session_state.current_qa_display = "" # Clear previous display
 
         user_msg_lower = question_to_process.lower() # Bây giờ user_msg_lower được lấy từ question_to_process
 
         # --- Bổ sung logic tìm kiếm câu trả lời trong sheet "Hỏi-Trả lời" ---
         found_qa_answer = False
+
         # NEW LOGIC: Kiểm tra cú pháp "An toàn:..." để yêu cầu khớp chính xác 100% sau khi chuẩn hóa
         if user_msg_lower.startswith("an toàn:"):
             # Trích xuất và chuẩn hóa phần câu hỏi thực tế sau "An toàn:"
             specific_question_for_safety = normalize_text(user_msg_lower.replace("an toàn:", "").strip())
-            
-            # Sử dụng list comprehension để tìm tất cả các câu trả lời khớp chính xác
+
             if not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
-                st.session_state.qa_results = [
-                    row['Câu trả lời'] for index, row in qa_df.iterrows()
-                    if normalize_text(row['Câu hỏi']) == specific_question_for_safety
-                ]
-            
-            if st.session_state.qa_results:
-                st.info("💡 Tìm thấy câu hỏi có độ chính xác 100%.")
-                st.session_state.current_qa_display = st.session_state.qa_results[0]
-                st.session_state.qa_index = 1
+                exact_match_found_for_safety = False
+                for index, row in qa_df.iterrows():
+                    question_from_sheet_normalized = normalize_text(str(row['Câu hỏi']))
+
+                    # So sánh chính xác 100% sau khi đã chuẩn hóa
+                    if specific_question_for_safety == question_from_sheet_normalized:
+                        st.session_state.qa_results.append(str(row['Câu trả lời']))
+                        exact_match_found_for_safety = True
+                        found_qa_answer = True
+                        # Không break để vẫn có thể tìm các câu trả lời khác nếu có nhiều bản ghi giống hệt
+
+                if not exact_match_found_for_safety:
+                    st.warning("⚠️ Không tìm thấy câu trả lời chính xác 100% cho yêu cầu 'An toàn:' của bạn. Vui lòng đảm bảo câu hỏi khớp hoàn toàn (có thể bỏ qua dấu cách thừa).")
+                    found_qa_answer = True # Đánh dấu là đã xử lý nhánh này, dù không tìm thấy khớp đủ cao
+
+        # Logic hiện có cho các câu hỏi chung (khớp tương đối)
+        # Chỉ chạy nếu chưa tìm thấy câu trả lời từ nhánh "An toàn:"
+        if not found_qa_answer and not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
+
+            # Collect all relevant answers with their scores
+            all_matches = []
+            for index, row in qa_df.iterrows():
+                question_from_sheet = str(row['Câu hỏi']).lower()
+                score = fuzz.ratio(user_msg_lower, question_from_sheet)
+
+                if score >= 60: # Threshold for similarity
+                    all_matches.append({'question': str(row['Câu hỏi']), 'answer': str(row['Câu trả lời']), 'score': score})
+
+            # Sort matches by score in descending order
+            all_matches.sort(key=lambda x: x['score'], reverse=True)
+
+            if all_matches:
+                # Store only the answers in session state for "Tìm tiếp" functionality
+                st.session_state.qa_results = [match['answer'] for match in all_matches]
+                st.session_state.qa_index = 0 # Start with the first result
                 found_qa_answer = True
-            
-        else: # Nếu không có cú pháp "an toàn:", tìm kiếm gần đúng
-            if not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
-                # Sử dụng fuzzywuzzy để tìm các câu hỏi tương tự và sắp xếp theo độ tương đồng
-                qa_df['Tỷ lệ tương đồng'] = qa_df['Câu hỏi'].apply(lambda x: fuzz.ratio(normalize_text(question_to_process), normalize_text(x)))
-                
-                # Lấy các kết quả có tỷ lệ tương đồng cao hơn ngưỡng (ví dụ: 80)
-                qa_matches = qa_df[qa_df['Tỷ lệ tương đồng'] >= 80].sort_values(by='Tỷ lệ tương đồng', ascending=False)
+            else:
+                found_qa_answer = False # No matches found
 
-                if not qa_matches.empty:
-                    st.session_state.qa_results = qa_matches['Câu trả lời'].tolist()
-                    st.info(f"💡 Tìm thấy {len(st.session_state.qa_results)} câu trả lời có độ tương đồng cao. Hiển thị kết quả tốt nhất:")
-                    st.session_state.current_qa_display = st.session_state.qa_results[0]
-                    st.session_state.qa_index = 1
-                    found_qa_answer = True
+        if found_qa_answer:
+            # Set the initial display content
+            if st.session_state.qa_results:
+                st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
+                if len(st.session_state.qa_results) > 1:
+                    st.session_state.qa_index += 1 # Move to the next index for "Tìm tiếp"
+            pass # Đã tìm thấy câu trả lời từ QA sheet, không làm gì thêm
+        else:
+            # Xử lý truy vấn để lấy dữ liệu từ BẤT KỲ sheet nào (ƯU TIÊN HÀNG ĐẦU)
+            if "lấy dữ liệu sheet" in user_msg_lower:
+                match = re.search(r"lấy dữ liệu sheet\s+['\"]?([^'\"]+)['\"]?", user_msg_lower)
+                if match:
+                    sheet_name_from_query = match.group(1).strip()
+                    st.info(f"Đang cố gắng lấy dữ liệu từ sheet: **{sheet_name_from_query}**")
+                    records = get_sheet_data(sheet_name_from_query)
+                    if records:
+                        df_any_sheet = pd.DataFrame(records)
+                        if not df_any_sheet.empty:
+                            st.subheader(f"Dữ liệu từ sheet '{sheet_name_from_query}':")
+                            st.dataframe(df_any_sheet)
+                            st.success(f"✅ Đã hiển thị dữ liệu từ sheet '{sheet_name_from_query}'.")
+                        else:
+                            st.warning(f"⚠️ Sheet '{sheet_name_from_query}' không có dữ liệu.")
+                    else:
+                        st.warning("⚠️ Vui lòng cung cấp tên sheet rõ ràng. Ví dụ: 'lấy dữ liệu sheet DoanhThu'.")
+            # Xử lý truy vấn liên quan đến KPI (sheet "KPI")
+            elif "kpi" in user_msg_lower or "chỉ số hiệu suất" in user_msg_lower or "kết quả hoạt động" in user_msg_lower:
+                records = get_sheet_data("KPI") # Tên sheet KPI
+                if records:
+                    df_kpi = pd.DataFrame(records)
+                    # Cải thiện: Trích xuất năm từ chuỗi "Năm YYYY" trước khi chuyển đổi sang số
+                    if 'Năm' in df_kpi.columns:
+                        # Đảm bảo cột 'Năm' là chuỗi và xử lý các giá trị không phải chuỗi
+                        df_kpi['Năm'] = df_kpi['Năm'].astype(str).str.extract(r'(\d{4})')[0]
+                        df_kpi['Năm'] = pd.to_numeric(df_kpi['Năm'], errors='coerce').dropna().astype(int)
+                    else:
+                        st.warning("⚠️ Không tìm thấy cột 'Năm' trong sheet 'KPI'. Một số chức năng KPI có thể không hoạt động.")
+                        df_kpi = pd.DataFrame() # Đảm bảo df_kpi rỗng nếu không có cột Năm
+                    # NEW: Chuyển đổi cột 'Tháng' sang kiểu số nguyên một cách vững chắc
+                    if 'Tháng' in df_kpi.columns:
+                        df_kpi['Tháng'] = pd.to_numeric(df_kpi['Tháng'], errors='coerce').dropna().astype(int)
+                    else:
+                        st.warning("⚠️ Không tìm thấy cột 'Tháng' trong sheet 'KPI'. Một số chức năng KPI có thể không hoạt động.")
+                        df_kpi = pd.DataFrame()
+            else:
+                # Gọi OpenAI để tạo phản hồi cho các truy vấn khác
+                if client_ai:
+                    with st.spinner("Đang xử lý với OpenAI..."):
+                        try:
+                            # Chuẩn bị context và prompt
+                            prompt = (
+                                f"Bạn là một trợ lý AI thông minh và thân thiện, chuyên tư vấn về các hoạt động của Đội Quản lý đường lâm nghiệp khu vực Định Hóa. "
+                                f"Dưới đây là một số dữ liệu bạn có thể tham khảo: \n\n"
+                                f"Dữ liệu các sheet: {all_data}\n\n" # Bổ sung tất cả dữ liệu
+                                f"Câu hỏi của người dùng: {question_to_process}\n\n"
+                                f"Dựa trên các dữ liệu trên, hãy trả lời câu hỏi của người dùng. Nếu dữ liệu không đủ, hãy trả lời một cách lịch sự rằng bạn không thể trả lời câu hỏi đó."
+                            )
+                            response = client_ai.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=[
+                                    {"role": "system", "content": prompt}
+                                ],
+                                max_tokens=2500,
+                                temperature=0.5
+                            )
+                            ai_response = response.choices[0].message.content
+                            st.info("Câu trả lời từ OpenAI:")
+                            st.write(ai_response)
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi gọi OpenAI API: {e}. Vui lòng kiểm tra lại API key hoặc kết nối internet.")
                 else:
-                    st.info("Không tìm thấy câu trả lời trực tiếp trong Sổ tay, đang thử hỏi AI...")
+                    st.error("❌ Không tìm thấy API key OpenAI. Vui lòng cấu hình trong secrets.toml.")
 
-        if not found_qa_answer and client_ai:
-            # Nếu không tìm thấy câu trả lời nào trong sheet, chuyển sang hỏi AI
-            try:
-                # Tạo một prompt cho mô hình AI
-                prompt_text = f"""
-                Bạn là một trợ lý chatbot thông minh được thiết kế để trả lời các câu hỏi về thông tin nội bộ của Công ty Điện lực Thái Nguyên. 
-                Bạn có quyền truy cập vào các bộ dữ liệu sau:
-                - Dữ liệu KPI: trong dataframe 'KPI'
-                - Dữ liệu nhân sự: trong dataframe 'CBCNV'
-                - Dữ liệu sự cố: trong dataframe 'Suco'
-                - Dữ liệu tài sản: trong dataframe 'Taisan'
-                - Dữ liệu lãnh đạo: trong dataframe 'Lanhdao'
-                
-                Dữ liệu hiện tại:
-                {json.dumps({k: v.to_dict('records') for k, v in all_data.items()})}
-
-                Yêu cầu:
-                1. Dựa vào dữ liệu được cung cấp, hãy trả lời câu hỏi của người dùng.
-                2. Nếu câu hỏi liên quan đến dữ liệu KPI, CBCNV, Suco, Taisan, Lanhdao, hãy sử dụng thông tin trong các dataframe tương ứng để trả lời.
-                3. Nếu câu hỏi không liên quan đến dữ liệu trên, hãy trả lời một cách tự nhiên và lịch sự.
-                4. Cung cấp câu trả lời ngắn gọn, trực tiếp, và đi thẳng vào vấn đề. Nếu câu hỏi liên quan đến số liệu, hãy trích dẫn số liệu cụ thể.
-                5. TUYỆT ĐỐI không được bịa đặt thông tin. Nếu không có thông tin, hãy nói rõ là "Tôi không có thông tin về vấn đề này."
-                6. Nếu câu hỏi yêu cầu so sánh hoặc thống kê, hãy sử dụng dữ liệu để đưa ra câu trả lời chi tiết. Nếu cần, hãy tạo một biểu đồ để minh họa, nhưng TUYỆT ĐỐI không được tạo biểu đồ trừ khi được yêu cầu.
-
-                Câu hỏi của người dùng: "{question_to_process}"
-                """
-                
-                with st.spinner("⏳ AI đang tìm kiếm và phân tích dữ liệu..."):
-                    response = client_ai.chat.completions.create(
-                        model="gpt-3.5-turbo",  # Có thể thay đổi model nếu cần
-                        messages=[{"role": "user", "content": prompt_text}],
-                        temperature=0.2, # Giảm nhiệt độ để có câu trả lời chính xác, ít sáng tạo hơn
-                    )
-                    ai_answer = response.choices[0].message.content
-                    st.success("🤖 AI đã có câu trả lời:")
-                    st.write(ai_answer)
-            except Exception as e:
-                st.error(f"❌ Lỗi khi gọi API OpenAI: {e}. Vui lòng kiểm tra API key hoặc kết nối internet.")
-        elif not found_qa_answer and not client_ai:
-            st.warning("⚠️ Không có câu trả lời trong Sổ tay và chưa có OpenAI API key để xử lý. Vui lòng cấu hình API key.")
-    
-    # Hiển thị câu trả lời từ QA và nút "Tìm tiếp"
+    # Hiển thị câu trả lời từ Google Sheet nếu có
     if st.session_state.current_qa_display:
-        st.markdown("### Câu trả lời:")
+        st.info("Câu trả lời:")
         st.write(st.session_state.current_qa_display)
 
     # Nút "Tìm tiếp" chỉ hiển thị khi có nhiều hơn một kết quả QA và chưa hiển thị hết
@@ -395,83 +468,22 @@ if uploaded_image is not None:
     temp_image_path = Path("temp_uploaded_image.jpg")
     try:
         with open(temp_image_path, "wb") as f:
-            f.write(uploaded_image.getvalue())
+            f.write(uploaded_image.getbuffer())
         
-        st.info("⏳ Đang xử lý ảnh để trích xuất văn bản...")
-        image_text = extract_text_from_image(str(temp_image_path))
+        with st.spinner("⏳ Đang xử lý ảnh và trích xuất văn bản..."):
+            extracted_text = extract_text_from_image(str(temp_image_path))
         
-        if image_text:
-            st.success("✅ Đã trích xuất văn bản thành công!")
-            st.write(f"📝 Văn bản từ ảnh: **{image_text}**")
-            st.session_state.user_input_value = image_text # Cập nhật ô nhập liệu chính
-            
-            # Kích hoạt lại logic tìm kiếm ngay lập tức với văn bản đã trích xuất
-            # Vì đây là một hành động mới, ta sẽ reset các kết quả tìm kiếm cũ
-            st.session_state.qa_results = []
-            st.session_state.qa_index = 0
-            st.session_state.current_qa_display = ""
-            
-            user_msg_lower = image_text.lower()
-            
-            found_qa_answer = False
-            # Tìm kiếm gần đúng với văn bản từ ảnh
-            if not qa_df.empty and 'Câu hỏi' in qa_df.columns and 'Câu trả lời' in qa_df.columns:
-                qa_df['Tỷ lệ tương đồng'] = qa_df['Câu hỏi'].apply(lambda x: fuzz.ratio(normalize_text(image_text), normalize_text(x)))
-                qa_matches = qa_df[qa_df['Tỷ lệ tương đồng'] >= 80].sort_values(by='Tỷ lệ tương đồng', ascending=False)
-                
-                if not qa_matches.empty:
-                    st.session_state.qa_results = qa_matches['Câu trả lời'].tolist()
-                    st.info(f"💡 Tìm thấy {len(st.session_state.qa_results)} câu trả lời có độ tương đồng cao với văn bản trong ảnh. Hiển thị kết quả tốt nhất:")
-                    st.session_state.current_qa_display = st.session_state.qa_results[0]
-                    st.session_state.qa_index = 1
-                    found_qa_answer = True
-                else:
-                    st.info("Không tìm thấy câu trả lời trực tiếp trong Sổ tay, đang thử hỏi AI...")
-            
-            if not found_qa_answer and client_ai:
-                try:
-                    # Tạo prompt cho AI với văn bản từ ảnh
-                    prompt_text = f"""
-                    Bạn là một trợ lý chatbot thông minh được thiết kế để trả lời các câu hỏi về thông tin nội bộ của Công ty Điện lực Thái Nguyên. 
-                    Bạn có quyền truy cập vào các bộ dữ liệu sau:
-                    - Dữ liệu KPI: trong dataframe 'KPI'
-                    - Dữ liệu nhân sự: trong dataframe 'CBCNV'
-                    - Dữ liệu sự cố: trong dataframe 'Suco'
-                    - Dữ liệu tài sản: trong dataframe 'Taisan'
-                    - Dữ liệu lãnh đạo: trong dataframe 'Lanhdao'
-                    
-                    Dữ liệu hiện tại:
-                    {json.dumps({k: v.to_dict('records') for k, v in all_data.items()})}
-                    
-                    Yêu cầu:
-                    1. Dựa vào dữ liệu được cung cấp, hãy trả lời câu hỏi của người dùng.
-                    2. Nếu câu hỏi liên quan đến dữ liệu KPI, CBCNV, Suco, Taisan, Lanhdao, hãy sử dụng thông tin trong các dataframe tương ứng để trả lời.
-                    3. Nếu câu hỏi không liên quan đến dữ liệu trên, hãy trả lời một cách tự nhiên và lịch sự.
-                    4. Cung cấp câu trả lời ngắn gọn, trực tiếp, và đi thẳng vào vấn đề. Nếu câu hỏi liên quan đến số liệu, hãy trích dẫn số liệu cụ thể.
-                    5. TUYỆT ĐỐI không được bịa đặt thông tin. Nếu không có thông tin, hãy nói rõ là "Tôi không có thông tin về vấn đề này."
-                    6. Nếu câu hỏi yêu cầu so sánh hoặc thống kê, hãy sử dụng dữ liệu để đưa ra câu trả lời chi tiết. Nếu cần, hãy tạo một biểu đồ để minh họa, nhưng TUYỆT ĐỐI không được tạo biểu đồ trừ khi được yêu cầu.
-
-                    Câu hỏi của người dùng (từ ảnh): "{image_text}"
-                    """
-                    
-                    with st.spinner("⏳ AI đang tìm kiếm và phân tích dữ liệu từ ảnh..."):
-                        response = client_ai.chat.completions.create(
-                            model="gpt-3.5-turbo",  # Có thể thay đổi model nếu cần
-                            messages=[{"role": "user", "content": prompt_text}],
-                            temperature=0.2,
-                        )
-                        ai_answer = response.choices[0].message.content
-                        st.success("🤖 AI đã có câu trả lời:")
-                        st.write(ai_answer)
-                except Exception as e:
-                    st.error(f"❌ Lỗi khi gọi API OpenAI: {e}. Vui lòng kiểm tra API key hoặc kết nối internet.")
-            elif not found_qa_answer and not client_ai:
-                st.warning("⚠️ Không có câu trả lời trong Sổ tay và chưa có OpenAI API key để xử lý. Vui lòng cấu hình API key.")
+        if extracted_text:
+            st.info("Văn bản được trích xuất từ ảnh:")
+            st.code(extracted_text, language="text")
+            # Tự động điền văn bản đã trích xuất vào ô nhập liệu
+            st.session_state.user_input_value = extracted_text
+            st.success("✅ Đã điền văn bản vào ô nhập liệu. Bạn có thể chỉnh sửa và nhấn 'Gửi'.")
+            st.rerun() # Tải lại ứng dụng để cập nhật input
         else:
-            st.warning("⚠️ Không thể trích xuất văn bản từ ảnh.")
-            st.session_state.user_input_value = ""
+            st.warning("⚠️ Không trích xuất được văn bản từ ảnh. Vui lòng thử lại với ảnh rõ hơn.")
     except Exception as e:
-        st.error(f"❌ Lỗi trong quá trình xử lý ảnh: {e}")
+        st.error(f"❌ Lỗi khi xử lý ảnh: {e}")
     finally:
         if temp_image_path.exists():
             os.remove(temp_image_path)
