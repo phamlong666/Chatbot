@@ -89,16 +89,21 @@ else:
 
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit"
 
-# Hàm để tìm tên cột chính xác, không phân biệt hoa thường và dấu cách
-def find_column_name(df, possible_names):
+# Hàm để tìm tên cột chính xác, sử dụng fuzzy matching
+def find_column_name(df, possible_names, threshold=80):
     """
     Tìm tên cột chính xác trong DataFrame từ một danh sách các tên có thể.
+    Sử dụng fuzzy matching để tìm kiếm linh hoạt hơn.
     """
-    df_cols = [c.strip().lower() for c in df.columns]
+    df_cols = [col.strip().lower() for col in df.columns]
     for name in possible_names:
-        if name.strip().lower() in df_cols:
-            # Trả về tên cột gốc từ DataFrame
-            return df.columns[df_cols.index(name.strip().lower())]
+        name_lower = name.strip().lower()
+        # Dùng fuzzy search để tìm tên cột phù hợp nhất
+        matches = get_close_matches(name_lower, df_cols, n=1, cutoff=threshold/100)
+        if matches:
+            # Lấy tên cột gốc từ DataFrame
+            original_col_name = df.columns[df_cols.index(matches[0])]
+            return original_col_name
     return None
 
 # Hàm để lấy dữ liệu từ một sheet cụ thể
@@ -106,12 +111,12 @@ def get_sheet_data(sheet_name):
     try:
         sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
         
+        # Sửa đổi logic để xử lý sheet KPI dựa trên cấu trúc mới
         if sheet_name == "KPI":
             all_values = sheet.get_all_values()
             if all_values:
-                # Đảm bảo tiêu đề là duy nhất trước khi tạo DataFrame
                 headers = all_values[0]
-                # Tạo danh sách tiêu đề duy nhất bằng cách thêm số nếu có trùng lặp
+                # Đảm bảo tiêu đề duy nhất
                 seen_headers = {}
                 unique_headers = []
                 for h in headers:
@@ -377,48 +382,47 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
             # --- Bắt đầu phần mã đã được sửa lỗi ---
             if "lấy thông tin kpi của các đơn vị lũy kế năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
-                sheet = client.open_by_url(spreadsheet_url).worksheet("KPI")
-                all_values = sheet.get_all_values()
-                if all_values:
-                    headers = [h.strip() for h in all_values[0]]
-                    df = pd.DataFrame(all_values[1:], columns=headers)
-
-                    kpi_col = find_column_name(df, ['kpi', 'chỉ tiêu'])
-                    nam_col = find_column_name(df, ['năm', 'nam'])
-                    donvi_col = find_column_name(df, ['đơn vị', 'don vi'])
-                    loai_col = find_column_name(df, ['loại', 'loai'])
-
-                    if kpi_col and nam_col and donvi_col and loai_col:
+                sheet_name = "KPI"
+                sheet_data = get_sheet_data(sheet_name)
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
+                    # Cập nhật tên cột theo yêu cầu mới của người dùng
+                    kpi_col = find_column_name(df, ['Điểm KPI', 'Điểm KPI', 'Điểm', 'kpi'])
+                    nam_col = find_column_name(df, ['Năm', 'năm'])
+                    donvi_col = find_column_name(df, ['Đơn vị', 'Đơn vị', 'đơn vị'])
+                    
+                    if kpi_col and nam_col and donvi_col:
                         df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
                         df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
-                        df_filtered = df[(df[loai_col] == 'Lũy kế') & (df[nam_col] == 2025)]
+                        
+                        df_filtered = df[(df[nam_col] == 2025)] # Bỏ điều kiện 'Lũy kế' vì dữ liệu mới không có cột này
 
                         df_sorted = df_filtered.sort_values(by=kpi_col, ascending=False)
-                        st.subheader("📊 Bảng KPI lũy kế năm 2025")
+                        st.subheader("📊 Bảng KPI năm 2025")
                         st.dataframe(df_sorted)
 
                         plt.figure(figsize=(10, 6))
                         sns.barplot(data=df_sorted, x=kpi_col, y=donvi_col, palette="viridis")
-                        plt.title("Biểu đồ KPI lũy kế năm 2025")
-                        plt.xlabel(kpi_col)
-                        plt.ylabel(donvi_col)
+                        plt.title("Biểu đồ KPI năm 2025")
+                        plt.xlabel("Điểm KPI")
+                        plt.ylabel("Đơn vị")
                         st.pyplot(plt)
                     else:
-                        st.warning("Không tìm thấy các cột cần thiết (KPI, Năm, Đơn vị, Loại) trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
+                        st.warning(f"Không tìm thấy các cột cần thiết (Điểm KPI, Năm, Đơn vị) trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột trong Google Sheet.")
                 else:
-                    st.warning("Dữ liệu KPI rỗng.")
+                    st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
                 is_handled = True
 
             elif "lấy thông tin kpi năm 2025 của định hóa so sánh với các năm trước" in normalized_user_msg:
-                sheet = client.open_by_url(spreadsheet_url).worksheet("KPI")
-                all_values = sheet.get_all_values()
-                if all_values:
-                    headers = [h.strip() for h in all_values[0]]
-                    df = pd.DataFrame(all_values[1:], columns=headers)
+                sheet_name = "KPI"
+                sheet_data = get_sheet_data(sheet_name)
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
 
-                    kpi_col = find_column_name(df, ['kpi', 'chỉ tiêu'])
-                    nam_col = find_column_name(df, ['năm', 'nam'])
-                    donvi_col = find_column_name(df, ['đơn vị', 'don vi'])
+                    # Cập nhật tên cột theo yêu cầu mới của người dùng
+                    kpi_col = find_column_name(df, ['Điểm KPI', 'Điểm KPI', 'Điểm', 'kpi'])
+                    nam_col = find_column_name(df, ['Năm', 'năm'])
+                    donvi_col = find_column_name(df, ['Đơn vị', 'Đơn vị', 'đơn vị'])
 
                     if kpi_col and nam_col and donvi_col:
                         df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
@@ -433,55 +437,94 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         plt.figure(figsize=(8, 5))
                         sns.lineplot(data=df_grouped, x=nam_col, y=kpi_col, marker='o')
                         plt.title("KPI Định Hóa các năm")
-                        plt.xlabel(nam_col)
-                        plt.ylabel(kpi_col)
+                        plt.xlabel("Năm")
+                        plt.ylabel("Điểm KPI")
                         st.pyplot(plt)
                     else:
-                        st.warning("Không tìm thấy các cột cần thiết (KPI, Năm, Đơn vị) trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
+                        st.warning(f"Không tìm thấy các cột cần thiết (Điểm KPI, Năm, Đơn vị) trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột trong Google Sheet.")
                 else:
-                    st.warning("Dữ liệu KPI rỗng.")
+                    st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
                 is_handled = True
-
+            
+            # Đã cập nhật sheet name từ "Sự cố" thành "Quản lý sự cố"
             elif "lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo loại sự cố" in normalized_user_msg:
-                sheet = client.open_by_url(spreadsheet_url).worksheet("Sự cố")
-                df = pd.DataFrame(sheet.get_all_records())
-                
-                thang_col = find_column_name(df, ['tháng', 'thang'])
-                nam_col = find_column_name(df, ['năm', 'nam'])
-                loai_suco_col = find_column_name(df, ['loại sự cố', 'loai su co'])
-                
-                if thang_col and nam_col and loai_suco_col:
-                    df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
-                    df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
-                    df_filtered = df[df[thang_col] == 7]
+                sheet_name = "Quản lý sự cố"
+                sheet_data = get_sheet_data(sheet_name)
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
                     
-                    df_grouped = df_filtered.groupby([nam_col, loai_suco_col]).size().reset_index(name='Số sự cố')
+                    thang_col = find_column_name(df, ['tháng', 'thang'])
+                    nam_col = find_column_name(df, ['năm', 'nam'])
+                    loai_suco_col = find_column_name(df, ['loại sự cố', 'loai su co'])
+                    
+                    if thang_col and nam_col and loai_suco_col:
+                        df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
+                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
+                        df_filtered = df[df[thang_col] == 7]
+                        
+                        df_grouped = df_filtered.groupby([nam_col, loai_suco_col]).size().reset_index(name='Số sự cố')
 
-                    st.subheader("📊 Biểu đồ loại sự cố trong tháng 7 các năm")
-                    st.dataframe(df_grouped)
+                        st.subheader("📊 Biểu đồ loại sự cố trong tháng 7 các năm")
+                        st.dataframe(df_grouped)
 
-                    plt.figure(figsize=(10, 6))
-                    sns.barplot(data=df_grouped, x=loai_suco_col, y='Số sự cố', hue=nam_col)
-                    plt.title("So sánh loại sự cố tháng 7 theo năm")
-                    plt.xlabel(loai_suco_col)
-                    plt.ylabel("Số sự cố")
-                    st.pyplot(plt)
+                        plt.figure(figsize=(10, 6))
+                        sns.barplot(data=df_grouped, x=loai_suco_col, y='Số sự cố', hue=nam_col)
+                        plt.title("So sánh loại sự cố tháng 7 theo năm")
+                        plt.xlabel(loai_suco_col)
+                        plt.ylabel("Số sự cố")
+                        st.pyplot(plt)
+                    else:
+                        st.warning(f"Không tìm thấy các cột cần thiết ('Tháng', 'Năm', 'Loại sự cố') trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột trong Google Sheet.")
                 else:
-                    st.warning("Không tìm thấy các cột cần thiết ('Tháng', 'Năm', 'Loại sự cố') trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
+                    st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
+                is_handled = True
+            
+            # Đã thêm logic xử lý cho câu hỏi về CBCNV
+            elif "lấy thông tin cbcnv và vẽ biểu đồ theo trình độ chuyên môn" in normalized_user_msg:
+                sheet_name = "CBCNV"
+                sheet_data = get_sheet_data(sheet_name)
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
+
+                    trinhdo_col = find_column_name(df, ['trình độ chuyên môn', 'trinh do chuyen mon', 'chuyen mon', 'trinh do'])
+                    
+                    if trinhdo_col:
+                        trinhdo_counts = df[trinhdo_col].value_counts().reset_index()
+                        trinhdo_counts.columns = [trinhdo_col, 'Số lượng']
+                        
+                        st.subheader("📊 Biểu đồ CBCNV theo trình độ chuyên môn")
+                        st.dataframe(trinhdo_counts)
+
+                        plt.figure(figsize=(10, 6))
+                        sns.barplot(data=trinhdo_counts, x=trinhdo_col, y='Số lượng', palette='tab10')
+                        plt.title("Phân bố trình độ chuyên môn")
+                        plt.xlabel("Trình độ chuyên môn")
+                        plt.ylabel("Số lượng CBCNV")
+                        plt.xticks(rotation=45, ha='right')
+                        plt.tight_layout()
+                        st.pyplot(plt)
+                    else:
+                        st.warning(f"Không tìm thấy cột 'Trình độ chuyên môn' trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột.")
+                else:
+                    st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
                 is_handled = True
             
             elif "lấy thông tin lãnh đạo xã định hóa" in normalized_user_msg:
                 try:
-                    sheet = client.open_by_url(spreadsheet_url).worksheet("Lãnh đạo xã")
-                    df = pd.DataFrame(sheet.get_all_records())
+                    sheet_name = "Lãnh đạo xã"
+                    sheet_data = get_sheet_data(sheet_name)
+                    if sheet_data:
+                        df = pd.DataFrame(sheet_data)
                     
-                    xa_col = find_column_name(df, ['xã', 'xa'])
-                    if xa_col:
-                        df_filtered = df[df[xa_col].fillna('').str.strip().str.lower() == 'định hóa']
-                        st.subheader("👨‍💼 Thông tin lãnh đạo xã Định Hóa")
-                        st.dataframe(df_filtered)
+                        xa_col = find_column_name(df, ['xã', 'xa'])
+                        if xa_col:
+                            df_filtered = df[df[xa_col].fillna('').str.strip().str.lower() == 'định hóa']
+                            st.subheader("👨‍💼 Thông tin lãnh đạo xã Định Hóa")
+                            st.dataframe(df_filtered)
+                        else:
+                            st.warning(f"Không tìm thấy cột 'Xã' trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột trong Google Sheet.")
                     else:
-                        st.warning("Không tìm thấy cột 'Xã' trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
+                        st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
                 except Exception as e:
                     st.error(f"Lỗi khi xử lý dữ liệu lãnh đạo xã: {e}")
                 is_handled = True
@@ -493,7 +536,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             if not is_handled:
                 if "sự cố" in normalized_user_msg:
                     with st.spinner("⏳ Đang tạo biểu đồ sự cố..."):
-                        suco_data = get_sheet_data("Sự cố")
+                        sheet_name = "Quản lý sự cố"
+                        suco_data = get_sheet_data(sheet_name)
                         if suco_data:
                             df = pd.DataFrame(suco_data)
                             st.subheader("📊 Biểu đồ Sự cố")
@@ -513,58 +557,43 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 ax.set_ylabel("Số lượng")
                                 st.pyplot(fig)
                             else:
-                                st.warning("⚠️ Dữ liệu Sự cố thiếu một trong các cột cần thiết: 'Ngày', 'Loại sự cố'.")
+                                st.warning(f"⚠️ Dữ liệu sự cố thiếu một trong các cột cần thiết: 'Ngày', 'Loại sự cố' trong sheet '{sheet_name}'.")
                         else:
-                            st.info("⚠️ Không có dữ liệu sự cố để tạo biểu đồ.")
+                            st.info(f"⚠️ Không có dữ liệu sự cố để tạo biểu đồ trong sheet '{sheet_name}'.")
                     is_handled = True
 
                 elif "kpi" in normalized_user_msg:
                     with st.spinner("⏳ Đang tạo biểu đồ KPI..."):
-                        kpi_data = get_sheet_data("KPI")
+                        sheet_name = "KPI"
+                        kpi_data = get_sheet_data(sheet_name)
                         if kpi_data:
                             df = pd.DataFrame(kpi_data)
                             st.subheader("📈 Biểu đồ KPI")
                             
-                            ngay_col = find_column_name(df, ['ngày', 'ngay'])
-                            sovu_col = find_column_name(df, ['số vụ', 'so vu'])
-                            sotien_col = find_column_name(df, ['số tiền', 'so tien'])
+                            # Cập nhật tên cột theo yêu cầu mới của người dùng
+                            nam_col = find_column_name(df, ['Năm', 'năm'])
+                            thang_col = find_column_name(df, ['Tháng', 'tháng'])
+                            donvi_col = find_column_name(df, ['Đơn vị', 'đơn vị'])
+                            diem_kpi_col = find_column_name(df, ['Điểm KPI', 'điểm kpi'])
                             
-                            if ngay_col and sovu_col and sotien_col:
-                                df[ngay_col] = pd.to_datetime(df[ngay_col], format='%d/%m/%Y', errors='coerce')
-                                df = df.sort_values(by=ngay_col)
+                            if nam_col and thang_col and donvi_col and diem_kpi_col:
                                 
-                                for col in [sovu_col, sotien_col]:
-                                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
+                                # Chuyển đổi kiểu dữ liệu
+                                df[diem_kpi_col] = pd.to_numeric(df[diem_kpi_col], errors='coerce')
                                 
-                                chart_col1, chart_col2 = st.columns(2)
-                                
-                                with chart_col1:
-                                    fig_vu, ax_vu = plt.subplots(figsize=(10, 6))
-                                    ax_vu.bar(df[ngay_col], df[sovu_col], color='skyblue')
-                                    ax_vu.set_title(f"{sovu_col} theo ngày")
-                                    ax_vu.set_xlabel("Ngày")
-                                    ax_vu.set_ylabel(sovu_col)
-                                    ax_vu.tick_params(axis='x', rotation=45)
-                                    ax_vu.grid(axis='y', linestyle='--', alpha=0.7)
-                                    st.pyplot(fig_vu)
-                                
-                                with chart_col2:
-                                    fig_tien, ax_tien = plt.subplots(figsize=(10, 6))
-                                    colors = cm.viridis(np.linspace(0, 1, len(df[sotien_col])))
-                                    ax_tien.bar(df[ngay_col], df[sotien_col], color=colors)
-                                    ax_tien.set_title(f"Tổng {sotien_col} theo ngày")
-                                    ax_tien.set_xlabel("Ngày")
-                                    ax_tien.set_ylabel(f"{sotien_col} (triệu đồng)")
-                                    ax_tien.tick_params(axis='x', rotation=45)
-                                    ax_tien.grid(axis='y', linestyle='--', alpha=0.7)
-                                    ax_tien.get_yaxis().set_major_formatter(
-                                        plt.FuncFormatter(lambda x, p: format(int(x), ','))
-                                    )
-                                    st.pyplot(fig_tien)
+                                # Tạo biểu đồ tổng hợp theo Đơn vị và Năm
+                                df_grouped = df.groupby([donvi_col, nam_col])[diem_kpi_col].mean().reset_index()
+
+                                plt.figure(figsize=(12, 8))
+                                sns.barplot(data=df_grouped, x=diem_kpi_col, y=donvi_col, hue=nam_col, palette='viridis')
+                                plt.title("Điểm KPI trung bình theo Đơn vị và Năm")
+                                plt.xlabel("Điểm KPI")
+                                plt.ylabel("Đơn vị")
+                                st.pyplot(plt)
                             else:
-                                st.warning("⚠️ Dữ liệu KPI thiếu một trong các cột cần thiết: 'Ngày', 'Số vụ', 'Số tiền'.")
+                                st.warning(f"⚠️ Dữ liệu KPI thiếu một trong các cột cần thiết: 'Năm', 'Tháng', 'Đơn vị', 'Điểm KPI' trong sheet '{sheet_name}'.")
                         else:
-                            st.info("⚠️ Không có dữ liệu KPI để tạo biểu đồ.")
+                            st.info(f"⚠️ Không có dữ liệu KPI để tạo biểu đồ trong sheet '{sheet_name}'.")
                     is_handled = True
 
                 elif "lãnh đạo" in normalized_user_msg:
