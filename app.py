@@ -89,6 +89,18 @@ else:
 
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/13MqQzvV3Mf9bLOAXwICXclYVQ-8WnvBDPAR8VJfOGJg/edit"
 
+# Hàm để tìm tên cột chính xác, không phân biệt hoa thường và dấu cách
+def find_column_name(df, possible_names):
+    """
+    Tìm tên cột chính xác trong DataFrame từ một danh sách các tên có thể.
+    """
+    df_cols = [c.strip().lower() for c in df.columns]
+    for name in possible_names:
+        if name.strip().lower() in df_cols:
+            # Trả về tên cột gốc từ DataFrame
+            return df.columns[df_cols.index(name.strip().lower())]
+    return None
+
 # Hàm để lấy dữ liệu từ một sheet cụ thể
 def get_sheet_data(sheet_name):
     try:
@@ -361,104 +373,115 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn đã xử lý cuối cùng
             
             is_handled = False
-
-            # Gán câu hỏi mẫu để kiểm tra
-            sample_question = user_msg
+            normalized_user_msg = normalize_text(user_msg)
 
             # --- Bắt đầu phần mã đã được sửa lỗi ---
-            if "Lấy thông tin KPI của các đơn vị lũy kế năm 2025 và sắp xếp theo thứ tự giảm dần" in sample_question:
+            if "lấy thông tin kpi của các đơn vị lũy kế năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet = client.open_by_url(spreadsheet_url).worksheet("KPI")
-                # Lấy tất cả giá trị để xử lý tiêu đề bị lỗi
                 all_values = sheet.get_all_values()
                 if all_values:
-                    # Chuẩn hóa tên cột
                     headers = [h.strip() for h in all_values[0]]
                     df = pd.DataFrame(all_values[1:], columns=headers)
 
-                    if 'KPI' in df.columns:
-                        df['KPI'] = pd.to_numeric(df['KPI'], errors='coerce') # Ensure KPI is numeric
-                        df['Năm'] = pd.to_numeric(df['Năm'], errors='coerce') # Ensure 'Năm' is numeric for comparison
-                        df_filtered = df[(df['Loại'] == 'Lũy kế') & (df['Năm'] == 2025)]
+                    kpi_col = find_column_name(df, ['kpi', 'chỉ tiêu'])
+                    nam_col = find_column_name(df, ['năm', 'nam'])
+                    donvi_col = find_column_name(df, ['đơn vị', 'don vi'])
+                    loai_col = find_column_name(df, ['loại', 'loai'])
 
-                        df_sorted = df_filtered.sort_values(by='KPI', ascending=False)
+                    if kpi_col and nam_col and donvi_col and loai_col:
+                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
+                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
+                        df_filtered = df[(df[loai_col] == 'Lũy kế') & (df[nam_col] == 2025)]
+
+                        df_sorted = df_filtered.sort_values(by=kpi_col, ascending=False)
                         st.subheader("📊 Bảng KPI lũy kế năm 2025")
                         st.dataframe(df_sorted)
 
                         plt.figure(figsize=(10, 6))
-                        sns.barplot(data=df_sorted, x="KPI", y="Đơn vị", palette="viridis")
+                        sns.barplot(data=df_sorted, x=kpi_col, y=donvi_col, palette="viridis")
                         plt.title("Biểu đồ KPI lũy kế năm 2025")
-                        plt.xlabel("KPI")
-                        plt.ylabel("Đơn vị")
+                        plt.xlabel(kpi_col)
+                        plt.ylabel(donvi_col)
                         st.pyplot(plt)
                     else:
-                        st.warning("Không tìm thấy cột 'KPI' trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
+                        st.warning("Không tìm thấy các cột cần thiết (KPI, Năm, Đơn vị, Loại) trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
                 else:
                     st.warning("Dữ liệu KPI rỗng.")
                 is_handled = True
 
-            elif "Lấy thông tin KPI năm 2025 của Định Hóa so sánh với các năm trước" in sample_question:
+            elif "lấy thông tin kpi năm 2025 của định hóa so sánh với các năm trước" in normalized_user_msg:
                 sheet = client.open_by_url(spreadsheet_url).worksheet("KPI")
-                # Lấy tất cả giá trị để xử lý tiêu đề bị lỗi
                 all_values = sheet.get_all_values()
                 if all_values:
-                    # Chuẩn hóa tên cột
                     headers = [h.strip() for h in all_values[0]]
                     df = pd.DataFrame(all_values[1:], columns=headers)
 
-                    if 'KPI' in df.columns and 'Năm' in df.columns:
-                        df['KPI'] = pd.to_numeric(df['KPI'], errors='coerce') # Ensure KPI is numeric
-                        df['Năm'] = pd.to_numeric(df['Năm'], errors='coerce') # Ensure 'Năm' is numeric
-                        df_filtered = df[df['Đơn vị'].astype(str).str.lower().str.strip() == 'định hóa']
+                    kpi_col = find_column_name(df, ['kpi', 'chỉ tiêu'])
+                    nam_col = find_column_name(df, ['năm', 'nam'])
+                    donvi_col = find_column_name(df, ['đơn vị', 'don vi'])
 
-                        df_grouped = df_filtered.groupby('Năm')['KPI'].mean().reset_index()
+                    if kpi_col and nam_col and donvi_col:
+                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
+                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
+                        df_filtered = df[df[donvi_col].astype(str).str.lower().str.strip() == 'định hóa']
+
+                        df_grouped = df_filtered.groupby(nam_col)[kpi_col].mean().reset_index()
 
                         st.subheader("📊 KPI của Định Hóa theo năm")
                         st.dataframe(df_grouped)
 
                         plt.figure(figsize=(8, 5))
-                        sns.lineplot(data=df_grouped, x='Năm', y='KPI', marker='o')
+                        sns.lineplot(data=df_grouped, x=nam_col, y=kpi_col, marker='o')
                         plt.title("KPI Định Hóa các năm")
-                        plt.xlabel("Năm")
-                        plt.ylabel("KPI")
+                        plt.xlabel(nam_col)
+                        plt.ylabel(kpi_col)
                         st.pyplot(plt)
                     else:
-                        st.warning("Không tìm thấy cột 'KPI' hoặc 'Năm' trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
+                        st.warning("Không tìm thấy các cột cần thiết (KPI, Năm, Đơn vị) trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
                 else:
                     st.warning("Dữ liệu KPI rỗng.")
                 is_handled = True
 
-            elif "Lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo loại sự cố" in sample_question:
+            elif "lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo loại sự cố" in normalized_user_msg:
                 sheet = client.open_by_url(spreadsheet_url).worksheet("Sự cố")
                 df = pd.DataFrame(sheet.get_all_records())
-
-                df['Tháng'] = pd.to_numeric(df['Tháng'], errors='coerce')
-                df['Năm'] = pd.to_numeric(df['Năm'], errors='coerce')
-                df_filtered = df[df['Tháng'] == 7]
                 
-                if 'Loại sự cố' in df_filtered.columns and 'Năm' in df_filtered.columns:
-                    df_grouped = df_filtered.groupby(['Năm', 'Loại sự cố']).size().reset_index(name='Số sự cố')
+                thang_col = find_column_name(df, ['tháng', 'thang'])
+                nam_col = find_column_name(df, ['năm', 'nam'])
+                loai_suco_col = find_column_name(df, ['loại sự cố', 'loai su co'])
+                
+                if thang_col and nam_col and loai_suco_col:
+                    df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
+                    df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
+                    df_filtered = df[df[thang_col] == 7]
+                    
+                    df_grouped = df_filtered.groupby([nam_col, loai_suco_col]).size().reset_index(name='Số sự cố')
 
                     st.subheader("📊 Biểu đồ loại sự cố trong tháng 7 các năm")
                     st.dataframe(df_grouped)
 
                     plt.figure(figsize=(10, 6))
-                    sns.barplot(data=df_grouped, x='Loại sự cố', y='Số sự cố', hue='Năm')
+                    sns.barplot(data=df_grouped, x=loai_suco_col, y='Số sự cố', hue=nam_col)
                     plt.title("So sánh loại sự cố tháng 7 theo năm")
-                    plt.xlabel("Loại sự cố")
+                    plt.xlabel(loai_suco_col)
                     plt.ylabel("Số sự cố")
                     st.pyplot(plt)
                 else:
-                    st.warning("Không tìm thấy cột 'Loại sự cố' hoặc 'Năm' trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
+                    st.warning("Không tìm thấy các cột cần thiết ('Tháng', 'Năm', 'Loại sự cố') trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
                 is_handled = True
             
-            elif "Lấy thông tin lãnh đạo xã Định Hóa" in sample_question:
+            elif "lấy thông tin lãnh đạo xã định hóa" in normalized_user_msg:
                 try:
                     sheet = client.open_by_url(spreadsheet_url).worksheet("Lãnh đạo xã")
                     df = pd.DataFrame(sheet.get_all_records())
-                    df_filtered = df[df['Xã'].fillna('').str.strip().str.lower() == 'định hóa']
-
-                    st.subheader("👨‍💼 Thông tin lãnh đạo xã Định Hóa")
-                    st.dataframe(df_filtered)
+                    
+                    xa_col = find_column_name(df, ['xã', 'xa'])
+                    if xa_col:
+                        df_filtered = df[df[xa_col].fillna('').str.strip().str.lower() == 'định hóa']
+                        st.subheader("👨‍💼 Thông tin lãnh đạo xã Định Hóa")
+                        st.dataframe(df_filtered)
+                    else:
+                        st.warning("Không tìm thấy cột 'Xã' trong dữ liệu. Vui lòng kiểm tra tên cột trong Google Sheet.")
                 except Exception as e:
                     st.error(f"Lỗi khi xử lý dữ liệu lãnh đạo xã: {e}")
                 is_handled = True
@@ -466,67 +489,87 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             # --- Kết thúc phần mã đã được sửa lỗi ---
 
 
-            # --- Nếu chưa được xử lý, dùng fuzzy search hoặc gọi AI ---
+            # --- Xử lý các câu hỏi chung về Sự cố, KPI ---
             if not is_handled:
-                # --- Ưu tiên xử lý các trường hợp đặc biệt trước ---
-                if "biểu đồ" in normalize_text(user_msg) or "thống kê" in normalize_text(user_msg) or "kpi" in normalize_text(user_msg):
-                    with st.spinner("⏳ Đang tạo biểu đồ..."):
+                if "sự cố" in normalized_user_msg:
+                    with st.spinner("⏳ Đang tạo biểu đồ sự cố..."):
+                        suco_data = get_sheet_data("Sự cố")
+                        if suco_data:
+                            df = pd.DataFrame(suco_data)
+                            st.subheader("📊 Biểu đồ Sự cố")
+                            
+                            ngay_col = find_column_name(df, ['ngày', 'ngay'])
+                            loai_suco_col = find_column_name(df, ['loại sự cố', 'loai su co'])
+                            
+                            if ngay_col and loai_suco_col:
+                                df[ngay_col] = pd.to_datetime(df[ngay_col], format='%d/%m/%Y', errors='coerce')
+                                df = df.sort_values(by=ngay_col)
+                                
+                                # Tạo biểu đồ tổng hợp
+                                fig, ax = plt.subplots(figsize=(10, 6))
+                                sns.countplot(data=df, x=loai_suco_col, ax=ax)
+                                ax.set_title("Số lượng sự cố theo loại")
+                                ax.set_xlabel("Loại sự cố")
+                                ax.set_ylabel("Số lượng")
+                                st.pyplot(fig)
+                            else:
+                                st.warning("⚠️ Dữ liệu Sự cố thiếu một trong các cột cần thiết: 'Ngày', 'Loại sự cố'.")
+                        else:
+                            st.info("⚠️ Không có dữ liệu sự cố để tạo biểu đồ.")
+                    is_handled = True
+
+                elif "kpi" in normalized_user_msg:
+                    with st.spinner("⏳ Đang tạo biểu đồ KPI..."):
                         kpi_data = get_sheet_data("KPI")
                         if kpi_data:
-                            try:
-                                kpi_df = pd.DataFrame(kpi_data)
-                                st.subheader("📈 Biểu đồ KPI")
+                            df = pd.DataFrame(kpi_data)
+                            st.subheader("📈 Biểu đồ KPI")
+                            
+                            ngay_col = find_column_name(df, ['ngày', 'ngay'])
+                            sovu_col = find_column_name(df, ['số vụ', 'so vu'])
+                            sotien_col = find_column_name(df, ['số tiền', 'so tien'])
+                            
+                            if ngay_col and sovu_col and sotien_col:
+                                df[ngay_col] = pd.to_datetime(df[ngay_col], format='%d/%m/%Y', errors='coerce')
+                                df = df.sort_values(by=ngay_col)
                                 
-                                # Kiểm tra sự tồn tại của các cột trước khi xử lý
-                                if 'Ngày' in kpi_df.columns and 'Số vụ' in kpi_df.columns and 'Số tiền' in kpi_df.columns:
-                                    # Chuyển đổi cột "Ngày" sang datetime để sắp xếp
-                                    kpi_df['Ngày'] = pd.to_datetime(kpi_df['Ngày'], format='%d/%m/%Y', errors='coerce')
-                                    kpi_df = kpi_df.sort_values(by='Ngày')
-                                    
-                                    # Chuyển đổi các cột số
-                                    for col in ['Số vụ', 'Số tiền']:
-                                        kpi_df[col] = pd.to_numeric(kpi_df[col].astype(str).str.replace(',', ''), errors='coerce')
-                                    
-                                    # Tạo layout 2 cột cho biểu đồ
-                                    chart_col1, chart_col2 = st.columns(2)
-                                    
-                                    with chart_col1:
-                                        fig_vu, ax_vu = plt.subplots(figsize=(10, 6))
-                                        ax_vu.bar(kpi_df['Ngày'], kpi_df['Số vụ'], color='skyblue')
-                                        ax_vu.set_title("Số vụ theo ngày")
-                                        ax_vu.set_xlabel("Ngày")
-                                        ax_vu.set_ylabel("Số vụ")
-                                        ax_vu.tick_params(axis='x', rotation=45)
-                                        ax_vu.grid(axis='y', linestyle='--', alpha=0.7)
-                                        st.pyplot(fig_vu)
-                                    
-                                    with chart_col2:
-                                        # Tạo biểu đồ cột cho "Số tiền" với màu gradient
-                                        fig_tien, ax_tien = plt.subplots(figsize=(10, 6))
-                                        # Tạo màu gradient
-                                        colors = cm.viridis(np.linspace(0, 1, len(kpi_df['Số tiền'])))
-                                        ax_tien.bar(kpi_df['Ngày'], kpi_df['Số tiền'], color=colors)
-                                        ax_tien.set_title("Tổng số tiền theo ngày")
-                                        ax_tien.set_xlabel("Ngày")
-                                        ax_tien.set_ylabel("Số tiền (triệu đồng)")
-                                        ax_tien.tick_params(axis='x', rotation=45)
-                                        ax_tien.grid(axis='y', linestyle='--', alpha=0.7)
-                                        # Định dạng y-axis
-                                        ax_tien.get_yaxis().set_major_formatter(
-                                            plt.FuncFormatter(lambda x, p: format(int(x), ','))
-                                        )
-                                        st.pyplot(fig_tien)
-                                else:
-                                    st.warning("⚠️ Dữ liệu KPI thiếu một trong các cột cần thiết: 'Ngày', 'Số vụ', 'Số tiền'.")
+                                for col in [sovu_col, sotien_col]:
+                                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce')
                                 
-                            except Exception as e:
-                                st.error(f"❌ Lỗi khi tạo biểu đồ: {e}")
+                                chart_col1, chart_col2 = st.columns(2)
+                                
+                                with chart_col1:
+                                    fig_vu, ax_vu = plt.subplots(figsize=(10, 6))
+                                    ax_vu.bar(df[ngay_col], df[sovu_col], color='skyblue')
+                                    ax_vu.set_title(f"{sovu_col} theo ngày")
+                                    ax_vu.set_xlabel("Ngày")
+                                    ax_vu.set_ylabel(sovu_col)
+                                    ax_vu.tick_params(axis='x', rotation=45)
+                                    ax_vu.grid(axis='y', linestyle='--', alpha=0.7)
+                                    st.pyplot(fig_vu)
+                                
+                                with chart_col2:
+                                    fig_tien, ax_tien = plt.subplots(figsize=(10, 6))
+                                    colors = cm.viridis(np.linspace(0, 1, len(df[sotien_col])))
+                                    ax_tien.bar(df[ngay_col], df[sotien_col], color=colors)
+                                    ax_tien.set_title(f"Tổng {sotien_col} theo ngày")
+                                    ax_tien.set_xlabel("Ngày")
+                                    ax_tien.set_ylabel(f"{sotien_col} (triệu đồng)")
+                                    ax_tien.tick_params(axis='x', rotation=45)
+                                    ax_tien.grid(axis='y', linestyle='--', alpha=0.7)
+                                    ax_tien.get_yaxis().set_major_formatter(
+                                        plt.FuncFormatter(lambda x, p: format(int(x), ','))
+                                    )
+                                    st.pyplot(fig_tien)
+                            else:
+                                st.warning("⚠️ Dữ liệu KPI thiếu một trong các cột cần thiết: 'Ngày', 'Số vụ', 'Số tiền'.")
                         else:
                             st.info("⚠️ Không có dữ liệu KPI để tạo biểu đồ.")
                     is_handled = True
-                elif "lãnh đạo" in normalize_text(user_msg):
+
+                elif "lãnh đạo" in normalized_user_msg:
                     is_handled = handle_lanh_dao(user_msg)
-                elif "tba" in normalize_text(user_msg):
+                elif "tba" in normalized_user_msg:
                     is_handled = handle_tba(user_msg)
                 
                 # --- Nếu vẫn chưa được xử lý, dùng fuzzy search hoặc gọi AI ---
@@ -535,46 +578,38 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         best_match = None
                         highest_score = 0
                         
-                        # Iterate through all QA entries
                         for index, row in qa_df.iterrows():
                             question_in_sheet = normalize_text(str(row.get('Câu hỏi', '')))
-                            score = fuzz.ratio(normalize_text(user_msg), question_in_sheet)
+                            score = fuzz.ratio(normalized_user_msg, question_in_sheet)
                             
                             if score > highest_score:
                                 highest_score = score
                                 best_match = row
 
-                        # Chỉ hiển thị nếu độ khớp cao hơn ngưỡng chấp nhận
-                        if highest_score >= 80: # Ngưỡng 80 là hợp lý cho tiếng Việt
-                            
-                            # Lọc tất cả các câu trả lời tương tự (cùng độ khớp cao nhất)
+                        if highest_score >= 80:
                             st.session_state.qa_results = []
                             
                             for index, row in qa_df.iterrows():
                                 question_in_sheet = normalize_text(str(row.get('Câu hỏi', '')))
-                                score = fuzz.ratio(normalize_text(user_msg), question_in_sheet)
+                                score = fuzz.ratio(normalized_user_msg, question_in_sheet)
                                 
                                 if score == highest_score:
                                     st.session_state.qa_results.append(row['Câu trả lời'])
                             
-                            # Reset index và hiển thị câu trả lời đầu tiên
                             st.session_state.qa_index = 0
                             st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
                             st.session_state.qa_index += 1
                         
-                            st.rerun() # Rerun để cập nhật giao diện
+                            st.rerun()
                         else:
-                            # Nếu không tìm thấy câu hỏi tương tự trong sheet "Hỏi-Trả lời", sử dụng OpenAI
                             if client_ai:
                                 with st.spinner("⏳ Không tìm thấy câu trả lời trong Sổ tay, đang hỏi AI..."):
                                     try:
-                                        # Tạo một prompt đơn giản
                                         prompt = f"Dựa trên câu hỏi sau, hãy trả lời một cách ngắn gọn, súc tích và chỉ tập trung vào thông tin cần thiết: '{user_msg}'"
                                         response = client_ai.chat.completions.create(
                                             model="gpt-3.5-turbo",
                                             messages=[{"role": "user", "content": prompt}]
                                         )
-                                        # Xử lý và hiển thị phản hồi từ OpenAI
                                         if response.choices and len(response.choices) > 0:
                                             ai_answer = response.choices[0].message.content
                                             st.info("Câu trả lời từ AI:")
@@ -587,38 +622,33 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 st.warning("⚠️ Không tìm thấy câu trả lời tương tự và OpenAI API key chưa được cấu hình. Vui lòng thêm API key để sử dụng tính năng AI.")
 
 
-    # Xử lý khi người dùng nhấn nút "Xóa"
     if clear_button_pressed:
         st.session_state.user_input_value = ""
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
         st.session_state.current_qa_display = ""
-        st.session_state.audio_processed = False # Reset trạng thái audio
+        st.session_state.audio_processed = False
         st.rerun()
 
-    # Hiển thị kết quả tìm kiếm từ Google Sheets
     if st.session_state.current_qa_display:
         st.info("Câu trả lời:")
         st.write(st.session_state.current_qa_display)
 
-    # Nút "Tìm tiếp" chỉ hiển thị khi có nhiều hơn một kết quả QA và chưa hiển thị hết
     if st.session_state.qa_results and st.session_state.qa_index < len(st.session_state.qa_results):
         if st.button("Tìm tiếp"):
             st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
             st.session_state.qa_index += 1
-            st.rerun() # Rerun để hiển thị kết quả tiếp theo
+            st.rerun()
     elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
         st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
 
 
-    # Hàm OCR: đọc text từ ảnh
     def extract_text_from_image(image_path):
         reader = easyocr.Reader(['vi'])
         result = reader.readtext(image_path, detail=0)
         text = " ".join(result)
         return text
 
-    # --- Tải ảnh chứa câu hỏi ---
     st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
     uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
 
@@ -634,10 +664,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             if extracted_text:
                 st.info("Văn bản được trích xuất từ ảnh:")
                 st.code(extracted_text, language="text")
-                # Tự động điền văn bản đã trích xuất vào ô nhập liệu
                 st.session_state.user_input_value = extracted_text
                 st.success("✅ Đã điền văn bản vào ô nhập liệu. Bạn có thể chỉnh sửa và nhấn 'Gửi'.")
-                st.rerun() # Tải lại ứng dụng để cập nhật input
+                st.rerun()
             else:
                 st.warning("⚠️ Không thể trích xuất văn bản từ ảnh. Vui lòng thử lại với ảnh khác rõ hơn.")
         except Exception as e:
