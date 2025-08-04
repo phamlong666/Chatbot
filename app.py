@@ -18,6 +18,7 @@ import tempfile
 import numpy as np # Thêm import numpy
 from cryptography.fernet import Fernet
 from audio_recorder_streamlit import audio_recorder
+from difflib import get_close_matches
 
 # Cấu hình Streamlit page để sử dụng layout rộng
 st.set_page_config(layout="wide")
@@ -132,7 +133,7 @@ def normalize_text(text):
 qa_data = get_sheet_data("Hỏi-Trả lời")
 qa_df = pd.DataFrame(qa_data) if qa_data else pd.DataFrame()
 
-# Hàm lấy dữ liệu từ tất cả sheet trong file (từ app - Copy (2).py)
+# Hàm lấy dữ liệu từ tất cả sheet trong file
 @st.cache_data
 def load_all_sheets():
     spreadsheet = client.open_by_url(spreadsheet_url)
@@ -146,7 +147,7 @@ def load_all_sheets():
             data[name] = pd.DataFrame()
     return data
 
-all_data = load_all_sheets() # Dữ liệu từ app - Copy (2).py
+all_data = load_all_sheets()
 
 # Hàm để đọc câu hỏi từ file JSON
 def load_sample_questions(file_path="sample_questions.json"):
@@ -171,6 +172,7 @@ def load_sample_questions(file_path="sample_questions.json"):
 
 # Tải các câu hỏi mẫu khi ứng dụng khởi động (giữ lại hàm, nhưng sẽ dùng options cứng cho selectbox)
 sample_questions_from_file = load_sample_questions()
+
 
 # --- Bắt đầu bố cục mới: Logo ở trái, phần còn lại của chatbot căn giữa ---
 
@@ -263,12 +265,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
 
-    # Đọc câu hỏi mẫu từ file sample_questions = []
+    # Đọc câu hỏi mẫu từ file sample_questions
     try:
         with open("sample_questions.json", "r", encoding="utf-8") as f:
             sample_questions = json.load(f)
     except Exception as e:
         st.warning(f"Không thể đọc file câu hỏi mẫu: {e}")
+        sample_questions = []
 
     # Callback function for selectbox
     def on_sample_question_select():
@@ -285,13 +288,77 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         on_change=on_sample_question_select
     )
 
+    # Hàm để xử lý câu hỏi về lãnh đạo xã
+    def handle_lanh_dao(question):
+        if "lãnh đạo" in normalize_text(question) and any(xa in normalize_text(question) for xa in ["định hóa", "kim phượng", "phượng tiến", "trung hội", "bình yên", "phú đình", "bình thành", "lam vỹ"]):
+            try:
+                sheet_ld = all_data.get("Danh sách lãnh đạo xã, phường")
+                if sheet_ld is not None and not sheet_ld.empty:
+                    xa_match = re.search(r'xã|phường ([\w\s]+)', normalize_text(question))
+                    if xa_match:
+                        ten_xa = xa_match.group(1).strip().upper()
+                    else:
+                        ten_xa = None
+                        for row in sheet_ld['Thuộc xã/phường'].unique():
+                            if normalize_text(row) in normalize_text(question):
+                                ten_xa = row.upper()
+                                break
+                    
+                    if ten_xa:
+                        df_loc = sheet_ld[sheet_ld['Thuộc xã/phường'].str.upper().str.contains(ten_xa, na=False)]
+                        if df_loc.empty:
+                            st.warning(f"❌ Không tìm thấy dữ liệu lãnh đạo cho xã/phường: {ten_xa}")
+                        else:
+                            st.success(f"📋 Danh sách lãnh đạo xã/phường {ten_xa}")
+                            st.dataframe(df_loc.reset_index(drop=True))
+                        return True
+                    else:
+                        st.warning("❗ Không xác định được tên xã/phường trong câu hỏi.")
+                        return True
+                else:
+                    st.warning("⚠️ Không tìm thấy sheet 'Danh sách lãnh đạo xã, phường' hoặc sheet rỗng.")
+                    return True
+            except Exception as e:
+                st.error(f"Lỗi khi xử lý dữ liệu lãnh đạo xã: {e}")
+                return True
+        return False
+
+    # Hàm để xử lý câu hỏi về TBA theo đường dây
+    def handle_tba(question):
+        if "tba" in normalize_text(question) and "đường dây" in normalize_text(question):
+            try:
+                sheet_tba = all_data.get("Tên các TBA")
+                if sheet_tba is not None and not sheet_tba.empty:
+                    match = re.search(r'(\d{3}E6\.22)', question.upper())
+                    if match:
+                        dd = match.group(1)
+                        df_dd = sheet_tba[sheet_tba['STT đường dây'].astype(str).str.contains(dd)]
+                        if not df_dd.empty:
+                            st.success(f"📄 Danh sách TBA trên đường dây {dd}")
+                            st.dataframe(df_dd.reset_index(drop=True))
+                        else:
+                            st.warning(f"❌ Không tìm thấy TBA trên đường dây {dd}")
+                        return True
+                    else:
+                        st.warning("❗ Vui lòng cung cấp mã đường dây có định dạng XXXE6.22.")
+                        return True
+                else:
+                    st.warning("⚠️ Không tìm thấy sheet 'Tên các TBA' hoặc sheet rỗng.")
+                    return True
+            except Exception as e:
+                st.error(f"Lỗi khi lấy dữ liệu TBA: {e}")
+                return True
+        return False
+    
     # Xử lý khi người dùng nhấn nút "Gửi"
     if send_button_pressed:
         user_msg = st.session_state.user_input_value
         if user_msg and user_msg != st.session_state.last_processed_user_msg:
             st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn đã xử lý cuối cùng
             
-            # Xử lý các câu hỏi liên quan đến biểu đồ KPI
+            is_handled = False
+            
+            # --- Ưu tiên xử lý các trường hợp đặc biệt trước ---
             if "biểu đồ" in normalize_text(user_msg) or "thống kê" in normalize_text(user_msg) or "kpi" in normalize_text(user_msg):
                 with st.spinner("⏳ Đang tạo biểu đồ..."):
                     kpi_data = get_sheet_data("KPI")
@@ -342,63 +409,69 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.error(f"❌ Lỗi khi tạo biểu đồ: {e}")
                     else:
                         st.info("⚠️ Không có dữ liệu KPI để tạo biểu đồ.")
-
-            # Xử lý các câu hỏi thông thường bằng fuzzy search
-            with st.spinner('⏳ Đang tìm kiếm câu trả lời...'):
-                best_match = None
-                highest_score = 0
-                
-                # Iterate through all QA entries
-                for index, row in qa_df.iterrows():
-                    question = normalize_text(row['Câu hỏi'])
-                    score = fuzz.ratio(normalize_text(user_msg), question)
+                is_handled = True
+            elif "lãnh đạo" in normalize_text(user_msg):
+                is_handled = handle_lanh_dao(user_msg)
+            elif "tba" in normalize_text(user_msg):
+                is_handled = handle_tba(user_msg)
+            
+            # --- Nếu chưa được xử lý, dùng fuzzy search hoặc gọi AI ---
+            if not is_handled:
+                with st.spinner('⏳ Đang tìm kiếm câu trả lời...'):
+                    best_match = None
+                    highest_score = 0
                     
-                    if score > highest_score:
-                        highest_score = score
-                        best_match = row
-
-                # Chỉ hiển thị nếu độ khớp cao hơn ngưỡng chấp nhận
-                if highest_score >= 80: # Ngưỡng 80 là hợp lý cho tiếng Việt
-                    
-                    # Lọc tất cả các câu trả lời tương tự (cùng độ khớp cao nhất)
-                    # Điều này để xử lý trường hợp có nhiều câu hỏi tương tự với cùng một câu trả lời
-                    st.session_state.qa_results = []
-                    
+                    # Iterate through all QA entries
                     for index, row in qa_df.iterrows():
-                        question = normalize_text(row['Câu hỏi'])
-                        score = fuzz.ratio(normalize_text(user_msg), question)
+                        question_in_sheet = normalize_text(str(row.get('Câu hỏi', '')))
+                        score = fuzz.ratio(normalize_text(user_msg), question_in_sheet)
                         
-                        if score == highest_score:
-                            st.session_state.qa_results.append(row['Câu trả lời'])
+                        if score > highest_score:
+                            highest_score = score
+                            best_match = row
+
+                    # Chỉ hiển thị nếu độ khớp cao hơn ngưỡng chấp nhận
+                    if highest_score >= 80: # Ngưỡng 80 là hợp lý cho tiếng Việt
+                        
+                        # Lọc tất cả các câu trả lời tương tự (cùng độ khớp cao nhất)
+                        st.session_state.qa_results = []
+                        
+                        for index, row in qa_df.iterrows():
+                            question_in_sheet = normalize_text(str(row.get('Câu hỏi', '')))
+                            score = fuzz.ratio(normalize_text(user_msg), question_in_sheet)
+                            
+                            if score == highest_score:
+                                st.session_state.qa_results.append(row['Câu trả lời'])
+                        
+                        # Reset index và hiển thị câu trả lời đầu tiên
+                        st.session_state.qa_index = 0
+                        st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
+                        st.session_state.qa_index += 1
                     
-                    # Reset index và hiển thị câu trả lời đầu tiên
-                    st.session_state.qa_index = 0
-                    st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
-                    st.session_state.qa_index += 1
-                
-                    st.rerun() # Rerun để cập nhật giao diện
-                else:
-                    # Nếu không tìm thấy câu hỏi tương tự trong sheet "Hỏi-Trả lời", sử dụng OpenAI
-                    if client_ai:
-                        with st.spinner("⏳ Không tìm thấy câu trả lời trong Sổ tay, đang hỏi AI..."):
-                            try:
-                                # Tạo một prompt đơn giản
-                                prompt = f"Dựa trên câu hỏi sau, hãy trả lời một cách ngắn gọn, súc tích và chỉ tập trung vào thông tin cần thiết: '{user_msg}'"
-                                response = client_ai.chat.completions.create(
-                                    model="gpt-3.5-turbo",
-                                    messages=[{"role": "user", "content": prompt}]
-                                )
-                                # Xử lý và hiển thị phản hồi từ OpenAI
-                                if response.choices and len(response.choices) > 0:
-                                    ai_answer = response.choices[0].message.content
-                                    st.info("Câu trả lời từ AI:")
-                                    st.write(ai_answer)
-                                else:
-                                    st.warning("⚠️ AI không đưa ra được câu trả lời.")
-                            except Exception as ai_e:
-                                st.error(f"❌ Lỗi khi kết nối đến OpenAI: {ai_e}. Vui lòng kiểm tra lại API key hoặc kết nối internet.")
+                        st.rerun() # Rerun để cập nhật giao diện
                     else:
-                        st.warning("⚠️ Không tìm thấy câu trả lời tương tự và OpenAI API key chưa được cấu hình. Vui lòng thêm API key để sử dụng tính năng AI.")
+                        # Nếu không tìm thấy câu hỏi tương tự trong sheet "Hỏi-Trả lời", sử dụng OpenAI
+                        if client_ai:
+                            with st.spinner("⏳ Không tìm thấy câu trả lời trong Sổ tay, đang hỏi AI..."):
+                                try:
+                                    # Tạo một prompt đơn giản
+                                    prompt = f"Dựa trên câu hỏi sau, hãy trả lời một cách ngắn gọn, súc tích và chỉ tập trung vào thông tin cần thiết: '{user_msg}'"
+                                    response = client_ai.chat.completions.create(
+                                        model="gpt-3.5-turbo",
+                                        messages=[{"role": "user", "content": prompt}]
+                                    )
+                                    # Xử lý và hiển thị phản hồi từ OpenAI
+                                    if response.choices and len(response.choices) > 0:
+                                        ai_answer = response.choices[0].message.content
+                                        st.info("Câu trả lời từ AI:")
+                                        st.write(ai_answer)
+                                    else:
+                                        st.warning("⚠️ AI không đưa ra được câu trả lời.")
+                                except Exception as ai_e:
+                                    st.error(f"❌ Lỗi khi kết nối đến OpenAI: {ai_e}. Vui lòng kiểm tra lại API key hoặc kết nối internet.")
+                        else:
+                            st.warning("⚠️ Không tìm thấy câu trả lời tương tự và OpenAI API key chưa được cấu hình. Vui lòng thêm API key để sử dụng tính năng AI.")
+
 
     # Xử lý khi người dùng nhấn nút "Xóa"
     if clear_button_pressed:
