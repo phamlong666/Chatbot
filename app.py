@@ -393,7 +393,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             is_handled = False
             normalized_user_msg = normalize_text(user_msg)
 
-            # --- ĐOẠN MÃ XỬ LÝ CÂU HỎI TỪ app0226.py ---
+            # --- ĐOẠN MÃ XỬ LÝ CÂU HỎI TỪ app1.py ---
             # Câu hỏi: Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần
             if "lấy thông tin kpi của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet_name = "KPI"
@@ -434,37 +434,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
 
-            # --- XỬ LÝ SỰ CỐ THEO LOẠI SỰ CỐ ---
-            if "lấy thông tin sự cố năm 2025 so sánh với cùng kỳ" in normalized_user_msg and "loại sự cố" in normalized_user_msg:
-                sheet_name = "Quản lý sự cố"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
-                    nam_col = find_column_name(df, ['Năm'])
-                    thang_col = find_column_name(df, ['Tháng'])
-                    loai_col = find_column_name(df, ['Loại sự cố'])
-
-                    if nam_col and thang_col and loai_col:
-                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
-                        df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
-
-                        df_filtered = df[df[nam_col].isin([2024, 2025])]
-                        df_grouped = df_filtered.groupby([nam_col, loai_col]).size().reset_index(name='Số sự cố')
-
-                        st.subheader("📊 So sánh số sự cố theo loại sự cố (năm 2025 và cùng kỳ 2024)")
-                        st.dataframe(df_grouped)
-
-                        plt.figure(figsize=(12, 6))
-                        sns.barplot(data=df_grouped, x='Số sự cố', y=loai_col, hue=nam_col, palette="magma", orient='h')
-                        plt.title('So sánh số lượng sự cố theo loại sự cố giữa năm 2025 và cùng kỳ 2024')
-                        plt.xlabel('Số sự cố')
-                        plt.ylabel('Loại sự cố')
-                        plt.legend(title='Năm')
-                        plt.tight_layout()
-                        st.pyplot(plt)
-                        plt.close()
-                is_handled = True
-            
             # --- CBCNV: Biểu đồ theo chuyên môn ---
             if "cbcnv" in normalized_user_msg and "trình độ chuyên môn" in normalized_user_msg:
                 sheet_name = "CBCNV"
