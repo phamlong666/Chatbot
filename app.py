@@ -410,7 +410,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 st.dataframe(combined_df.reset_index(drop=True))
 
                 plt.figure(figsize=(14, 8))
-                ax = sns.barplot(data=combined_df, x=chart_type, y='Số lượng sự cố', hue='Năm', palette='viridis')
+                
+                # Sử dụng palette tùy chỉnh với màu xanh và vàng
+                ax = sns.barplot(data=combined_df, x=chart_type, y='Số lượng sự cố', hue='Năm', palette=['#1f77b4', '#ffbf00'])
                 
                 plt.title(chart_title, fontsize=16)
                 plt.xlabel(chart_type, fontsize=14)
@@ -510,6 +512,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.dataframe(df_sorted.reset_index(drop=True))
 
                         plt.figure(figsize=(10, 6))
+                        # Giữ nguyên palette crest cho KPI
                         sns.barplot(data=df_sorted, x=kpi_col, y=donvi_col, palette="crest")
                         plt.title("KPI tháng 6/2025 theo đơn vị")
                         plt.xlabel("Điểm KPI")
@@ -547,7 +550,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                         # Tạo biểu đồ cột đứng
                         plt.figure(figsize=(10, 6))
-                        ax = sns.barplot(data=df_grouped, x='Trình độ chuyên môn', y='Số lượng', palette='viridis')
+                        # Đổi màu biểu đồ sang một dải màu xanh
+                        ax = sns.barplot(data=df_grouped, x='Trình độ chuyên môn', y='Số lượng', palette='Blues_d')
 
                         # Thêm tiêu đề và nhãn
                         plt.title("Phân bố CBCNV theo Trình độ Chuyên môn", fontsize=16)
@@ -592,7 +596,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.dataframe(df_grouped)
 
                         plt.figure(figsize=(10, 6))
-                        ax = sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='magma')
+                        # Đổi màu biểu đồ sang một dải màu vàng-cam
+                        ax = sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='YlOrRd')
                         
                         # Thêm tiêu đề và nhãn
                         plt.title("Phân bố CBCNV theo độ tuổi", fontsize=16)
