@@ -173,22 +173,19 @@ all_data = load_all_sheets()
 # Hàm để đọc câu hỏi từ file JSON
 def load_sample_questions(file_path="sample_questions.json"):
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            questions_data = json.load(f)
-        # Nếu định dạng là list of strings
-        if isinstance(questions_data, list) and all(isinstance(q, str) for q in questions_data):
-            return questions_data
-        # Nếu định dạng là list of dictionaries (nếu sau này bạn muốn thêm id hoặc mô tả)
-        elif isinstance(questions_data, list) and all(isinstance(q, dict) and "text" in q for q in questions_data):
-            return [q["text"] for q in questions_data]
-        else:
-            st.error("Định dạng file sample_questions.json không hợp lệ. Vui lòng đảm bảo nó là một danh sách các chuỗi hoặc đối tượng có khóa 'text'.")
-            return []
-    except FileNotFoundError:
-        st.warning(f"⚠️ Không tìm thấy file: {file_path}. Vui lòng tạo file chứa các câu hỏi mẫu để sử dụng chức năng này.")
-        return []
-    except json.JSONDecodeError:
-        st.error(f"❌ Lỗi đọc file JSON: {file_path}. Vui lòng kiểm tra cú pháp JSON của file.")
+        # Thay vì đọc file, sử dụng danh sách cố định
+        questions_data = [
+            "Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần",
+            "Lấy biểu đồ phân bố CBCNV theo trình độ chuyên môn, nhóm Kỹ sư và Thạc sỹ, và hiển thị giá trị trên cột.",
+            "Lấy biểu đồ phân bố CBCNV theo độ tuổi.",
+            "Lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo đường dây",
+            "Lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo tính chất",
+            "Lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo loại sự cố",
+            "Lấy thông tin sự cố lũy kế đến tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo đường dây"
+        ]
+        return questions_data
+    except Exception as e:
+        st.error("Lỗi khi tạo danh sách câu hỏi mẫu.")
         return []
 
 # Tải các câu hỏi mẫu khi ứng dụng khởi động (giữ lại hàm, nhưng sẽ dùng options cứng cho selectbox)
@@ -287,12 +284,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             clear_button_pressed = st.form_submit_button("Xóa")
 
     # Đọc câu hỏi mẫu từ file sample_questions
-    try:
-        with open("sample_questions.json", "r", encoding="utf-8") as f:
-            sample_questions = json.load(f)
-    except Exception as e:
-        st.warning(f"Không thể đọc file câu hỏi mẫu: {e}")
-        sample_questions = []
+    sample_questions = load_sample_questions()
 
     # Callback function for selectbox
     def on_sample_question_select():
@@ -385,6 +377,64 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 return True
         return False
 
+    # Hàm vẽ biểu đồ sự cố chung, có thể tái sử dụng
+    def plot_incident_chart(df, category_col_name, chart_type, month, year, is_cumulative):
+        if not df.empty:
+            # Lọc dữ liệu cho năm hiện tại và năm trước đó
+            df_current_year = df[df['thang_nam'].dt.year == year].copy()
+            df_previous_year = df[df['thang_nam'].dt.year == year - 1].copy()
+
+            if is_cumulative:
+                df_current_year = df_current_year[df_current_year['thang_nam'].dt.month <= month]
+                df_previous_year = df_previous_year[df_previous_year['thang_nam'].dt.month <= month]
+            else:
+                df_current_year = df_current_year[df_current_year['thang_nam'].dt.month == month]
+                df_previous_year = df_previous_year[df_previous_year['thang_nam'].dt.month == month]
+
+            if not df_current_year.empty or not df_previous_year.empty:
+                # Đếm số lượng sự cố theo category
+                su_co_current_count = df_current_year[category_col_name].value_counts().reset_index()
+                su_co_current_count.columns = [chart_type, 'Số lượng sự cố']
+                su_co_current_count['Năm'] = year
+
+                su_co_previous_count = df_previous_year[category_col_name].value_counts().reset_index()
+                su_co_previous_count.columns = [chart_type, 'Số lượng sự cố']
+                su_co_previous_count['Năm'] = year - 1
+                
+                combined_df = pd.concat([su_co_current_count, su_co_previous_count])
+
+                # Tạo tiêu đề động
+                title_prefix = "Lũy kế đến " if is_cumulative else ""
+                chart_title = f"{title_prefix}Số lượng sự cố tháng {month}/{year} so với cùng kỳ năm {year - 1} theo {chart_type}"
+                st.subheader(f"📊 Biểu đồ {chart_title}")
+                st.dataframe(combined_df.reset_index(drop=True))
+
+                plt.figure(figsize=(14, 8))
+                ax = sns.barplot(data=combined_df, x=chart_type, y='Số lượng sự cố', hue='Năm', palette='viridis')
+                
+                plt.title(chart_title, fontsize=16)
+                plt.xlabel(chart_type, fontsize=14)
+                plt.ylabel("Số lượng sự cố", fontsize=14)
+
+                for p in ax.patches:
+                    ax.annotate(f'{int(p.get_height())}', 
+                                (p.get_x() + p.get_width() / 2., p.get_height()), 
+                                ha='center', 
+                                va='center', 
+                                xytext=(0, 10), 
+                                textcoords='offset points',
+                                fontsize=10,
+                                fontweight='bold')
+                
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+                st.pyplot(plt)
+                plt.close()
+            else:
+                st.warning(f"❗ Không có dữ liệu sự cố nào trong tháng {month}/{year} hoặc cùng kỳ năm trước.")
+        else:
+            st.warning(f"❗ Sheet 'Quản lý sự cố' không có dữ liệu hoặc không thể đọc được.")
+
     # Xử lý khi người dùng nhấn nút "Gửi"
     if send_button_pressed:
         user_msg = st.session_state.user_input_value
@@ -393,7 +443,46 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             is_handled = False
             normalized_user_msg = normalize_text(user_msg)
             
-            # --- ĐOẠN MÃ XỬ LÝ CÂU HỎI TỪ app1.py ---
+            # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI ĐỘNG VỀ SỰ CỐ ---
+            incident_match = re.search(r'tháng (\d+).*năm (\d+).*vẽ biểu đồ theo (đường dây|tính chất|loại sự cố)', normalized_user_msg)
+            incident_cumulative_match = re.search(r'lũy kế đến tháng (\d+).*năm (\d+).*vẽ biểu đồ theo (đường dây|tính chất|loại sự cố)', normalized_user_msg)
+
+            if incident_match or incident_cumulative_match:
+                match = incident_cumulative_match or incident_match
+                month = int(match.group(1))
+                year = int(match.group(2))
+                chart_type = match.group(3)
+                is_cumulative = incident_cumulative_match is not None
+
+                sheet_name = "Quản lý sự cố"
+                sheet_data = get_sheet_data(sheet_name)
+                
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
+                    thang_nam_col = find_column_name(df, ['Tháng/Năm sự cố', 'Tháng/Năm'])
+                    
+                    category_col = None
+                    if chart_type == 'đường dây':
+                        category_col = find_column_name(df, ['Đường dây', 'Đường dây sự cố'])
+                    elif chart_type == 'tính chất':
+                        category_col = find_column_name(df, ['Tính chất', 'I'])
+                    elif chart_type == 'loại sự cố':
+                        category_col = find_column_name(df, ['Loại sự cố', 'Loại', 'E'])
+
+                    if thang_nam_col and category_col:
+                        try:
+                            df['thang_nam'] = pd.to_datetime(df[thang_nam_col], format='%m/%Y', errors='coerce')
+                            df = df.dropna(subset=['thang_nam'])
+                            plot_incident_chart(df, category_col, chart_type, month, year, is_cumulative)
+                            is_handled = True
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi xử lý dữ liệu sự cố: {e}")
+                            is_handled = True
+                    else:
+                        st.warning(f"❗ Không tìm thấy các cột cần thiết trong sheet {sheet_name}.")
+                        is_handled = True
+            
+            # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI CỐ ĐỊNH TRƯỚC ĐÓ ---
             # Câu hỏi: Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần
             if "lấy thông tin kpi của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet_name = "KPI"
@@ -433,7 +522,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 else:
                     st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
-
+                
             # --- CBCNV: Biểu đồ theo chuyên môn ---
             # Câu hỏi: Lấy biểu đồ phân bố CBCNV theo trình độ chuyên môn, nhóm Kỹ sư và Thạc sỹ, và hiển thị giá trị trên cột.
             if "cbcnv" in normalized_user_msg and "trình độ chuyên môn" in normalized_user_msg:
@@ -529,7 +618,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 else:
                     st.warning("❗ Sheet 'CBCNV' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
-            
+
             # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI KHÁC ---
             if not is_handled:
                 if handle_lanh_dao(user_msg):
