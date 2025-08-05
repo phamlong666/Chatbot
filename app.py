@@ -400,9 +400,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 sheet_data = get_sheet_data(sheet_name)
                 if sheet_data:
                     df = pd.DataFrame(sheet_data)
+                    # Tìm tên cột cho 'Điểm KPI' (Cột D)
                     kpi_col = find_column_name(df, ['Điểm KPI', 'KPI'])
+                    # Tìm tên cột cho 'Năm' (Cột A)
                     nam_col = find_column_name(df, ['Năm'])
+                    # Tìm tên cột cho 'Tháng' (Cột B)
                     thang_col = find_column_name(df, ['Tháng'])
+                    # Tìm tên cột cho 'Đơn vị' (Cột C)
                     donvi_col = find_column_name(df, ['Đơn vị'])
 
                     if kpi_col and nam_col and thang_col and donvi_col:
@@ -410,7 +414,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
                         df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
 
-                        # Lọc dữ liệu
+                        # Lọc dữ liệu theo năm 2025 và tháng 6
                         df_filtered = df[(df[nam_col] == 2025) & (df[thang_col] == 6)]
                         donvi_can_vẽ = ["Định Hóa", "Đồng Hỷ", "Đại Từ", "Phú Bình", "Phú Lương", "Phổ Yên", "Sông Công", "Thái Nguyên", "Võ Nhai"]
                         df_filtered = df_filtered[df_filtered[donvi_col].isin(donvi_can_vẽ)]
@@ -421,10 +425,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.dataframe(df_sorted.reset_index(drop=True))
 
                         plt.figure(figsize=(10, 6))
-                        sns.barplot(data=df_sorted, x=kpi_col, y=donvi_col, palette="crest")
+                        # Cập nhật: Hoán đổi trục X và Y để đơn vị nằm trên trục X
+                        sns.barplot(data=df_sorted, x=donvi_col, y=kpi_col, palette="crest")
                         plt.title("KPI tháng 6/2025 theo đơn vị")
-                        plt.xlabel("Điểm KPI")
-                        plt.ylabel("Đơn vị")
+                        plt.xlabel("Đơn vị") # Cập nhật nhãn trục X
+                        plt.ylabel("Điểm KPI") # Cập nhật nhãn trục Y
+                        plt.xticks(rotation=45, ha='right') # Xoay nhãn trục X để dễ đọc
                         plt.tight_layout()
                         st.pyplot(plt)
                         plt.close()
@@ -435,7 +441,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 is_handled = True
 
             # --- CBCNV: Biểu đồ theo chuyên môn ---
-            # Câu hỏi: Lấy biểu đồ phân bố CBCNV theo trình độ chuyên môn, nhóm Kỹ sư và Thạc sỹ, và hiển thị giá trị trên cột.
+            # Câu hỏi: Lấy biểu đồ phân bố CBCNV theo trình độ chuyên môn, nhóm Kỹ sư và Cử nhân, và hiển thị giá trị trên cột.
             if "cbcnv" in normalized_user_msg and "trình độ chuyên môn" in normalized_user_msg:
                 sheet_name = "CBCNV"
                 sheet_data = get_sheet_data(sheet_name)
@@ -444,10 +450,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     tdcm_col = find_column_name(df, ['Trình độ chuyên môn', 'Trình độ', 'S'])
                     
                     if tdcm_col:
-                        # Nhóm "Kỹ sư" và "Thạc sỹ" vào cùng một nhóm "Kỹ sư & Thạc sỹ"
-                        # Thêm một cột mới để tránh thay đổi dữ liệu gốc
-                        df['Nhóm Trình độ'] = df[tdcm_col].replace(['Thạc sỹ'], 'Kỹ sư & Thạc sỹ')
-                        df['Nhóm Trình độ'] = df['Nhóm Trình độ'].replace(['Kỹ sư'], 'Kỹ sư & Thạc sỹ')
+                        # Nhóm "Kỹ sư" và "Cử nhân" vào cùng một nhóm "Kỹ sư & Cử nhân"
+                        df['Nhóm Trình độ'] = df[tdcm_col]
+                        df['Nhóm Trình độ'] = df['Nhóm Trình độ'].replace(['Kỹ sư', 'Cử nhân'], 'Kỹ sư & Cử nhân')
                         
                         # Đếm số lượng theo nhóm mới
                         df_grouped = df['Nhóm Trình độ'].value_counts().reset_index()
