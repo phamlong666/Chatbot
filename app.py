@@ -274,7 +274,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         except Exception as e:
             st.error(f"❌ Lỗi khi xử lý file âm thanh: {e}")
 
-    # Bổ sung form bấm gửi/xóa ở dưới
+    # Bổ sung form bấm gửi/xóa ở dưới cùng
     with st.form(key='chat_buttons_form'):
         mic_col, send_button_col, clear_button_col = st.columns([9, 1, 1])
         with mic_col:
@@ -286,442 +286,358 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
 
-    # Đọc câu hỏi mẫu từ file sample_questions
-    try:
-        with open("sample_questions.json", "r", encoding="utf-8") as f:
-            sample_questions = json.load(f)
-    except Exception as e:
-        st.warning(f"Không thể đọc file câu hỏi mẫu: {e}")
-        sample_questions = []
-
-    # Callback function for selectbox
-    def on_sample_question_select():
-        # Khi một câu hỏi mẫu được chọn, cập nhật user_input_value
-        st.session_state.user_input_value = st.session_state.selected_sample_question
-
-    st.markdown("---")
-    st.markdown("#### 🤔 Hoặc chọn câu hỏi mẫu:")
-    # Thêm câu hỏi mẫu vào selectbox, dùng callback để cập nhật input
-    st.selectbox(
-        "Chọn một câu hỏi mẫu từ danh sách",
-        options=[""] + sample_questions, # Thêm option rỗng ở đầu
-        key="selected_sample_question",
-        on_change=on_sample_question_select
-    )
-    
-    # Hàm để xử lý câu hỏi về lãnh đạo xã
+    # Hàm để xử lý câu hỏi lấy thông tin lãnh đạo
     def handle_lanh_dao(question):
-        if "lãnh đạo" in normalize_text(question) and any(xa in normalize_text(question) for xa in ["định hóa", "kim phượng", "phượng tiến", "trung hội", "bình yên", "phú đình", "bình thành", "lam vỹ"]):
+        # Kiểm tra nếu câu hỏi có chứa từ khóa "lãnh đạo"
+        if "lãnh đạo" in question.lower():
             try:
-                sheet_ld = all_data.get("Danh sách lãnh đạo xã, phường")
-                if sheet_ld is not None and not sheet_ld.empty:
-                    xa_match = re.search(r'xã|phường ([\w\s]+)', normalize_text(question))
-                    if xa_match:
-                        ten_xa = xa_match.group(1).strip().upper()
-                    else:
-                        ten_xa = None
-                        for row in sheet_ld['Thuộc xã/phường'].unique():
-                            if normalize_text(row) in normalize_text(question):
-                                ten_xa = row.upper()
-                                break
-                    
-                    if ten_xa:
-                        df_loc = sheet_ld[sheet_ld['Thuộc xã/phường'].str.upper().str.contains(ten_xa, na=False)]
-                        if df_loc.empty:
-                            st.warning(f"❌ Không tìm thấy dữ liệu lãnh đạo cho xã/phường: {ten_xa}")
-                        else:
-                            st.success(f"📋 Danh sách lãnh đạo xã/phường {ten_xa}")
-                            st.dataframe(df_loc.reset_index(drop=True))
-                        return True
-                    else:
-                        st.warning("❗ Không xác định được tên xã/phường trong câu hỏi.")
-                        return True
+                st.success("📄 Danh sách lãnh đạo xã, phường")
+                df_lanh_dao = pd.DataFrame(get_sheet_data("Danh sách lãnh đạo xã, phường"))
+                # Loại bỏ các hàng hoàn toàn trống
+                df_lanh_dao = df_lanh_dao.dropna(how='all')
+                
+                if not df_lanh_dao.empty:
+                    st.dataframe(df_lanh_dao)
                 else:
-                    st.warning("⚠️ Không tìm thấy sheet 'Danh sách lãnh đạo xã, phường' hoặc sheet rỗng.")
-                    return True
+                    st.warning("❌ Không tìm thấy dữ liệu lãnh đạo.")
+                return True
             except Exception as e:
-                st.error(f"Lỗi khi xử lý dữ liệu lãnh đạo xã: {e}")
+                st.error(f"Lỗi khi lấy dữ liệu lãnh đạo: {e}")
                 return True
         return False
-    
-    # Hàm để xử lý câu hỏi về TBA theo đường dây
+
+    # Hàm để xử lý câu hỏi về TBA (trạm biến áp)
     def handle_tba(question):
-        if "tba" in normalize_text(question) and "đường dây" in normalize_text(question):
+        if "tba" in question.lower():
             try:
-                sheet_tba = all_data.get("Tên các TBA")
-                if sheet_tba is not None and not sheet_tba.empty:
-                    match = re.search(r'(\d{3}E6\.22)', question.upper())
-                    if match:
-                        dd = match.group(1)
-                        df_dd = sheet_tba[sheet_tba['STT đường dây'].astype(str).str.contains(dd)]
+                st.info("⏳ Đang tìm kiếm TBA...")
+                df_tba = pd.DataFrame(get_sheet_data("Danh sách TBA"))
+                # Loại bỏ các hàng hoàn toàn trống
+                df_tba = df_tba.dropna(how='all')
+                
+                if df_tba.empty:
+                    st.warning("❌ Không tìm thấy dữ liệu TBA.")
+                    return True
+                
+                # Tìm mã đường dây có dạng 3 chữ số E6.22
+                match = re.search(r'(\d{3}E6\.22)', question.upper())
+                if match:
+                    dd = match.group(1)
+                    # Tìm tên cột chứa mã đường dây, sử dụng fuzzy matching
+                    dd_col_name = find_column_name(df_tba, ['STT đường dây', 'STT duong day'])
+                    
+                    if dd_col_name:
+                        df_dd = df_tba[df_tba[dd_col_name].astype(str).str.contains(dd)]
                         if not df_dd.empty:
                             st.success(f"📄 Danh sách TBA trên đường dây {dd}")
                             st.dataframe(df_dd.reset_index(drop=True))
                         else:
                             st.warning(f"❌ Không tìm thấy TBA trên đường dây {dd}")
-                        return True
                     else:
-                        st.warning("❗ Vui lòng cung cấp mã đường dây có định dạng XXXE6.22.")
-                        return True
-                else:
-                    st.warning("⚠️ Không tìm thấy sheet 'Tên các TBA' hoặc sheet rỗng.")
+                        st.error("❌ Không tìm thấy cột 'STT đường dây' trong sheet 'Danh sách TBA'.")
                     return True
+                else:
+                    st.info("💡 Để tìm TBA, vui lòng cung cấp mã đường dây có dạng 'xxxE6.22'.")
+                return True
             except Exception as e:
                 st.error(f"Lỗi khi lấy dữ liệu TBA: {e}")
                 return True
         return False
-
-    # Hàm để xử lý câu hỏi về CBCNV
-    def handle_cbcnv(question):
-        if "cbcnv" in normalize_text(question) or "cán bộ công nhân viên" in normalize_text(question):
+    
+    # Hàm mới để xử lý câu hỏi về KPI
+    def handle_kpi_query(question):
+        if "kpi" in question.lower():
             try:
-                sheet_cbcnv = all_data.get("CBCNV")
-                if sheet_cbcnv is not None and not sheet_cbcnv.empty:
-                    st.subheader("👨‍👩‍👧‍👦 Danh sách Cán bộ Công nhân viên")
-                    st.dataframe(sheet_cbcnv.reset_index(drop=True))
+                st.info("⏳ Đang xử lý câu hỏi về KPI...")
+                
+                # Lấy dữ liệu KPI
+                kpi_data = get_sheet_data("KPI")
+                if not kpi_data:
+                    st.warning("⚠️ Không có dữ liệu KPI để phân tích.")
                     return True
+                
+                kpi_df = pd.DataFrame(kpi_data)
+                
+                # Loại bỏ các hàng hoàn toàn trống
+                kpi_df = kpi_df.dropna(how='all')
+                
+                # Tìm tên các cột cần thiết với fuzzy matching
+                unit_col_name = find_column_name(kpi_df, ['Tên đơn vị', 'Ten don vi'])
+                kpi_value_col_name = find_column_name(kpi_df, ['Lũy kế', 'Luy ke', 'Thực hiện', 'Thuc hien'])
+                date_col_name = find_column_name(kpi_df, ['Tháng/Năm', 'Thang/Nam'])
+                
+                if not unit_col_name or not kpi_value_col_name or not date_col_name:
+                    st.error("❌ Không tìm thấy đủ các cột cần thiết (Tên đơn vị, Lũy kế/Thực hiện, Tháng/Năm) trong sheet 'KPI'.")
+                    return True
+                
+                # Lọc dữ liệu theo tháng/năm hoặc lũy kế
+                match_month_year = re.search(r'tháng\s*(\d+)\s*năm\s*(\d{4})', normalize_text(question))
+                match_year = re.search(r'năm\s*(\d{4})', normalize_text(question))
+                
+                filtered_kpi_df = pd.DataFrame()
+                
+                if match_month_year:
+                    month = match_month_year.group(1)
+                    year = match_month_year.group(2)
+                    target_date = f"{month}/{year}"
+                    filtered_kpi_df = kpi_df[kpi_df[date_col_name].astype(str).str.strip() == target_date]
+                    if not filtered_kpi_df.empty:
+                        st.success(f"📄 Thông tin KPI của các đơn vị tháng {month} năm {year}")
+                elif match_year and "lũy kế" in normalize_text(question):
+                    year = match_year.group(1)
+                    # Giả sử "Lũy kế" sẽ là cột chứa dữ liệu cả năm
+                    # Cần tìm dòng có chứa "Lũy kế năm XXXX" hoặc tương tự
+                    # Dữ liệu "KPI" của bạn có thể có nhiều dòng "Lũy kế". Tôi sẽ tìm dòng có "Lũy kế" và năm tương ứng
+                    
+                    # Cần tìm một cột chứa thông tin lũy kế
+                    luy_ke_col = find_column_name(kpi_df, ['Lũy kế', 'Luy ke'])
+                    if luy_ke_col:
+                        # Tìm dòng mà cột đó có giá trị
+                        filtered_kpi_df = kpi_df[kpi_df[date_col_name].str.contains(f"Lũy kế {year}", case=False, na=False)]
+                        if not filtered_kpi_df.empty:
+                            st.success(f"📄 Thông tin KPI lũy kế năm {year}")
+                    else:
+                        st.warning("⚠️ Không tìm thấy cột 'Lũy kế' để xử lý yêu cầu này.")
                 else:
-                    st.warning("⚠️ Không tìm thấy sheet 'CBCNV' hoặc sheet rỗng.")
+                    st.warning("💡 Vui lòng cung cấp năm hoặc tháng/năm cụ thể trong câu hỏi, ví dụ: 'tháng 6 năm 2025' hoặc 'lũy kế năm 2025'.")
                     return True
+
+                if not filtered_kpi_df.empty:
+                    # Chuyển đổi cột KPI sang dạng số
+                    try:
+                        filtered_kpi_df[kpi_value_col_name] = pd.to_numeric(filtered_kpi_df[kpi_value_col_name], errors='coerce')
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi chuyển đổi cột '{kpi_value_col_name}' sang dạng số: {e}. Vui lòng đảm bảo dữ liệu trong cột này là số.")
+                        return True
+
+                    # Sắp xếp theo thứ tự giảm dần
+                    sorted_kpi_df = filtered_kpi_df.sort_values(by=kpi_value_col_name, ascending=False).reset_index(drop=True)
+                    
+                    # Hiển thị dataframe
+                    st.dataframe(sorted_kpi_df)
+                    
+                    # Vẽ biểu đồ
+                    st.markdown("### 📈 Biểu đồ KPI của các đơn vị")
+                    fig, ax = plt.subplots(figsize=(12, 6))
+                    sns.barplot(
+                        x=sorted_kpi_df[unit_col_name],
+                        y=sorted_kpi_df[kpi_value_col_name],
+                        ax=ax,
+                        palette="coolwarm"
+                    )
+                    plt.xticks(rotation=45, ha='right')
+                    plt.xlabel("Tên đơn vị")
+                    plt.ylabel(f"{kpi_value_col_name}")
+                    plt.title(f"KPI của các đơn vị ({date_col_name})")
+                    plt.tight_layout()
+                    st.pyplot(fig)
+                    
+                else:
+                    st.warning("⚠️ Không có dữ liệu nào khớp với yêu cầu của bạn.")
+                
+                return True
             except Exception as e:
-                st.error(f"Lỗi khi xử lý dữ liệu CBCNV: {e}")
+                st.error(f"Lỗi khi xử lý yêu cầu KPI: {e}")
                 return True
         return False
-    
-    # Xử lý khi người dùng nhấn nút "Gửi"
-    if send_button_pressed:
-        user_msg = st.session_state.user_input_value
-        if user_msg and user_msg != st.session_state.last_processed_user_msg:
-            st.session_state.last_processed_user_msg = user_msg # Cập nhật tin nhắn đã xử lý cuối cùng
+
+
+    # Logic xử lý chính cho câu hỏi
+    if send_button_pressed and st.session_state.user_input_value:
+        question = st.session_state.user_input_value
+        st.session_state.last_processed_user_msg = question
+        st.session_state.audio_processed = False # Reset flag sau khi xử lý câu hỏi
+        
+        # Xử lý các câu hỏi cụ thể trước
+        if handle_lanh_dao(question) or handle_tba(question) or handle_kpi_query(question):
+            pass # Đã xử lý, không cần làm gì thêm
+        else:
+            # Xử lý các câu hỏi chung từ sheet "Hỏi-Trả lời"
+            normalized_question = normalize_text(question)
             
-            is_handled = False
-            normalized_user_msg = normalize_text(user_msg)
-
-            # --- Bắt đầu phần mã đã được sửa lỗi và cập nhật ---
-            if "lấy thông tin kpi của các đơn vị lũy kế năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
-                sheet_name = "KPI"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
-                    # Cập nhật tên cột theo yêu cầu mới của người dùng
-                    kpi_col = find_column_name(df, ['Điểm KPI', 'Điểm KPI', 'Điểm', 'kpi'])
-                    nam_col = find_column_name(df, ['Năm', 'năm'])
-                    donvi_col = find_column_name(df, ['Đơn vị', 'Đơn vị', 'đơn vị'])
-                    
-                    if kpi_col and nam_col and donvi_col:
-                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
-                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
-                        
-                        df_filtered = df[(df[nam_col] == 2025)] # Bỏ điều kiện 'Lũy kế' vì dữ liệu mới không có cột này
-
-                        df_sorted = df_filtered.sort_values(by=kpi_col, ascending=False)
-                        st.subheader("📊 Bảng KPI năm 2025")
-                        st.dataframe(df_sorted)
-
-                        plt.figure(figsize=(10, 6))
-                        sns.barplot(data=df_sorted, x=kpi_col, y=donvi_col, palette="viridis")
-                        plt.title("Biểu đồ KPI năm 2025")
-                        plt.xlabel("Điểm KPI")
-                        plt.ylabel("Đơn vị")
-                        st.pyplot(plt)
-                    else:
-                        st.warning(f"Không tìm thấy các cột cần thiết (Điểm KPI, Năm, Đơn vị) trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột trong Google Sheet.")
-                else:
-                    st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
-                is_handled = True
-
-            elif "lấy thông tin kpi năm 2025 của định hóa so sánh với các năm trước" in normalized_user_msg:
-                sheet_name = "KPI"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
-
-                    # Cập nhật tên cột theo yêu cầu mới của người dùng
-                    kpi_col = find_column_name(df, ['Điểm KPI', 'Điểm KPI', 'Điểm', 'kpi'])
-                    nam_col = find_column_name(df, ['Năm', 'năm'])
-                    donvi_col = find_column_name(df, ['Đơn vị', 'Đơn vị', 'đơn vị'])
-
-                    if kpi_col and nam_col and donvi_col:
-                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
-                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
-                        df_filtered = df[df[donvi_col].astype(str).str.lower().str.strip() == 'định hóa']
-
-                        df_grouped = df_filtered.groupby(nam_col)[kpi_col].mean().reset_index()
-
-                        st.subheader("📊 KPI của Định Hóa theo năm")
-                        st.dataframe(df_grouped)
-
-                        plt.figure(figsize=(8, 5))
-                        sns.lineplot(data=df_grouped, x=nam_col, y=kpi_col, marker='o')
-                        plt.title("KPI Định Hóa các năm")
-                        plt.xlabel("Năm")
-                        plt.ylabel("Điểm KPI")
-                        st.pyplot(plt)
-                    else:
-                        st.warning(f"Không tìm thấy các cột cần thiết (Điểm KPI, Năm, Đơn vị) trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột trong Google Sheet.")
-                else:
-                    st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
-                is_handled = True
-            
-            # Đã cập nhật sheet name từ "Sự cố" thành "Quản lý sự cố"
-            elif "lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo loại sự cố" in normalized_user_msg:
-                sheet_name = "Quản lý sự cố"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
-                    
-                    thang_col = find_column_name(df, ['tháng', 'thang'])
-                    nam_col = find_column_name(df, ['năm', 'nam'])
-                    loai_suco_col = find_column_name(df, ['loại sự cố', 'loai su co'])
-                    
-                    if thang_col and nam_col and loai_suco_col:
-                        df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
-                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
-                        df_filtered = df[df[thang_col] == 7]
-                        
-                        df_grouped = df_filtered.groupby([nam_col, loai_suco_col]).size().reset_index(name='Số sự cố')
-
-                        st.subheader("📊 Biểu đồ loại sự cố trong tháng 7 các năm")
-                        st.dataframe(df_grouped)
-
-                        plt.figure(figsize=(10, 6))
-                        sns.barplot(data=df_grouped, x=loai_suco_col, y='Số sự cố', hue=nam_col)
-                        plt.title("So sánh loại sự cố tháng 7 theo năm")
-                        plt.xlabel(loai_suco_col)
-                        plt.ylabel("Số sự cố")
-                        st.pyplot(plt)
-                    else:
-                        st.warning(f"Không tìm thấy các cột cần thiết ('Tháng', 'Năm', 'Loại sự cố') trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột trong Google Sheet.")
-                else:
-                    st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
-                is_handled = True
-            
-            # Đã thêm logic xử lý cho câu hỏi về CBCNV
-            elif "lấy thông tin cbcnv và vẽ biểu đồ theo trình độ chuyên môn" in normalized_user_msg:
-                sheet_name = "CBCNV"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
-
-                    trinhdo_col = find_column_name(df, ['trình độ chuyên môn', 'trinh do chuyen mon', 'chuyen mon', 'trinh do'])
-                    
-                    if trinhdo_col:
-                        trinhdo_counts = df[trinhdo_col].value_counts().reset_index()
-                        trinhdo_counts.columns = [trinhdo_col, 'Số lượng']
-                        
-                        st.subheader("📊 Biểu đồ CBCNV theo trình độ chuyên môn")
-                        st.dataframe(trinhdo_counts)
-
-                        plt.figure(figsize=(10, 6))
-                        sns.barplot(data=trinhdo_counts, x=trinhdo_col, y='Số lượng', palette='tab10')
-                        plt.title("Phân bố trình độ chuyên môn")
-                        plt.xlabel("Trình độ chuyên môn")
-                        plt.ylabel("Số lượng CBCNV")
-                        plt.xticks(rotation=45, ha='right')
-                        plt.tight_layout()
-                        st.pyplot(plt)
-                    else:
-                        st.warning(f"Không tìm thấy cột 'Trình độ chuyên môn' trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột.")
-                else:
-                    st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
-                is_handled = True
-            
-            elif "lấy thông tin lãnh đạo xã định hóa" in normalized_user_msg:
-                try:
-                    sheet_name = "Danh sách lãnh đạo xã, phường"
-                    sheet_data = get_sheet_data(sheet_name)
-                    if sheet_data:
-                        df = pd.DataFrame(sheet_data)
-                    
-                        xa_col = find_column_name(df, ['xã', 'xa', 'thuộc xã/phường', 'xã/phường'])
-                        if xa_col:
-                            df_filtered = df[df[xa_col].fillna('').str.strip().str.lower() == 'định hóa']
-                            st.subheader("👨‍💼 Thông tin lãnh đạo xã Định Hóa")
-                            st.dataframe(df_filtered)
-                        else:
-                            st.warning(f"Không tìm thấy cột 'Xã' trong sheet '{sheet_name}'. Vui lòng kiểm tra tên cột trong Google Sheet.")
-                    else:
-                        st.warning(f"Dữ liệu trong sheet '{sheet_name}' rỗng.")
-                except Exception as e:
-                    st.error(f"Lỗi khi xử lý dữ liệu lãnh đạo xã: {e}")
-                is_handled = True
+            if not qa_df.empty:
+                # Tạo một danh sách các câu hỏi đã chuẩn hóa để so sánh
+                qa_df['normalized_question'] = qa_df['Câu hỏi'].apply(normalize_text)
                 
-            elif "cbcnv" in normalized_user_msg or "cán bộ công nhân viên" in normalized_user_msg:
-                is_handled = handle_cbcnv(user_msg)
-
-            # --- Kết thúc phần mã đã được sửa lỗi và cập nhật ---
-
-
-            # --- Xử lý các câu hỏi chung về Sự cố, KPI ---
-            if not is_handled:
-                if "sự cố" in normalized_user_msg:
-                    with st.spinner("⏳ Đang tạo biểu đồ sự cố..."):
-                        sheet_name = "Quản lý sự cố"
-                        suco_data = get_sheet_data(sheet_name)
-                        if suco_data:
-                            df = pd.DataFrame(suco_data)
-                            st.subheader("📊 Biểu đồ Sự cố")
-                            
-                            ngay_col = find_column_name(df, ['ngày', 'ngay'])
-                            loai_suco_col = find_column_name(df, ['loại sự cố', 'loai su co'])
-                            
-                            if ngay_col and loai_suco_col:
-                                df[ngay_col] = pd.to_datetime(df[ngay_col], format='%d/%m/%Y', errors='coerce')
-                                df = df.sort_values(by=ngay_col)
-                                
-                                # Tạo biểu đồ tổng hợp
-                                fig, ax = plt.subplots(figsize=(10, 6))
-                                sns.countplot(data=df, x=loai_suco_col, ax=ax)
-                                ax.set_title("Số lượng sự cố theo loại")
-                                ax.set_xlabel("Loại sự cố")
-                                ax.set_ylabel("Số lượng")
-                                st.pyplot(fig)
-                            else:
-                                st.warning(f"⚠️ Dữ liệu sự cố thiếu một trong các cột cần thiết: 'Ngày', 'Loại sự cố' trong sheet '{sheet_name}'.")
-                        else:
-                            st.info(f"⚠️ Không có dữ liệu sự cố để tạo biểu đồ trong sheet '{sheet_name}'.")
-                    is_handled = True
-
-                elif "kpi" in normalized_user_msg:
-                    with st.spinner("⏳ Đang tạo biểu đồ KPI..."):
-                        sheet_name = "KPI"
-                        kpi_data = get_sheet_data(sheet_name)
-                        if kpi_data:
-                            df = pd.DataFrame(kpi_data)
-                            st.subheader("📈 Biểu đồ KPI")
-                            
-                            # Cập nhật tên cột theo yêu cầu mới của người dùng
-                            nam_col = find_column_name(df, ['Năm', 'năm'])
-                            thang_col = find_column_name(df, ['Tháng', 'tháng'])
-                            donvi_col = find_column_name(df, ['Đơn vị', 'đơn vị'])
-                            diem_kpi_col = find_column_name(df, ['Điểm KPI', 'điểm kpi'])
-                            
-                            if nam_col and thang_col and donvi_col and diem_kpi_col:
-                                
-                                # Chuyển đổi kiểu dữ liệu
-                                df[diem_kpi_col] = pd.to_numeric(df[diem_kpi_col], errors='coerce')
-                                
-                                # Tạo biểu đồ tổng hợp theo Đơn vị và Năm
-                                df_grouped = df.groupby([donvi_col, nam_col])[diem_kpi_col].mean().reset_index()
-
-                                plt.figure(figsize=(12, 8))
-                                sns.barplot(data=df_grouped, x=diem_kpi_col, y=donvi_col, hue=nam_col, palette='viridis')
-                                plt.title("Điểm KPI trung bình theo Đơn vị và Năm")
-                                plt.xlabel("Điểm KPI")
-                                plt.ylabel("Đơn vị")
-                                st.pyplot(plt)
-                            else:
-                                st.warning(f"⚠️ Dữ liệu KPI thiếu một trong các cột cần thiết: 'Năm', 'Tháng', 'Đơn vị', 'Điểm KPI' trong sheet '{sheet_name}'.")
-                        else:
-                            st.info(f"⚠️ Không có dữ liệu KPI để tạo biểu đồ trong sheet '{sheet_name}'.")
-                    is_handled = True
-
-                elif "lãnh đạo" in normalized_user_msg:
-                    is_handled = handle_lanh_dao(user_msg)
-                elif "tba" in normalized_user_msg:
-                    is_handled = handle_tba(user_msg)
-                elif "cbcnv" in normalized_user_msg or "cán bộ công nhân viên" in normalized_user_msg:
-                    is_handled = handle_cbcnv(user_msg)
+                # Sử dụng fuzzy matching để tìm câu hỏi gần đúng
+                matches = get_close_matches(normalized_question, qa_df['normalized_question'].tolist(), n=3, cutoff=0.6)
                 
-                # --- Nếu vẫn chưa được xử lý, dùng fuzzy search hoặc gọi AI ---
-                if not is_handled:
-                    with st.spinner('⏳ Đang tìm kiếm câu trả lời...'):
-                        best_match = None
-                        highest_score = 0
-                        
-                        for index, row in qa_df.iterrows():
-                            question_in_sheet = normalize_text(str(row.get('Câu hỏi', '')))
-                            score = fuzz.ratio(normalized_user_msg, question_in_sheet)
-                            
-                            if score > highest_score:
-                                highest_score = score
-                                best_match = row
+                if matches:
+                    st.session_state.qa_results = []
+                    # Lấy các câu trả lời tương ứng với các câu hỏi gần đúng
+                    for match in matches:
+                        match_row = qa_df[qa_df['normalized_question'] == match].iloc[0]
+                        st.session_state.qa_results.append({
+                            "question": match_row['Câu hỏi'],
+                            "answer": match_row['Câu trả lời']
+                        })
+                    st.session_state.qa_index = 0
+                else:
+                    # Nếu không tìm thấy, thử tìm câu hỏi mẫu gần nhất
+                    fallback_matches = get_close_matches(question, sample_questions_from_file, n=1, cutoff=0.6)
+                    if fallback_matches:
+                        st.info(f"❔ Câu hỏi gần giống: '{fallback_matches[0]}'.")
+                    else:
+                        st.warning("⚠️ Không tìm thấy câu trả lời phù hợp trong dữ liệu.")
+                    st.session_state.qa_results = []
+                    st.session_state.qa_index = 0
+        
+        # Rerun để hiển thị kết quả mới
+        st.rerun()
 
-                        if highest_score >= 80:
-                            st.session_state.qa_results = []
-                            
-                            for index, row in qa_df.iterrows():
-                                question_in_sheet = normalize_text(str(row.get('Câu hỏi', '')))
-                                score = fuzz.ratio(normalized_user_msg, question_in_sheet)
-                                
-                                if score == highest_score:
-                                    st.session_state.qa_results.append(row['Câu trả lời'])
-                            
-                            st.session_state.qa_index = 0
-                            st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
-                            st.session_state.qa_index += 1
-                        
-                            st.rerun()
-                        else:
-                            if client_ai:
-                                with st.spinner("⏳ Không tìm thấy câu trả lời trong Sổ tay, đang hỏi AI..."):
-                                    try:
-                                        prompt = f"Dựa trên câu hỏi sau, hãy trả lời một cách ngắn gọn, súc tích và chỉ tập trung vào thông tin cần thiết: '{user_msg}'"
-                                        response = client_ai.chat.completions.create(
-                                            model="gpt-3.5-turbo",
-                                            messages=[{"role": "user", "content": prompt}]
-                                        )
-                                        if response.choices and len(response.choices) > 0:
-                                            ai_answer = response.choices[0].message.content
-                                            st.info("Câu trả lời từ AI:")
-                                            st.write(ai_answer)
-                                        else:
-                                            st.warning("⚠️ AI không đưa ra được câu trả lời.")
-                                    except Exception as ai_e:
-                                        st.error(f"❌ Lỗi khi kết nối đến OpenAI: {ai_e}. Vui lòng kiểm tra lại API key hoặc kết nối internet.")
-                            else:
-                                st.warning("⚠️ Không tìm thấy câu trả lời tương tự và OpenAI API key chưa được cấu hình. Vui lòng thêm API key để sử dụng tính năng AI.")
+    # Hiển thị kết quả từ `st.session_state.qa_results`
+    if st.session_state.qa_results:
+        qa = st.session_state.qa_results[st.session_state.qa_index]
+        st.markdown(f"**Trả lời:** {qa['answer']}")
+        if len(st.session_state.qa_results) > 1:
+            st.markdown("---")
+            nav_cols = st.columns([1, 10, 1])
+            with nav_cols[0]:
+                if st.button("⬅️ Trước", disabled=(st.session_state.qa_index == 0)):
+                    st.session_state.qa_index -= 1
+                    st.rerun()
+            with nav_cols[1]:
+                st.info(f"Hiển thị câu trả lời {st.session_state.qa_index + 1} của {len(st.session_state.qa_results)} câu")
+            with nav_cols[2]:
+                if st.button("Sau ➡️", disabled=(st.session_state.qa_index == len(st.session_state.qa_results) - 1)):
+                    st.session_state.qa_index += 1
+                    st.rerun()
+    elif send_button_pressed and not st.session_state.qa_results and not st.session_state.current_qa_display:
+        pass # Tránh hiển thị thông báo "Không tìm thấy" khi đã có câu trả lời từ handle_lanh_dao hoặc handle_tba
 
 
     if clear_button_pressed:
         st.session_state.user_input_value = ""
         st.session_state.qa_results = []
         st.session_state.qa_index = 0
-        st.session_state.current_qa_display = ""
         st.session_state.audio_processed = False
+        st.session_state.last_processed_user_msg = ""
         st.rerun()
 
-    if st.session_state.current_qa_display:
-        st.info("Câu trả lời:")
-        st.write(st.session_state.current_qa_display)
+    # --- Bắt đầu phần mới: Phân tích và biểu đồ ---
+    st.markdown("---")
+    st.markdown("## 📊 **Phân tích và Biểu đồ Dữ liệu Sự cố**")
 
-    if st.session_state.qa_results and st.session_state.qa_index < len(st.session_state.qa_results):
-        if st.button("Tìm tiếp"):
-            st.session_state.current_qa_display = st.session_state.qa_results[st.session_state.qa_index]
-            st.session_state.qa_index += 1
-            st.rerun()
-    elif st.session_state.qa_results and st.session_state.qa_index >= len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
-        st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
-
-
-    def extract_text_from_image(image_path):
-        reader = easyocr.Reader(['vi'])
-        result = reader.readtext(image_path, detail=0)
-        text = " ".join(result)
-        return text
-
-    st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
-    uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
-
-    if uploaded_image is not None:
-        temp_image_path = Path("temp_uploaded_image.jpg")
+    # Hàm để load dữ liệu báo cáo sự cố (tạo một cache riêng)
+    @st.cache_data
+    def load_incident_data(sheet_name):
         try:
-            with open(temp_image_path, "wb") as f:
-                f.write(uploaded_image.getbuffer())
-            
-            with st.spinner("⏳ Đang xử lý ảnh và trích xuất văn bản..."):
-                extracted_text = extract_text_from_image(str(temp_image_path))
-            
-            if extracted_text:
-                st.info("Văn bản được trích xuất từ ảnh:")
-                st.code(extracted_text, language="text")
-                st.session_state.user_input_value = extracted_text
-                st.success("✅ Đã điền văn bản vào ô nhập liệu. Bạn có thể chỉnh sửa và nhấn 'Gửi'.")
-                st.rerun()
-            else:
-                st.warning("⚠️ Không thể trích xuất văn bản từ ảnh. Vui lòng thử lại với ảnh khác rõ hơn.")
+            sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
+            df = pd.DataFrame(sheet.get_all_records())
+            # Loại bỏ các hàng hoàn toàn trống
+            df = df.dropna(how='all')
+            return df
+        except gspread.exceptions.WorksheetNotFound:
+            st.error(f"❌ Không tìm thấy sheet '{sheet_name}'. Vui lòng kiểm tra lại tên sheet.")
+            return pd.DataFrame()
         except Exception as e:
-            st.error(f"❌ Lỗi khi xử lý ảnh: {e}")
-        finally:
-            if temp_image_path.exists():
-                os.remove(temp_image_path)
+            st.error(f"❌ Lỗi khi tải dữ liệu từ sheet '{sheet_name}': {e}")
+            return pd.DataFrame()
+
+    # Tạo một selectbox để chọn sheet báo cáo sự cố
+    sheet_options = [ws.title for ws in client.open_by_url(spreadsheet_url).worksheets()]
+    report_sheet_name = st.selectbox(
+        "Chọn sheet chứa dữ liệu báo cáo sự cố:",
+        options=sheet_options,
+        index=sheet_options.index("Báo cáo sự cố") if "Báo cáo sự cố" in sheet_options else 0
+    )
+
+    incident_df = load_incident_data(report_sheet_name)
+
+    if not incident_df.empty:
+        # Tìm tên cột dựa trên tên gợi ý của người dùng
+        col_map = {
+            'Cấp điện áp': find_column_name(incident_df, ['Cấp điện áp', 'Cap dien ap']),
+            'Vị trí và thiết bị bị sự cố': find_column_name(incident_df, ['Vị trí và thiết bị bị sự cố', 'Vi tri va thiet bi bi su co']),
+            'Tóm tắt nguyên nhân sự cố': find_column_name(incident_df, ['Tóm tắt nguyên nhân sự cố', 'Tom tat nguyen nhan su co']),
+            'Loại sự cố': find_column_name(incident_df, ['Loại sự cố', 'Loai su co']),
+            'Tính chất': find_column_name(incident_df, ['Tính chất', 'Tinh chat']),
+            'Đường dây': find_column_name(incident_df, ['Đường dây', 'Duong day']),
+            'Tháng/Năm sự cố': find_column_name(incident_df, ['Tháng/Năm sự cố', 'Thang/Nam su co'])
+        }
+
+        # Lọc các cột không tìm thấy
+        valid_cols = {key: value for key, value in col_map.items() if value is not None}
+        
+        # Tạo giao diện lọc
+        st.markdown("### ⚙️ Lọc dữ liệu")
+        filter_cols = st.columns(3)
+        
+        with filter_cols[0]:
+            if valid_cols.get('Loại sự cố'):
+                loai_su_co_options = [''] + list(incident_df[valid_cols['Loại sự cố']].dropna().unique())
+                loai_su_co_filter = st.multiselect("Chọn Loại sự cố:", loai_su_co_options)
+            else:
+                loai_su_co_filter = []
+        
+        with filter_cols[1]:
+            if valid_cols.get('Đường dây'):
+                duong_day_options = [''] + list(incident_df[valid_cols['Đường dây']].dropna().unique())
+                duong_day_filter = st.multiselect("Chọn Đường dây:", duong_day_options)
+            else:
+                duong_day_filter = []
+
+        with filter_cols[2]:
+            if valid_cols.get('Cấp điện áp'):
+                cap_dien_ap_options = [''] + list(incident_df[valid_cols['Cấp điện áp']].dropna().unique())
+                cap_dien_ap_filter = st.multiselect("Chọn Cấp điện áp:", cap_dien_ap_options)
+            else:
+                cap_dien_ap_filter = []
+        
+        # Nút để bắt đầu xử lý và hiển thị
+        if st.button("Tải dữ liệu và Vẽ biểu đồ", type="primary"):
+            st.session_state.run_analysis = True
+        
+        # Logic xử lý và hiển thị
+        if st.session_state.get("run_analysis", False):
+            with st.spinner("⏳ Đang xử lý dữ liệu..."):
+                filtered_df = incident_df.copy()
+
+                # Lọc theo các điều kiện
+                if loai_su_co_filter:
+                    filtered_df = filtered_df[filtered_df[valid_cols['Loại sự cố']].isin(loai_su_co_filter)]
+                if duong_day_filter:
+                    filtered_df = filtered_df[filtered_df[valid_cols['Đường dây']].isin(duong_day_filter)]
+                if cap_dien_ap_filter:
+                    filtered_df = filtered_df[filtered_df[valid_cols['Cấp điện áp']].isin(cap_dien_ap_filter)]
+
+                if filtered_df.empty:
+                    st.warning("⚠️ Không có dữ liệu nào khớp với các điều kiện lọc.")
+                else:
+                    # Chuyển đổi cột Tháng/Năm để vẽ biểu đồ
+                    if valid_cols.get('Tháng/Năm sự cố'):
+                        try:
+                            # Chuyển đổi chuỗi "tháng/năm" sang định dạng datetime
+                            filtered_df['Thời gian'] = pd.to_datetime(filtered_df[valid_cols['Tháng/Năm sự cố']], format='%m/%Y')
+                            
+                            # Nhóm dữ liệu theo Tháng/Năm và đếm số lượng
+                            incidents_by_month = filtered_df.groupby('Thời gian').size().reset_index(name='Số lượng sự cố')
+                            
+                            # Sắp xếp theo thứ tự thời gian
+                            incidents_by_month = incidents_by_month.sort_values(by='Thời gian')
+
+                            # Vẽ biểu đồ
+                            st.markdown("### 📈 Biểu đồ số lượng sự cố theo tháng/năm")
+                            fig, ax = plt.subplots(figsize=(12, 6))
+                            sns.barplot(x=incidents_by_month['Thời gian'].dt.strftime('%m/%Y'), y='Số lượng sự cố', data=incidents_by_month, ax=ax, palette="viridis")
+                            plt.xticks(rotation=45, ha='right')
+                            plt.xlabel("Tháng/Năm")
+                            plt.ylabel("Số lượng sự cố")
+                            plt.title("Số lượng sự cố theo tháng/năm")
+                            plt.tight_layout()
+                            st.pyplot(fig)
+
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi xử lý cột 'Tháng/Năm sự cố': {e}. Vui lòng đảm bảo dữ liệu trong cột có định dạng MM/YYYY.")
+                    else:
+                        st.warning("⚠️ Không tìm thấy cột 'Tháng/Năm sự cố' để vẽ biểu đồ.")
+
+                    # Hiển thị bảng dữ liệu đã lọc
+                    st.markdown("### 📄 Bảng dữ liệu đã lọc")
+                    st.dataframe(filtered_df.reset_index(drop=True))
+
+            st.session_state.run_analysis = False
+    else:
+        st.warning("⚠️ Dữ liệu báo cáo không tồn tại hoặc không thể tải.")
+    # --- Kết thúc phần mới ---
+
