@@ -393,7 +393,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             is_handled = False
             normalized_user_msg = normalize_text(user_msg)
 
-            # --- ĐOẠN MÃ XỬ LÝ CÂU HỎI TỪ app1.py ---
+            # --- ĐOẠN MÃ XỬ LÝ CÂU HỎI TỪ app0226.py ---
             # Câu hỏi: Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần
             if "lấy thông tin kpi của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet_name = "KPI"
@@ -504,8 +504,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                     if tuoi_col:
                         df[tuoi_col] = pd.to_numeric(df[tuoi_col], errors='coerce')
-                        bins = [18, 25, 35, 45, 55, 65]
-                        labels = ['18-25', '26-35', '36-45', '46-55', '56-65']
+                        bins = [0, 30, 40, 50, 100]
+                        labels = ['<30', '30-39', '40-49', '≥50']
                         df['Nhóm tuổi'] = pd.cut(df[tuoi_col], bins=bins, labels=labels, right=False)
                         df_grouped = df['Nhóm tuổi'].value_counts().sort_index().reset_index()
                         df_grouped.columns = ['Nhóm tuổi', 'Số lượng']
