@@ -392,7 +392,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.session_state.last_processed_user_msg = user_msg
             is_handled = False
             normalized_user_msg = normalize_text(user_msg)
-
+            
             # --- ĐOẠN MÃ XỬ LÝ CÂU HỎI TỪ app1.py ---
             # Câu hỏi: Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần
             if "lấy thông tin kpi của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
@@ -495,7 +495,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 else:
                     st.warning("❗ Sheet 'CBCNV' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
-
 
             # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI KHÁC ---
             if not is_handled:
