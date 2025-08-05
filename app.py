@@ -393,7 +393,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             is_handled = False
             normalized_user_msg = normalize_text(user_msg)
 
-            # --- ĐOẠN MÃ XỬ LÝ CÂU HỎI TỪ app_Ghép.py ---
+            # --- ĐOẠN MÃ XỬ LÝ CÂU HỎI TỪ app1.py ---
             # Câu hỏi: Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần
             if "lấy thông tin kpi của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet_name = "KPI"
@@ -428,6 +428,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         plt.tight_layout()
                         st.pyplot(plt)
                         plt.close()
+                    else:
+                        st.warning(f"❗ Không tìm thấy đầy đủ cột (Năm, Tháng, Đơn vị, Điểm KPI) trong sheet {sheet_name}.")
+                else:
+                    st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
 
             # --- XỬ LÝ SỰ CỐ THEO LOẠI SỰ CỐ ---
@@ -438,7 +442,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     df = pd.DataFrame(sheet_data)
                     nam_col = find_column_name(df, ['Năm'])
                     thang_col = find_column_name(df, ['Tháng'])
-                    loai_col = find_column_name(df, ['Loại sự cố'])  # cột E
+                    loai_col = find_column_name(df, ['Loại sự cố'])
 
                     if nam_col and thang_col and loai_col:
                         df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
@@ -459,6 +463,68 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         plt.tight_layout()
                         st.pyplot(plt)
                         plt.close()
+                is_handled = True
+            
+            # --- CBCNV: Biểu đồ theo chuyên môn ---
+            if "cbcnv" in normalized_user_msg and "trình độ chuyên môn" in normalized_user_msg:
+                sheet_name = "CBCNV"
+                sheet_data = get_sheet_data(sheet_name)
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
+                    chuyen_mon_col = find_column_name(df, ['Trình độ chuyên môn', 'Trình độ', 'Chuyên môn', 'P'])
+                    
+                    if chuyen_mon_col:
+                        df_grouped = df[chuyen_mon_col].value_counts().reset_index()
+                        df_grouped.columns = ['Trình độ chuyên môn', 'Số lượng']
+                        
+                        st.subheader("📊 Phân bố CBCNV theo trình độ chuyên môn")
+                        st.dataframe(df_grouped)
+                        
+                        plt.figure(figsize=(10, 6))
+                        sns.barplot(data=df_grouped, x='Số lượng', y='Trình độ chuyên môn', palette='viridis')
+                        plt.title("Phân bố CBCNV theo trình độ chuyên môn")
+                        plt.xlabel("Số lượng")
+                        plt.ylabel("Trình độ chuyên môn")
+                        plt.tight_layout()
+                        st.pyplot(plt)
+                        plt.close()
+                    else:
+                        st.warning("❗ Không tìm thấy cột 'Trình độ chuyên môn' trong sheet CBCNV")
+                else:
+                    st.warning("❗ Sheet 'CBCNV' không có dữ liệu hoặc không thể đọc được.")
+                is_handled = True
+
+            # --- CBCNV: Biểu đồ theo độ tuổi ---
+            if "cbcnv" in normalized_user_msg and "độ tuổi" in normalized_user_msg:
+                sheet_name = "CBCNV"
+                sheet_data = get_sheet_data(sheet_name)
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
+                    tuoi_col = find_column_name(df, ['Độ tuổi', 'Tuổi', 'Q'])
+
+                    if tuoi_col:
+                        df[tuoi_col] = pd.to_numeric(df[tuoi_col], errors='coerce')
+                        bins = [18, 25, 35, 45, 55, 65]
+                        labels = ['18-25', '26-35', '36-45', '46-55', '56-65']
+                        df['Nhóm tuổi'] = pd.cut(df[tuoi_col], bins=bins, labels=labels, right=False)
+                        df_grouped = df['Nhóm tuổi'].value_counts().sort_index().reset_index()
+                        df_grouped.columns = ['Nhóm tuổi', 'Số lượng']
+
+                        st.subheader("📊 Phân bố CBCNV theo độ tuổi")
+                        st.dataframe(df_grouped)
+
+                        plt.figure(figsize=(10, 6))
+                        sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='magma')
+                        plt.title("Phân bố CBCNV theo độ tuổi")
+                        plt.xlabel("Nhóm tuổi")
+                        plt.ylabel("Số lượng")
+                        plt.tight_layout()
+                        st.pyplot(plt)
+                        plt.close()
+                    else:
+                        st.warning("❗ Không tìm thấy cột 'Độ tuổi' trong sheet CBCNV")
+                else:
+                    st.warning("❗ Sheet 'CBCNV' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
 
 
