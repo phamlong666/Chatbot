@@ -435,30 +435,50 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 is_handled = True
 
             # --- CBCNV: Biểu đồ theo chuyên môn ---
+            # Câu hỏi: Lấy biểu đồ phân bố CBCNV theo trình độ chuyên môn, nhóm Kỹ sư và Thạc sỹ, và hiển thị giá trị trên cột.
             if "cbcnv" in normalized_user_msg and "trình độ chuyên môn" in normalized_user_msg:
                 sheet_name = "CBCNV"
                 sheet_data = get_sheet_data(sheet_name)
                 if sheet_data:
                     df = pd.DataFrame(sheet_data)
-                    chuyen_mon_col = find_column_name(df, ['Trình độ chuyên môn', 'Trình độ', 'Chuyên môn', 'P'])
+                    tdcm_col = find_column_name(df, ['Trình độ chuyên môn', 'Trình độ', 'S'])
                     
-                    if chuyen_mon_col:
-                        df_grouped = df[chuyen_mon_col].value_counts().reset_index()
-                        df_grouped.columns = ['Trình độ chuyên môn', 'Số lượng']
+                    if tdcm_col:
+                        # Nhóm "Kỹ sư" và "Thạc sỹ" vào cùng một nhóm "Kỹ sư & Thạc sỹ"
+                        # Thêm một cột mới để tránh thay đổi dữ liệu gốc
+                        df['Nhóm Trình độ'] = df[tdcm_col].replace(['Thạc sỹ'], 'Kỹ sư & Thạc sỹ')
+                        df['Nhóm Trình độ'] = df['Nhóm Trình độ'].replace(['Kỹ sư'], 'Kỹ sư & Thạc sỹ')
                         
+                        # Đếm số lượng theo nhóm mới
+                        df_grouped = df['Nhóm Trình độ'].value_counts().reset_index()
+                        df_grouped.columns = ['Trình độ chuyên môn', 'Số lượng']
+
                         st.subheader("📊 Phân bố CBCNV theo trình độ chuyên môn")
                         st.dataframe(df_grouped)
-                        
+
+                        # Tạo biểu đồ cột đứng
                         plt.figure(figsize=(10, 6))
-                        sns.barplot(data=df_grouped, x='Số lượng', y='Trình độ chuyên môn', palette='viridis')
-                        plt.title("Phân bố CBCNV theo trình độ chuyên môn")
-                        plt.xlabel("Số lượng")
-                        plt.ylabel("Trình độ chuyên môn")
-                        plt.tight_layout()
+                        ax = sns.barplot(data=df_grouped, x='Trình độ chuyên môn', y='Số lượng', palette='viridis')
+
+                        # Thêm tiêu đề và nhãn
+                        plt.title("Phân bố CBCNV theo Trình độ Chuyên môn", fontsize=16)
+                        plt.xlabel("Trình độ Chuyên môn", fontsize=14)
+                        plt.ylabel("Số lượng", fontsize=14)
+                        
+                        # Hiển thị giá trị trên đỉnh cột
+                        for p in ax.patches:
+                            ax.annotate(f'{int(p.get_height())}', 
+                                        (p.get_x() + p.get_width() / 2., p.get_height()), 
+                                        ha='center', 
+                                        va='center', 
+                                        xytext=(0, 10), 
+                                        textcoords='offset points',
+                                        fontsize=12,
+                                        fontweight='bold')
+
                         st.pyplot(plt)
-                        plt.close()
                     else:
-                        st.warning("❗ Không tìm thấy cột 'Trình độ chuyên môn' trong sheet CBCNV")
+                        st.warning("❗ Không tìm thấy cột 'Trình độ chuyên môn' trong sheet CBCNV.")
                 else:
                     st.warning("❗ Sheet 'CBCNV' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
@@ -483,10 +503,24 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.dataframe(df_grouped)
 
                         plt.figure(figsize=(10, 6))
-                        sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='magma')
-                        plt.title("Phân bố CBCNV theo độ tuổi")
-                        plt.xlabel("Nhóm tuổi")
-                        plt.ylabel("Số lượng")
+                        ax = sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='magma')
+                        
+                        # Thêm tiêu đề và nhãn
+                        plt.title("Phân bố CBCNV theo độ tuổi", fontsize=16)
+                        plt.xlabel("Nhóm tuổi", fontsize=14)
+                        plt.ylabel("Số lượng", fontsize=14)
+                        
+                        # Hiển thị giá trị trên đỉnh cột
+                        for p in ax.patches:
+                            ax.annotate(f'{int(p.get_height())}',
+                                        (p.get_x() + p.get_width() / 2., p.get_height()),
+                                        ha='center',
+                                        va='center',
+                                        xytext=(0, 10),
+                                        textcoords='offset points',
+                                        fontsize=12,
+                                        fontweight='bold')
+
                         plt.tight_layout()
                         st.pyplot(plt)
                         plt.close()
@@ -495,7 +529,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 else:
                     st.warning("❗ Sheet 'CBCNV' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
-
+            
             # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI KHÁC ---
             if not is_handled:
                 if handle_lanh_dao(user_msg):
