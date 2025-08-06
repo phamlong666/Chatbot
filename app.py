@@ -367,8 +367,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         if "tba" in normalize_text(question) and "đường dây" in normalize_text(question):
             try:
                 sheet_tba_df = all_data.get("Tên các TBA") # Get the DataFrame directly
-                st.write(f"DEBUG: Tên các TBA DataFrame head:\n{sheet_tba_df.head()}") # DEBUG: Inspect loaded DataFrame
-                st.write(f"DEBUG: Tên các TBA DataFrame columns: {sheet_tba_df.columns.tolist()}") # DEBUG: Inspect columns
+                # st.write(f"DEBUG: Tên các TBA DataFrame head:\n{sheet_tba_df.head()}") # DEBUG: Inspect loaded DataFrame
+                # st.write(f"DEBUG: Tên các TBA DataFrame columns: {sheet_tba_df.columns.tolist()}") # DEBUG: Inspect columns
 
                 if sheet_tba_df is None or sheet_tba_df.empty:
                     st.warning("⚠️ Không tìm thấy sheet 'Tên các TBA' hoặc sheet rỗng.")
@@ -376,7 +376,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                 # Tìm cột 'Tên đường dây' để lọc dữ liệu
                 ten_duong_day_col = find_column_name(sheet_tba_df, ['Tên đường dây', 'Đường dây', 'C'])
-                st.write(f"DEBUG: Cột 'Tên đường dây' được tìm thấy: {ten_duong_day_col}") # DEBUG: Confirm column name
+                # st.write(f"DEBUG: Cột 'Tên đường dây' được tìm thấy: {ten_duong_day_col}") # DEBUG: Confirm column name
                 
                 if not ten_duong_day_col:
                     st.warning("❗ Không tìm thấy cột 'Tên đường dây' trong sheet 'Tên các TBA'. Vui lòng kiểm tra lại tên cột.")
@@ -385,12 +385,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 match = re.search(r'(\d{3}E6\.22)', question.upper())
                 if match:
                     dd = match.group(1)
-                    st.write(f"DEBUG: Đường dây được trích xuất từ câu hỏi: {dd}") # DEBUG: Confirm extracted DD
+                    # st.write(f"DEBUG: Đường dây được trích xuất từ câu hỏi: {dd}") # DEBUG: Confirm extracted DD
                     
                     # Lọc dữ liệu dựa trên cột 'Tên đường dây'
                     df_filtered_by_dd = sheet_tba_df[sheet_tba_df[ten_duong_day_col].astype(str).str.strip().str.contains(dd, case=False, na=False)]
                     
-                    st.write(f"DEBUG: DataFrame sau khi lọc theo đường dây {dd}:\n{df_filtered_by_dd}") # DEBUG: Inspect filtered DataFrame
+                    # st.write(f"DEBUG: DataFrame sau khi lọc theo đường dây {dd}:\n{df_filtered_by_dd}") # DEBUG: Inspect filtered DataFrame
 
                     if not df_filtered_by_dd.empty:
                         st.success(f"📄 Danh sách TBA trên đường dây {dd}")
@@ -409,7 +409,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Hàm để xử lý câu hỏi về CBCNV
     def handle_cbcnv(question):
         normalized_question = normalize_text(question)
-        st.write(f"DEBUG: handle_cbcnv được gọi với câu hỏi: {normalized_question}") # Debug 1
+        # st.write(f"DEBUG: handle_cbcnv được gọi với câu hỏi: {normalized_question}") # Debug 1
         if "cbcnv" in normalized_question or "cán bộ công nhân viên" in normalized_question:
             try:
                 sheet_cbcnv = all_data.get("CBCNV")
@@ -418,15 +418,15 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     return True # Đã xử lý nhưng không có dữ liệu
 
                 df = sheet_cbcnv # Already a DataFrame from load_all_sheets
-                st.write("DEBUG: Dữ liệu CBCNV đã tải thành công.") # Debug 2
+                # st.write("DEBUG: Dữ liệu CBCNV đã tải thành công.") # Debug 2
 
                 # --- CBCNV: Biểu đồ theo trình độ chuyên môn ---
                 if "trình độ chuyên môn" in normalized_question:
-                    st.write("DEBUG: Phát hiện yêu cầu 'trình độ chuyên môn'.") # Debug 3
+                    # st.write("DEBUG: Phát hiện yêu cầu 'trình độ chuyên môn'.") # Debug 3
                     tdcm_col = find_column_name(df, ['Trình độ chuyên môn', 'Trình độ', 'S'])
                     
                     if tdcm_col:
-                        st.write(f"DEBUG: Cột 'Trình độ chuyên môn' được tìm thấy: {tdcm_col}") # Debug 4
+                        # st.write(f"DEBUG: Cột 'Trình độ chuyên môn' được tìm thấy: {tdcm_col}") # Debug 4
                         
                         # Nhóm "Kỹ sư" và "Cử nhân" vào một cột; "Thạc sỹ" để riêng
                         df['Nhóm Trình độ'] = df[tdcm_col].astype(str).apply(lambda x: 
@@ -467,11 +467,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                 # --- CBCNV: Biểu đồ theo độ tuổi ---
                 elif "độ tuổi" in normalized_question:
-                    st.write("DEBUG: Phát hiện yêu cầu 'độ tuổi'.") # Debug 5
+                    # st.write("DEBUG: Phát hiện yêu cầu 'độ tuổi'.") # Debug 5
                     tuoi_col = find_column_name(df, ['Độ tuổi', 'Tuổi', 'Q'])
 
                     if tuoi_col:
-                        st.write(f"DEBUG: Cột 'Độ tuổi' được tìm thấy: {tuoi_col}") # Debug 6
+                        # st.write(f"DEBUG: Cột 'Độ tuổi' được tìm thấy: {tuoi_col}") # Debug 6
                         df[tuoi_col] = pd.to_numeric(df[tuoi_col], errors='coerce')
                         bins = [0, 30, 40, 50, 100]
                         labels = ['<30', '30-39', '40-49', '≥50']
@@ -507,7 +507,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.warning("❗ Không tìm thấy cột 'Độ tuổi' trong sheet CBCNV")
                         return True
                 else: # Nếu chỉ hỏi thông tin chung về CBCNV
-                    st.write("DEBUG: Chỉ hiển thị danh sách CBCNV.") # Debug 7
+                    # st.write("DEBUG: Chỉ hiển thị danh sách CBCNV.") # Debug 7
                     st.subheader("👨‍👩‍👧‍👦 Danh sách Cán bộ Công nhân viên")
                     st.dataframe(df.reset_index(drop=True))
                     return True
@@ -518,7 +518,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
     # Hàm vẽ biểu đồ sự cố chung, có thể tái sử dụng
     def plot_incident_chart(df, category_col_name, chart_type, year, month=None, is_cumulative=False):
-        st.write(f"DEBUG: plot_incident_chart được gọi với year={year}, month={month}, is_cumulative={is_cumulative}")
+        # st.write(f"DEBUG: plot_incident_chart được gọi với year={year}, month={month}, is_cumulative={is_cumulative}")
         if not df.empty:
             df_current_year = df[df['thang_nam'].dt.year == year].copy()
             df_previous_year = df[df['thang_nam'].dt.year == year - 1].copy()
@@ -577,6 +577,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     # Xử lý khi người dùng nhấn nút "Gửi"
     if send_button_pressed:
         user_msg = st.session_state.user_input_value
+        # st.write(f"DEBUG: user_msg khi nhấn Gửi: {user_msg}") # DEBUG: Log user input
         if user_msg and user_msg != st.session_state.last_processed_user_msg:
             st.session_state.last_processed_user_msg = user_msg
             is_handled = False
@@ -606,13 +607,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 year = int(incident_month_year_match.group(2))
                                 chart_type = incident_month_year_match.group(3)
                                 is_cumulative = "lũy kế đến tháng" in normalized_user_msg
-                                st.write(f"DEBUG: Phát hiện câu hỏi có tháng và năm: Tháng={month}, Năm={year}, Loại={chart_type}, Lũy kế={is_cumulative}")
+                                # st.write(f"DEBUG: Phát hiện câu hỏi có tháng và năm: Tháng={month}, Năm={year}, Loại={chart_type}, Lũy kế={is_cumulative}")
                             elif incident_year_only_match:
                                 year = int(incident_year_only_match.group(1))
                                 chart_type = incident_year_only_match.group(2)
                                 month = datetime.datetime.now().month # Mặc định là tháng hiện tại
                                 is_cumulative = True # Mặc định là lũy kế đến tháng hiện tại
-                                st.write(f"DEBUG: Phát hiện câu hỏi chỉ có năm: Năm={year}, Loại={chart_type}, Mặc định Tháng={month}, Lũy kế={is_cumulative}")
+                                # st.write(f"DEBUG: Phát hiện câu hỏi chỉ có năm: Năm={year}, Loại={chart_type}, Mặc định Tháng={month}, Lũy kế={is_cumulative}")
 
                             category_col = None
                             if chart_type == 'đường dây':
@@ -623,7 +624,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                                 category_col = find_column_name(df, ['Loại sự cố', 'Loại', 'E'])
 
                             if category_col:
-                                st.write(f"DEBUG: Cột phân loại được tìm thấy: {category_col}")
+                                # st.write(f"DEBUG: Cột phân loại được tìm thấy: {category_col}")
                                 plot_incident_chart(df, category_col, chart_type, year, month, is_cumulative)
                                 is_handled = True
                             else:
@@ -651,9 +652,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     donvi_col = find_column_name(df, ['Đơn vị'])
 
                     # --- DEBUGGING START ---
-                    st.write(f"DEBUG: Tên cột KPI tìm thấy: {kpi_col}")
-                    if kpi_col:
-                        st.write(f"DEBUG: 5 giá trị đầu tiên của cột '{kpi_col}' trước chuyển đổi: {df[kpi_col].head().tolist()}")
+                    # st.write(f"DEBUG: Tên cột KPI tìm thấy: {kpi_col}")
+                    # if kpi_col:
+                        # st.write(f"DEBUG: 5 giá trị đầu tiên của cột '{kpi_col}' trước chuyển đổi: {df[kpi_col].head().tolist()}")
                     # --- DEBUGGING END ---
 
                     if kpi_col and nam_col and thang_col and donvi_col:
@@ -664,9 +665,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
 
                         # --- DEBUGGING START ---
-                        if kpi_col:
-                            st.write(f"DEBUG: 5 giá trị đầu tiên của cột '{kpi_col}' sau chuyển đổi: {df[kpi_col].head().tolist()}")
-                            st.write(f"DEBUG: Số lượng giá trị NaN trong cột '{kpi_col}' sau chuyển đổi: {df[kpi_col].isnull().sum()}")
+                        # if kpi_col:
+                            # st.write(f"DEBUG: 5 giá trị đầu tiên của cột '{kpi_col}' sau chuyển đổi: {df[kpi_col].head().tolist()}")
+                            # st.write(f"DEBUG: Số lượng giá trị NaN trong cột '{kpi_col}' sau chuyển đổi: {df[kpi_col].isnull().sum()}")
                         # --- DEBUGGING END ---
 
                         # Lọc dữ liệu
@@ -675,11 +676,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         df_filtered = df_filtered[df_filtered[donvi_col].isin(donvi_can_vẽ)]
 
                         # --- DEBUGGING START ---
-                        st.write(f"DEBUG: DataFrame sau khi lọc cho tháng 6/2025 và đơn vị: {df_filtered.shape[0]} hàng")
-                        if not df_filtered.empty:
-                            st.dataframe(df_filtered)
-                        else:
-                            st.warning("DEBUG: DataFrame lọc rỗng. Có thể không có dữ liệu cho tháng 6/2025 hoặc các đơn vị được chỉ định.")
+                        # st.write(f"DEBUG: DataFrame sau khi lọc cho tháng 6/2025 và đơn vị: {df_filtered.shape[0]} hàng")
+                        # if not df_filtered.empty:
+                            # st.dataframe(df_filtered)
+                        # else:
+                            # st.warning("DEBUG: DataFrame lọc rỗng. Có thể không có dữ liệu cho tháng 6/2025 hoặc các đơn vị được chỉ định.")
                         # --- DEBUGGING END ---
 
                         # Sắp xếp và hiển thị
@@ -830,7 +831,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                 st.subheader(f"📊 So sánh KPI của {target_donvi} qua các tháng")
                                 # DEBUGGING: Hiển thị DataFrame chứa dữ liệu để vẽ biểu đồ
-                                st.write(f"DEBUG: Dữ liệu KPI theo tháng cho {target_donvi} qua các năm:")
+                                # st.write(f"DEBUG: Dữ liệu KPI theo tháng cho {target_donvi} qua các năm:")
                                 st.dataframe(plot_df)
 
                                 plt.figure(figsize=(12, 7))
@@ -929,7 +930,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
         elif clear_button_pressed:
             st.session_state.user_input_value = "" # Đặt lại ô nhập liệu
-            st.session_session_state.last_processed_user_msg = ""
+            st.session_state.last_processed_user_msg = "" # Sửa lỗi đánh máy ở đây
             st.session_state.qa_results = []
             st.session_state.qa_index = 0
             st.session_state.current_qa_display = ""
