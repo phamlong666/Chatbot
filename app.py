@@ -371,22 +371,29 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         if "tba" in normalize_text(question) and "đường dây" in normalize_text(question):
             try:
                 sheet_tba = all_data.get("Tên các TBA")
-                if sheet_tba is not None and not sheet_tba.empty:
-                    match = re.search(r'(\d{3}E6\.22)', question.upper())
-                    if match:
-                        dd = match.group(1)
-                        df_dd = sheet_tba[sheet_tba['STT đường dây'].astype(str).str.contains(dd)]
-                        if not df_dd.empty:
-                            st.success(f"📄 Danh sách TBA trên đường dây {dd}")
-                            st.dataframe(df_dd.reset_index(drop=True))
-                        else:
-                            st.warning(f"❌ Không tìm thấy TBA trên đường dây {dd}")
-                        return True
-                    else:
-                        st.warning("❗ Vui lòng cung cấp mã đường dây có định dạng XXXE6.22.")
-                        return True
-                else:
+                if sheet_tba is None or sheet_tba.empty:
                     st.warning("⚠️ Không tìm thấy sheet 'Tên các TBA' hoặc sheet rỗng.")
+                    return True
+
+                # Use find_column_name to get the correct column name for 'STT đường dây'
+                stt_duong_day_col = find_column_name(sheet_tba, ['STT đường dây', 'Đường dây', 'C'])
+                
+                if not stt_duong_day_col:
+                    st.warning("❗ Không tìm thấy cột 'STT đường dây' trong sheet 'Tên các TBA'. Vui lòng kiểm tra lại tên cột.")
+                    return True
+
+                match = re.search(r'(\d{3}E6\.22)', question.upper())
+                if match:
+                    dd = match.group(1)
+                    df_dd = sheet_tba[sheet_tba[stt_duong_day_col].astype(str).str.contains(dd)]
+                    if not df_dd.empty:
+                        st.success(f"📄 Danh sách TBA trên đường dây {dd}")
+                        st.dataframe(df_dd.reset_index(drop=True))
+                    else:
+                        st.warning(f"❌ Không tìm thấy TBA trên đường dây {dd}")
+                    return True
+                else:
+                    st.warning("❗ Vui lòng cung cấp mã đường dây có định dạng XXXE6.22.")
                     return True
             except Exception as e:
                 st.error(f"Lỗi khi lấy dữ liệu TBA: {e}")
@@ -607,7 +614,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             elif chart_type == 'tính chất':
                                 category_col = find_column_name(df, ['Tính chất', 'I'])
                             elif chart_type == 'loại sự cố':
-                                category_col = find_column_name(df, ['Loại sự cố', 'Loại', 'E']) # Added 'E'
+                                category_col = find_column_name(df, ['Loại sự cố', 'Loại', 'E'])
 
                             if category_col:
                                 st.write(f"DEBUG: Cột phân loại được tìm thấy: {category_col}")
@@ -765,8 +772,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 else:
                     st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
-            # --- END NEW LOGIC ---
-
+            
             # --- Xử lý câu hỏi so sánh KPI theo năm cho một đơn vị cụ thể ---
             kpi_compare_match = re.search(r'kpi năm (\d{4}) của ([\w\s]+) so sánh với các năm trước', normalized_user_msg)
             if kpi_compare_match:
