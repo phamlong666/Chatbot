@@ -283,7 +283,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         with clear_button_col:
             clear_button_pressed = st.form_submit_button("Xóa")
 
-    # Đọc câu hỏi mẫu từ file sample_questions
+    # Đọc câu hỏi mẫu từ file JSON
     sample_questions = load_sample_questions()
 
     # Callback function for selectbox
@@ -303,33 +303,63 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     
     # Hàm để xử lý câu hỏi về lãnh đạo xã
     def handle_lanh_dao(question):
-        if "lãnh đạo" in normalize_text(question) and any(xa in normalize_text(question) for xa in ["định hóa", "kim phượng", "phượng tiến", "trung hội", "bình yên", "phú đình", "bình thành", "lam vỹ"]):
+        normalized_question = normalize_text(question)
+        
+        # Check if the question generally asks about "lãnh đạo"
+        if "lãnh đạo" in normalized_question:
             try:
                 sheet_ld = all_data.get("Danh sách lãnh đạo xã, phường")
-                if sheet_ld is not None and not sheet_ld.empty:
-                    xa_match = re.search(r'xã|phường ([\w\s]+)', normalize_text(question))
-                    if xa_match:
-                        ten_xa = xa_match.group(1).strip().upper()
-                    else:
-                        ten_xa = None
-                        for row in sheet_ld['Thuộc xã/phường'].unique():
-                            if normalize_text(row) in normalize_text(question):
-                                ten_xa = row.upper()
-                                break
-                    
-                    if ten_xa:
-                        df_loc = sheet_ld[sheet_ld['Thuộc xã/phường'].str.upper().str.contains(ten_xa, na=False)]
-                        if df_loc.empty:
-                            st.warning(f"❌ Không tìm thấy dữ liệu lãnh đạo cho xã/phường: {ten_xa}")
-                        else:
-                            st.success(f"📋 Danh sách lãnh đạo xã/phường {ten_xa}")
-                            st.dataframe(df_loc.reset_index(drop=True))
-                        return True
-                    else:
-                        st.warning("❗ Không xác định được tên xã/phường trong câu hỏi.")
-                        return True
-                else:
+                if sheet_ld is None or sheet_ld.empty:
                     st.warning("⚠️ Không tìm thấy sheet 'Danh sách lãnh đạo xã, phường' hoặc sheet rỗng.")
+                    return True
+
+                df_ld = pd.DataFrame(sheet_ld)
+                
+                # Find the correct column name for commune/ward
+                thuoc_xa_phuong_col = find_column_name(df_ld, ['Thuộc xã/phường'])
+                if not thuoc_xa_phuong_col:
+                    st.warning("❗ Không tìm thấy cột 'Thuộc xã/phường' trong sheet 'Danh sách lãnh đạo xã, phường'.")
+                    return True
+                
+                # Ensure the column is string type for .str.contains
+                df_ld[thuoc_xa_phuong_col] = df_ld[thuoc_xa_phuong_col].astype(str)
+
+                ten_xa_phuong_can_tim = None
+
+                # 1. Try to extract commune/ward name directly using regex
+                # This regex captures the word(s) immediately following "xã" or "phường"
+                match_direct = re.search(r'(?:xã|phường)\s+([\w\s]+)', normalized_question)
+                if match_direct:
+                    ten_xa_phuong_can_tim = match_direct.group(1).strip()
+                
+                # 2. If not found by direct regex, try to match against a predefined list of communes/wards
+                #    This is a fallback and can also help if the user types just the name without "xã/phường"
+                if not ten_xa_phuong_can_tim:
+                    predefined_communes = ["định hóa", "kim phượng", "phượng tiến", "trung hội", "bình yên", "phú đình", "bình thành", "lam vỹ", "bình hòa"] # Added "bình hòa"
+                    for keyword in predefined_communes:
+                        if keyword in normalized_question:
+                            # Try to find the original casing from the unique values in the sheet
+                            # This ensures we use the exact name as in the sheet for filtering
+                            for sheet_name_original in df_ld[thuoc_xa_phuong_col].unique():
+                                if normalize_text(sheet_name_original) == keyword:
+                                    ten_xa_phuong_can_tim = sheet_name_original
+                                    break
+                            if ten_xa_phuong_can_tim:
+                                break
+
+                if ten_xa_phuong_can_tim:
+                    # Filter DataFrame using the found commune/ward name
+                    # Use .str.contains with case=False for case-insensitive matching
+                    df_loc = df_ld[df_ld[thuoc_xa_phuong_col].str.contains(ten_xa_phuong_can_tim, case=False, na=False)]
+                    
+                    if df_loc.empty:
+                        st.warning(f"❌ Không tìm thấy dữ liệu lãnh đạo cho xã/phường: {ten_xa_phuong_can_tim}. Vui lòng kiểm tra lại tên xã/phường hoặc dữ liệu trong sheet.")
+                    else:
+                        st.success(f"📋 Danh sách lãnh đạo xã/phường {ten_xa_phuong_can_tim}")
+                        st.dataframe(df_loc.reset_index(drop=True))
+                    return True
+                else:
+                    st.warning("❗ Không xác định được tên xã/phường trong câu hỏi. Vui lòng cung cấp tên xã/phường cụ thể (ví dụ: 'lãnh đạo xã Bình Yên').")
                     return True
             except Exception as e:
                 st.error(f"Lỗi khi xử lý dữ liệu lãnh đạo xã: {e}")
@@ -384,9 +414,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     
                     if tdcm_col:
                         st.write(f"DEBUG: Cột 'Trình độ chuyên môn' được tìm thấy: {tdcm_col}") # Debug 4
-                        # Nhóm "Kỹ sư" và "Thạc sỹ" vào cùng một nhóm "Kỹ sư & Thạc sỹ"
-                        df['Nhóm Trình độ'] = df[tdcm_col].replace(['Thạc sỹ'], 'Kỹ sư & Thạc sỹ')
-                        df['Nhóm Trình độ'] = df['Nhóm Trình độ'].replace(['Kỹ sư'], 'Kỹ sư & Thạc sỹ')
+                        
+                        # Nhóm "Kỹ sư" và "Cử nhân" vào một cột; "Thạc sỹ" để riêng
+                        df['Nhóm Trình độ'] = df[tdcm_col].astype(str).apply(lambda x: 
+                            'Kỹ sư & Cử nhân' if 'kỹ sư' in normalize_text(x) or 'cử nhân' in normalize_text(x) else 
+                            'Thạc sỹ' if 'thạc sỹ' in normalize_text(x) else 
+                            x # Giữ nguyên các trình độ khác
+                        )
                         
                         df_grouped = df['Nhóm Trình độ'].value_counts().reset_index()
                         df_grouped.columns = ['Trình độ chuyên môn', 'Số lượng']
@@ -813,11 +847,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
             # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI KHÁC ---
             if not is_handled:
-                if handle_lanh_dao(user_msg):
+                if handle_lanh_dao(user_msg): # Gọi hàm handle_lanh_dao ở đây
                     is_handled = True
                 elif handle_tba(user_msg):
                     is_handled = True
-                elif handle_cbcnv(user_msg): # Gọi hàm handle_cbcnv ở đây
+                elif handle_cbcnv(user_msg):
                     is_handled = True
                 elif not qa_df.empty:
                     # Kiểm tra và lấy câu trả lời từ Google Sheets
