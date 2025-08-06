@@ -532,13 +532,25 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.dataframe(df_sorted.reset_index(drop=True))
 
                             plt.figure(figsize=(10, 6))
-                            # Đã thay đổi: x là đơn vị, y là điểm KPI
-                            ax = sns.barplot(data=df_sorted, x=donvi_col, y=kpi_col, palette="crest")
+                            # Đã thay đổi: x là đơn vị, y là điểm KPI, và palette
+                            ax = sns.barplot(data=df_sorted, x=donvi_col, y=kpi_col, palette="tab10") # Thay đổi palette
                             plt.title("KPI tháng 6/2025 theo đơn vị")
                             plt.xlabel("Đơn vị") # Đã thay đổi nhãn trục x
                             plt.ylabel("Điểm KPI") # Đã thay đổi nhãn trục y
                             plt.xticks(rotation=45, ha='right') # Xoay nhãn trục x
                             plt.tight_layout()
+
+                            # Thêm giá trị lên trên cột
+                            for p in ax.patches:
+                                ax.annotate(f'{p.get_height():.2f}', 
+                                            (p.get_x() + p.get_width() / 2., p.get_height()), 
+                                            ha='center', 
+                                            va='center', 
+                                            xytext=(0, 10), 
+                                            textcoords='offset points',
+                                            fontsize=10,
+                                            fontweight='bold')
+
                             st.pyplot(plt)
                             plt.close()
                         else:
