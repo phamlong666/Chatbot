@@ -504,21 +504,21 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         return False
 
     # Hàm vẽ biểu đồ sự cố chung, có thể tái sử dụng
-    def plot_incident_chart(df, category_col_name, chart_type, month, year, is_cumulative):
+    def plot_incident_chart(df, category_col_name, chart_type, year, month=None, is_cumulative=False):
+        st.write(f"DEBUG: plot_incident_chart được gọi với year={year}, month={month}, is_cumulative={is_cumulative}")
         if not df.empty:
-            # Lọc dữ liệu cho năm hiện tại và năm trước đó
             df_current_year = df[df['thang_nam'].dt.year == year].copy()
             df_previous_year = df[df['thang_nam'].dt.year == year - 1].copy()
 
-            if is_cumulative:
+            if is_cumulative and month is not None:
                 df_current_year = df_current_year[df_current_year['thang_nam'].dt.month <= month]
                 df_previous_year = df_previous_year[df_previous_year['thang_nam'].dt.month <= month]
-            else:
+            elif month is not None:
                 df_current_year = df_current_year[df_current_year['thang_nam'].dt.month == month]
                 df_previous_year = df_previous_year[df_previous_year['thang_nam'].dt.month == month]
+            # If month is None and not cumulative, it implies for the whole year
 
             if not df_current_year.empty or not df_previous_year.empty:
-                # Đếm số lượng sự cố theo category
                 su_co_current_count = df_current_year[category_col_name].value_counts().reset_index()
                 su_co_current_count.columns = [chart_type, 'Số lượng sự cố']
                 su_co_current_count['Năm'] = year
@@ -529,9 +529,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 
                 combined_df = pd.concat([su_co_current_count, su_co_previous_count])
 
-                # Tạo tiêu đề động
-                title_prefix = "Lũy kế đến " if is_cumulative else ""
-                chart_title = f"{title_prefix}Số lượng sự cố tháng {month}/{year} so với cùng kỳ năm {year - 1} theo {chart_type}"
+                title_prefix = "Lũy kế đến " if is_cumulative and month is not None else ""
+                month_str = f"tháng {month}/" if month is not None else ""
+                chart_title = f"{title_prefix}Số lượng sự cố {month_str}{year} so với cùng kỳ năm {year - 1} theo {chart_type}"
                 st.subheader(f"📊 Biểu đồ {chart_title}")
                 st.dataframe(combined_df.reset_index(drop=True))
 
@@ -557,7 +557,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 st.pyplot(plt)
                 plt.close()
             else:
-                st.warning(f"❗ Không có dữ liệu sự cố nào trong tháng {month}/{year} hoặc cùng kỳ năm trước.")
+                st.warning(f"❗ Không có dữ liệu sự cố nào trong khoảng thời gian được hỏi.")
         else:
             st.warning(f"❗ Sheet 'Quản lý sự cố' không có dữ liệu hoặc không thể đọc được.")
 
@@ -570,16 +570,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             normalized_user_msg = normalize_text(user_msg)
             
             # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI ĐỘNG VỀ SỰ CỐ ---
-            incident_match = re.search(r'tháng (\d+).*năm (\d+).*vẽ biểu đồ theo (đường dây|tính chất|loại sự cố)', normalized_user_msg)
-            incident_cumulative_match = re.search(r'lũy kế đến tháng (\d+).*năm (\d+).*vẽ biểu đồ theo (đường dây|tính chất|loại sự cố)', normalized_user_msg)
+            # Regex cho câu hỏi có tháng và năm cụ thể
+            incident_month_year_match = re.search(r'(?:tháng|lũy kế đến tháng)\s*(\d+)\s*năm\s*(\d{4}).*vẽ biểu đồ theo (đường dây|tính chất|loại sự cố)', normalized_user_msg)
+            # Regex cho câu hỏi chỉ có năm
+            incident_year_only_match = re.search(r'sự cố năm\s*(\d{4}).*so sánh với cùng kỳ, vẽ biểu đồ theo (đường dây|tính chất|loại sự cố)', normalized_user_msg)
 
-            if incident_match or incident_cumulative_match:
-                match = incident_cumulative_match or incident_match
-                month = int(match.group(1))
-                year = int(match.group(2))
-                chart_type = match.group(3)
-                is_cumulative = incident_cumulative_match is not None
-
+            if incident_month_year_match or incident_year_only_match:
                 sheet_name = "Quản lý sự cố"
                 sheet_data = get_sheet_data(sheet_name)
                 
@@ -587,25 +583,44 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     df = pd.DataFrame(sheet_data)
                     thang_nam_col = find_column_name(df, ['Tháng/Năm sự cố', 'Tháng/Năm'])
                     
-                    category_col = None
-                    if chart_type == 'đường dây':
-                        category_col = find_column_name(df, ['Đường dây', 'Đường dây sự cố'])
-                    elif chart_type == 'tính chất':
-                        category_col = find_column_name(df, ['Tính chất', 'I'])
-                    elif chart_type == 'loại sự cố':
-                        category_col = find_column_name(df, ['Loại sự cố', 'Loại', 'E'])
-
-                    if thang_nam_col and category_col:
+                    if thang_nam_col:
                         try:
                             df['thang_nam'] = pd.to_datetime(df[thang_nam_col], format='%m/%Y', errors='coerce')
                             df = df.dropna(subset=['thang_nam'])
-                            plot_incident_chart(df, category_col, chart_type, month, year, is_cumulative)
-                            is_handled = True
+                            
+                            if incident_month_year_match:
+                                month = int(incident_month_year_match.group(1))
+                                year = int(incident_month_year_match.group(2))
+                                chart_type = incident_month_year_match.group(3)
+                                is_cumulative = "lũy kế đến tháng" in normalized_user_msg
+                                st.write(f"DEBUG: Phát hiện câu hỏi có tháng và năm: Tháng={month}, Năm={year}, Loại={chart_type}, Lũy kế={is_cumulative}")
+                            elif incident_year_only_match:
+                                year = int(incident_year_only_match.group(1))
+                                chart_type = incident_year_only_match.group(2)
+                                month = datetime.datetime.now().month # Mặc định là tháng hiện tại
+                                is_cumulative = True # Mặc định là lũy kế đến tháng hiện tại
+                                st.write(f"DEBUG: Phát hiện câu hỏi chỉ có năm: Năm={year}, Loại={chart_type}, Mặc định Tháng={month}, Lũy kế={is_cumulative}")
+
+                            category_col = None
+                            if chart_type == 'đường dây':
+                                category_col = find_column_name(df, ['Đường dây', 'Đường dây sự cố', 'J'])
+                            elif chart_type == 'tính chất':
+                                category_col = find_column_name(df, ['Tính chất', 'I'])
+                            elif chart_type == 'loại sự cố':
+                                category_col = find_column_name(df, ['Loại sự cố', 'Loại', 'E']) # Added 'E'
+
+                            if category_col:
+                                st.write(f"DEBUG: Cột phân loại được tìm thấy: {category_col}")
+                                plot_incident_chart(df, category_col, chart_type, year, month, is_cumulative)
+                                is_handled = True
+                            else:
+                                st.warning(f"❗ Không tìm thấy cột phân loại '{chart_type}' trong sheet {sheet_name}.")
+                                is_handled = True
                         except Exception as e:
                             st.error(f"❌ Lỗi khi xử lý dữ liệu sự cố: {e}")
                             is_handled = True
                     else:
-                        st.warning(f"❗ Không tìm thấy các cột cần thiết trong sheet {sheet_name}.")
+                        st.warning(f"❗ Không tìm thấy cột 'Tháng/Năm sự cố' hoặc 'Tháng/Năm' trong sheet {sheet_name}.")
                         is_handled = True
             
             # --- Xử lý câu hỏi KPI tháng cụ thể (ví dụ: tháng 6 năm 2025) ---
