@@ -22,7 +22,6 @@ from difflib import get_close_matches
 # Thêm import mới cho biểu đồ
 import seaborn as sns
 from oauth2client.service_account import ServiceAccountCredentials
-import io # Thêm thư viện io để xử lý file trong bộ nhớ
 
 
 # Cấu hình Streamlit page để sử dụng layout rộng
@@ -230,8 +229,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.session_state.user_input_value = ""
     if 'current_qa_display' not in st.session_state: # NEW: To hold the currently displayed QA answer
         st.session_state.current_qa_display = ""
-    if 'current_display_df' not in st.session_state: # NEW: To hold the DataFrame currently displayed
-        st.session_state.current_display_df = pd.DataFrame() # Initialize with an empty DataFrame
     # ✅ Ghi âm nằm ngoài form, xử lý trạng thái với session_state
     if "audio_processed" not in st.session_state:
         st.session_state.audio_processed = False
@@ -300,20 +297,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         on_change=on_sample_question_select
     )
     
-    # Helper function to convert DataFrame to Excel in memory
-    def to_excel_bytes(df):
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Sheet1')
-            # Optional: Add some basic formatting like auto-fit columns
-            workbook = writer.book
-            worksheet = writer.sheets['Sheet1']
-            for i, col in enumerate(df.columns):
-                max_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
-                worksheet.set_column(i, i, max_len)
-        processed_data = output.getvalue()
-        return processed_data
-
     # Hàm để xử lý câu hỏi về lãnh đạo xã
     def handle_lanh_dao(question):
         normalized_question = normalize_text(question)
@@ -370,7 +353,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     else:
                         st.success(f"📋 Danh sách lãnh đạo xã/phường {ten_xa_phuong_can_tim}")
                         st.dataframe(df_loc.reset_index(drop=True))
-                        st.session_state.current_display_df = df_loc.reset_index(drop=True) # Store for export
                     return True
                 else:
                     st.warning("❗ Không xác định được tên xã/phường trong câu hỏi. Vui lòng cung cấp tên xã/phường cụ thể (ví dụ: 'lãnh đạo xã Bình Yên').")
@@ -406,7 +388,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     if not df_filtered_by_dd.empty:
                         st.success(f"📄 Danh sách TBA trên đường dây {dd}")
                         st.dataframe(df_filtered_by_dd.reset_index(drop=True))
-                        st.session_state.current_display_df = df_filtered_by_dd.reset_index(drop=True) # Store for export
                     else:
                         st.warning(f"❌ Không tìm thấy TBA trên đường dây {dd}. Vui lòng kiểm tra lại mã đường dây hoặc dữ liệu trong sheet.")
                     return True
@@ -447,7 +428,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                         st.subheader("📊 Phân bố CBCNV theo trình độ chuyên môn")
                         st.dataframe(df_grouped)
-                        st.session_state.current_display_df = df_grouped # Store for export
 
                         plt.figure(figsize=(10, 6))
                         ax = sns.barplot(data=df_grouped, x='Trình độ chuyên môn', y='Số lượng', palette='viridis')
@@ -487,7 +467,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                         st.subheader("📊 Phân bố CBCNV theo độ tuổi")
                         st.dataframe(df_grouped)
-                        st.session_state.current_display_df = df_grouped # Store for export
 
                         plt.figure(figsize=(10, 6))
                         ax = sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='magma')
@@ -516,7 +495,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 else: # Nếu chỉ hỏi thông tin chung về CBCNV
                     st.subheader("👨‍👩‍👧‍👦 Danh sách Cán bộ Công nhân viên")
                     st.dataframe(df.reset_index(drop=True))
-                    st.session_state.current_display_df = df.reset_index(drop=True) # Store for export
                     return True
             except Exception as e:
                 st.error(f"Lỗi khi xử lý dữ liệu CBCNV: {e}")
@@ -553,7 +531,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 chart_title = f"{title_prefix}Số lượng sự cố {month_str}{year} so với cùng kỳ năm {year - 1} theo {chart_type}"
                 st.subheader(f"📊 Biểu đồ {chart_title}")
                 st.dataframe(combined_df.reset_index(drop=True))
-                st.session_state.current_display_df = combined_df.reset_index(drop=True) # Store for export
 
                 plt.figure(figsize=(14, 8))
                 ax = sns.barplot(data=combined_df, x=chart_type, y='Số lượng sự cố', hue='Năm', palette='viridis')
@@ -671,7 +648,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             df_sorted = df_filtered.sort_values(by=kpi_col, ascending=False)
                             st.subheader("📊 KPI các đơn vị tháng 6 năm 2025")
                             st.dataframe(df_sorted.reset_index(drop=True))
-                            st.session_state.current_display_df = df_sorted.reset_index(drop=True) # Store for export
 
                             plt.figure(figsize=(10, 6))
                             # Đã thay đổi: x là đơn vị, y là điểm KPI, và palette
@@ -735,7 +711,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                             st.subheader(f"📊 KPI lũy kế (Trung bình) năm {target_year} của các đơn vị")
                             st.dataframe(df_kpi_cumulative.reset_index(drop=True))
-                            st.session_state.current_display_df = df_kpi_cumulative.reset_index(drop=True) # Store for export
 
                             plt.figure(figsize=(12, 7))
                             # Sử dụng palette để mỗi cột có màu riêng biệt
@@ -816,7 +791,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                                 st.subheader(f"📊 So sánh KPI của {target_donvi} qua các tháng")
                                 st.dataframe(plot_df)
-                                st.session_state.current_display_df = plot_df # Store for export
 
                                 plt.figure(figsize=(12, 7))
                                 
@@ -880,7 +854,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         if not df_filtered_by_capacity.empty:
                             st.success(f"📄 Danh sách TBA có công suất {target_capacity}")
                             st.dataframe(df_filtered_by_capacity.reset_index(drop=True))
-                            st.session_state.current_display_df = df_filtered_by_capacity.reset_index(drop=True) # Store for export
                         else:
                             st.warning(f"❌ Không tìm thấy TBA có công suất {target_capacity}. Vui lòng kiểm tra lại công suất hoặc dữ liệu trong sheet.")
                         is_handled = True
@@ -916,8 +889,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.success(f"✅ Tìm thấy câu trả lời phù hợp (Độ tương tự: {first_match['similarity']}%):")
                         st.markdown(st.session_state.current_qa_display)
                         
-                        # Không lưu QA vào current_display_df vì đây không phải dữ liệu dạng bảng để xuất
-                        st.session_state.current_display_df = pd.DataFrame() 
                         is_handled = True
                     else:
                         st.warning("⚠️ Không tìm thấy câu trả lời phù hợp trong cơ sở dữ liệu. Vui lòng nhập lại câu hỏi hoặc thử câu hỏi khác.")
@@ -944,10 +915,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.error(f"❌ Lỗi khi gọi OpenAI API: {e}. Vui lòng kiểm tra lại API key hoặc kết nối mạng.")
                 else:
                     st.warning("⚠️ Không tìm thấy câu trả lời phù hợp trong cơ sở dữ liệu và không có OpenAI API key được cấu hình để sử dụng AI. Vui lòng nhập lại câu hỏi hoặc thử câu hỏi khác.")
-            
-            # Sau khi xử lý xong, nếu có dữ liệu để hiển thị và xuất, thực hiện rerun
-            if is_handled: # Chỉ rerun nếu có một handler đã xử lý câu hỏi
-                st.rerun()
 
         elif clear_button_pressed:
             st.session_state.user_input_value = "" # Đặt lại ô nhập liệu
@@ -955,11 +922,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.session_state.qa_results = []
             st.session_state.qa_index = 0
             st.session_state.current_qa_display = ""
-            st.session_state.current_display_df = pd.DataFrame() # Clear the displayed DataFrame
             st.session_state.audio_processed = False
             st.rerun()
 
-    # Điều hướng giữa các câu trả lời (chỉ áp dụng cho QA)
+    # Điều hướng giữa các câu trả lời
     if st.session_state.qa_results:
         st.markdown("---")
         qa_col1, qa_col2, qa_col3 = st.columns([1, 1, 1])
@@ -987,16 +953,6 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         if len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
             st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
 
-    # Nút tải xuống Excel chung, chỉ hiển thị khi có dữ liệu DataFrame để xuất
-    if not st.session_state.current_display_df.empty:
-        st.markdown("---")
-        st.download_button(
-            label="Tải xuống Excel",
-            data=to_excel_bytes(st.session_state.current_display_df),
-            file_name="ket_qua_loc_du_lieu.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            help="Tải xuống dữ liệu bảng hiện tại dưới dạng file Excel (.xlsx)"
-        )
 
     def extract_text_from_image(image_path):
         reader = easyocr.Reader(['vi'])
