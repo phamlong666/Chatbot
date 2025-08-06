@@ -374,12 +374,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning("⚠️ Không tìm thấy sheet 'Tên các TBA' hoặc sheet rỗng.")
                     return True
 
-                # Use find_column_name to get the correct column name for 'STT đường dây'
-                stt_duong_day_col = find_column_name(sheet_tba_df, ['STT đường dây', 'Đường dây', 'C'])
-                st.write(f"DEBUG: Cột 'STT đường dây' được tìm thấy: {stt_duong_day_col}") # DEBUG: Confirm column name
+                # Tìm cột 'Tên đường dây' để lọc dữ liệu
+                ten_duong_day_col = find_column_name(sheet_tba_df, ['Tên đường dây', 'Đường dây', 'C'])
+                st.write(f"DEBUG: Cột 'Tên đường dây' được tìm thấy: {ten_duong_day_col}") # DEBUG: Confirm column name
                 
-                if not stt_duong_day_col:
-                    st.warning("❗ Không tìm thấy cột 'STT đường dây' trong sheet 'Tên các TBA'. Vui lòng kiểm tra lại tên cột.")
+                if not ten_duong_day_col:
+                    st.warning("❗ Không tìm thấy cột 'Tên đường dây' trong sheet 'Tên các TBA'. Vui lòng kiểm tra lại tên cột.")
                     return True
 
                 match = re.search(r'(\d{3}E6\.22)', question.upper())
@@ -387,9 +387,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     dd = match.group(1)
                     st.write(f"DEBUG: Đường dây được trích xuất từ câu hỏi: {dd}") # DEBUG: Confirm extracted DD
                     
-                    # Ensure the column is string type and strip any leading/trailing spaces
-                    # This is the crucial part to ensure clean comparison
-                    df_filtered_by_dd = sheet_tba_df[sheet_tba_df[stt_duong_day_col].astype(str).str.strip().str.contains(dd, case=False, na=False)]
+                    # Lọc dữ liệu dựa trên cột 'Tên đường dây'
+                    df_filtered_by_dd = sheet_tba_df[sheet_tba_df[ten_duong_day_col].astype(str).str.strip().str.contains(dd, case=False, na=False)]
                     
                     st.write(f"DEBUG: DataFrame sau khi lọc theo đường dây {dd}:\n{df_filtered_by_dd}") # DEBUG: Inspect filtered DataFrame
 
