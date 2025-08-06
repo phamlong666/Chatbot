@@ -500,7 +500,8 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     # --- DEBUGGING END ---
 
                     if kpi_col and nam_col and thang_col and donvi_col:
-                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
+                        # Đã thay đổi: Thêm decimal=',' để xử lý dấu phẩy làm dấu thập phân
+                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce', decimal=',')
                         df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
                         df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
 
