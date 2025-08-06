@@ -367,12 +367,16 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         if "tba" in normalize_text(question) and "đường dây" in normalize_text(question):
             try:
                 sheet_tba_df = all_data.get("Tên các TBA") # Get the DataFrame directly
+                st.write(f"DEBUG: Tên các TBA DataFrame head:\n{sheet_tba_df.head()}") # DEBUG: Inspect loaded DataFrame
+                st.write(f"DEBUG: Tên các TBA DataFrame columns: {sheet_tba_df.columns.tolist()}") # DEBUG: Inspect columns
+
                 if sheet_tba_df is None or sheet_tba_df.empty:
                     st.warning("⚠️ Không tìm thấy sheet 'Tên các TBA' hoặc sheet rỗng.")
                     return True
 
                 # Use find_column_name to get the correct column name for 'STT đường dây'
                 stt_duong_day_col = find_column_name(sheet_tba_df, ['STT đường dây', 'Đường dây', 'C'])
+                st.write(f"DEBUG: Cột 'STT đường dây' được tìm thấy: {stt_duong_day_col}") # DEBUG: Confirm column name
                 
                 if not stt_duong_day_col:
                     st.warning("❗ Không tìm thấy cột 'STT đường dây' trong sheet 'Tên các TBA'. Vui lòng kiểm tra lại tên cột.")
@@ -381,15 +385,19 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 match = re.search(r'(\d{3}E6\.22)', question.upper())
                 if match:
                     dd = match.group(1)
-                    # Use .str.contains with regex=False for exact string matching if needed, or regex=True for patterns
-                    # Assuming '471E6.22' is an exact string to match, so regex=False is safer.
-                    df_dd = sheet_tba_df[sheet_tba_df[stt_duong_day_col].astype(str).str.contains(dd, case=False, na=False)]
+                    st.write(f"DEBUG: Đường dây được trích xuất từ câu hỏi: {dd}") # DEBUG: Confirm extracted DD
                     
-                    if not df_dd.empty:
+                    # Ensure the column is string type and strip any leading/trailing spaces
+                    # This is the crucial part to ensure clean comparison
+                    df_filtered_by_dd = sheet_tba_df[sheet_tba_df[stt_duong_day_col].astype(str).str.strip().str.contains(dd, case=False, na=False)]
+                    
+                    st.write(f"DEBUG: DataFrame sau khi lọc theo đường dây {dd}:\n{df_filtered_by_dd}") # DEBUG: Inspect filtered DataFrame
+
+                    if not df_filtered_by_dd.empty:
                         st.success(f"📄 Danh sách TBA trên đường dây {dd}")
-                        st.dataframe(df_dd.reset_index(drop=True))
+                        st.dataframe(df_filtered_by_dd.reset_index(drop=True))
                     else:
-                        st.warning(f"❌ Không tìm thấy TBA trên đường dây {dd}")
+                        st.warning(f"❌ Không tìm thấy TBA trên đường dây {dd}. Vui lòng kiểm tra lại mã đường dây hoặc dữ liệu trong sheet.")
                     return True
                 else:
                     st.warning("❗ Vui lòng cung cấp mã đường dây có định dạng XXXE6.22.")
@@ -922,7 +930,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
         elif clear_button_pressed:
             st.session_state.user_input_value = "" # Đặt lại ô nhập liệu
-            st.session_state.last_processed_user_msg = ""
+            st.session_session_state.last_processed_user_msg = ""
             st.session_state.qa_results = []
             st.session_state.qa_index = 0
             st.session_state.current_qa_display = ""
