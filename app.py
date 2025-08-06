@@ -111,38 +111,32 @@ def find_column_name(df, possible_names, threshold=80):
 def get_sheet_data(sheet_name):
     try:
         sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
-        
-        # Sửa đổi logic để xử lý sheet KPI và Tên các TBA dựa trên cấu trúc mới
-        if sheet_name == "KPI" or sheet_name == "Tên các TBA": # Apply this logic for "Tên các TBA" as well
-            all_values = sheet.get_all_values()
-            if all_values:
-                headers = all_values[0]
-                # Đảm bảo tiêu đề duy nhất
-                seen_headers = {}
-                unique_headers = []
-                for h in headers:
-                    original_h = h
-                    count = seen_headers.get(h, 0)
-                    while h in seen_headers and seen_headers[h] > 0:
-                        h = f"{original_h}_{count}"
-                        count += 1
-                    seen_headers[original_h] = seen_headers.get(original_h, 0) + 1
-                    unique_headers.append(h)
+        all_values = sheet.get_all_values()
+        if all_values:
+            headers = all_values[0]
+            # Đảm bảo tiêu đề duy nhất
+            seen_headers = {}
+            unique_headers = []
+            for h in headers:
+                original_h = h
+                count = seen_headers.get(h, 0)
+                while h in seen_headers and seen_headers[h] > 0:
+                    h = f"{original_h}_{count}"
+                    count += 1
+                seen_headers[original_h] = seen_headers.get(original_h, 0) + 1
+                unique_headers.append(h)
 
-                data = all_values[1:]
-                
-                df_temp = pd.DataFrame(data, columns=unique_headers)
-                return df_temp.to_dict('records') # Return as list of dictionaries
-            else:
-                return [] # Return empty list if no values
+            data = all_values[1:]
+            df_temp = pd.DataFrame(data, columns=unique_headers)
+            return df_temp
         else:
-            return sheet.get_all_records()
+            return pd.DataFrame() # Return empty DataFrame if no values
     except gspread.exceptions.WorksheetNotFound:
         st.error(f"❌ Không tìm thấy sheet '{sheet_name}'. Vui lòng kiểm tra tên sheet.")
-        return None
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}. Vui lòng kiểm tra định dạng tiêu đề của sheet. Nếu có tiêu đề trùng lặp, hãy đảm bảo chúng là duy nhất.")
-        return None
+        return pd.DataFrame()
 
 # Hàm chuẩn hóa chuỗi để so sánh chính xác hơn (loại bỏ dấu cách thừa, chuyển về chữ thường)
 def normalize_text(text):
@@ -153,7 +147,7 @@ def normalize_text(text):
 
 # Tải dữ liệu từ sheet "Hỏi-Trả lời" một lần khi ứng dụng khởi động
 qa_data = get_sheet_data("Hỏi-Trả lời")
-qa_df = pd.DataFrame(qa_data) if qa_data else pd.DataFrame()
+qa_df = pd.DataFrame(qa_data) if qa_data is not None else pd.DataFrame() # Ensure qa_data is not None
 
 # Hàm lấy dữ liệu từ tất cả sheet trong file
 @st.cache_data
@@ -164,8 +158,8 @@ def load_all_sheets():
     for name in sheet_names:
         try:
             # Use get_sheet_data to handle specific sheet types
-            records = get_sheet_data(name) 
-            data[name] = pd.DataFrame(records)
+            df = get_sheet_data(name) 
+            data[name] = df
         except Exception as e: # Catch any error during DataFrame creation
             st.warning(f"⚠️ Lỗi khi tải sheet '{name}': {e}. Đang bỏ qua sheet này.")
             data[name] = pd.DataFrame() # Ensure an empty DataFrame is returned on error
@@ -315,7 +309,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning("⚠️ Không tìm thấy sheet 'Danh sách lãnh đạo xã, phường' hoặc sheet rỗng.")
                     return True
 
-                df_ld = pd.DataFrame(sheet_ld)
+                df_ld = sheet_ld # Already a DataFrame from load_all_sheets
                 
                 # Find the correct column name for commune/ward
                 thuoc_xa_phuong_col = find_column_name(df_ld, ['Thuộc xã/phường'])
@@ -416,7 +410,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning("⚠️ Không tìm thấy sheet 'CBCNV' hoặc sheet rỗng.")
                     return True # Đã xử lý nhưng không có dữ liệu
 
-                df = pd.DataFrame(sheet_cbcnv)
+                df = sheet_cbcnv # Already a DataFrame from load_all_sheets
                 st.write("DEBUG: Dữ liệu CBCNV đã tải thành công.") # Debug 2
 
                 # --- CBCNV: Biểu đồ theo trình độ chuyên môn ---
@@ -589,10 +583,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
             if incident_month_year_match or incident_year_only_match:
                 sheet_name = "Quản lý sự cố"
-                sheet_data = get_sheet_data(sheet_name)
+                sheet_data = all_data.get(sheet_name) # Get DataFrame directly
                 
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
+                if sheet_data is not None and not sheet_data.empty:
+                    df = sheet_data # Already a DataFrame
                     thang_nam_col = find_column_name(df, ['Tháng/Năm sự cố', 'Tháng/Năm'])
                     
                     if thang_nam_col:
@@ -634,13 +628,16 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     else:
                         st.warning(f"❗ Không tìm thấy cột 'Tháng/Năm sự cố' hoặc 'Tháng/Năm' trong sheet {sheet_name}.")
                         is_handled = True
+                else:
+                    st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
+                is_handled = True
             
             # --- Xử lý câu hỏi KPI tháng cụ thể (ví dụ: tháng 6 năm 2025) ---
             if "lấy thông tin kpi của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet_name = "KPI"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
+                sheet_data = all_data.get(sheet_name) # Get DataFrame directly
+                if sheet_data is not None and not sheet_data.empty:
+                    df = sheet_data # Already a DataFrame
                     kpi_col = find_column_name(df, ['Điểm KPI', 'KPI'])
                     nam_col = find_column_name(df, ['Năm'])
                     thang_col = find_column_name(df, ['Tháng'])
@@ -720,9 +717,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 target_year = int(kpi_cumulative_match.group(1))
 
                 sheet_name = "KPI"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
+                sheet_data = all_data.get(sheet_name) # Get DataFrame directly
+                if sheet_data is not None and not sheet_data.empty:
+                    df = sheet_data # Already a DataFrame
                     kpi_col = find_column_name(df, ['Điểm KPI', 'KPI'])
                     nam_col = find_column_name(df, ['Năm'])
                     thang_col = find_column_name(df, ['Tháng'])
@@ -785,9 +782,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 target_donvi = kpi_compare_match.group(2).strip()
 
                 sheet_name = "KPI"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
+                sheet_data = all_data.get(sheet_name) # Get DataFrame directly
+                if sheet_data is not None and not sheet_data.empty:
+                    df = sheet_data # Already a DataFrame
                     kpi_col = find_column_name(df, ['Điểm KPI', 'KPI'])
                     nam_col = find_column_name(df, ['Năm'])
                     thang_col = find_column_name(df, ['Tháng'])
