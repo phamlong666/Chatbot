@@ -549,7 +549,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
             
-            # --- NEW: Xử lý câu hỏi KPI lũy kế theo năm ---
+            # --- Xử lý câu hỏi KPI lũy kế theo năm ---
             kpi_cumulative_match = re.search(r'kpi của các đơn vị lũy kế năm (\d{4}) và sắp xếp theo thứ tự giảm dần', normalized_user_msg)
             if kpi_cumulative_match:
                 target_year = int(kpi_cumulative_match.group(1))
@@ -574,20 +574,20 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         df_filtered_year = df[(df[nam_col] == target_year)].copy()
                         
                         if not df_filtered_year.empty:
-                            # Tính KPI lũy kế (tổng các tháng) cho mỗi đơn vị trong năm đó
-                            df_kpi_cumulative = df_filtered_year.groupby(donvi_col)[kpi_col].sum().reset_index()
-                            df_kpi_cumulative.columns = ['Đơn vị', 'Điểm KPI Lũy kế']
-                            df_kpi_cumulative = df_kpi_cumulative.sort_values(by='Điểm KPI Lũy kế', ascending=False)
+                            # Đã thay đổi: Tính KPI lũy kế (trung bình các tháng) cho mỗi đơn vị trong năm đó
+                            df_kpi_cumulative = df_filtered_year.groupby(donvi_col)[kpi_col].mean().reset_index()
+                            df_kpi_cumulative.columns = ['Đơn vị', 'Điểm KPI Lũy kế (Trung bình)'] # Cập nhật tên cột
+                            df_kpi_cumulative = df_kpi_cumulative.sort_values(by='Điểm KPI Lũy kế (Trung bình)', ascending=False)
 
-                            st.subheader(f"📊 KPI lũy kế năm {target_year} của các đơn vị")
+                            st.subheader(f"📊 KPI lũy kế (Trung bình) năm {target_year} của các đơn vị")
                             st.dataframe(df_kpi_cumulative.reset_index(drop=True))
 
                             plt.figure(figsize=(12, 7))
                             # Sử dụng palette để mỗi cột có màu riêng biệt
-                            ax = sns.barplot(data=df_kpi_cumulative, x='Đơn vị', y='Điểm KPI Lũy kế', palette='hls')
-                            plt.title(f"KPI lũy kế năm {target_year} theo đơn vị", fontsize=16)
+                            ax = sns.barplot(data=df_kpi_cumulative, x='Đơn vị', y='Điểm KPI Lũy kế (Trung bình)', palette='hls')
+                            plt.title(f"KPI lũy kế (Trung bình) năm {target_year} theo đơn vị", fontsize=16)
                             plt.xlabel("Đơn vị", fontsize=14)
-                            plt.ylabel("Điểm KPI Lũy kế", fontsize=14)
+                            plt.ylabel("Điểm KPI Lũy kế (Trung bình)", fontsize=14)
                             plt.xticks(rotation=45, ha='right') # Xoay nhãn trục x để dễ đọc
                             plt.grid(axis='y', linestyle='--', alpha=0.7)
 
@@ -636,36 +636,68 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
                         df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
 
-                        # Lọc dữ liệu cho đơn vị mục tiêu và các năm liên quan
+                        # Lọc dữ liệu cho đơn vị mục tiêu
                         df_filtered_donvi = df[df[donvi_col].str.lower() == target_donvi.lower()].copy()
                         
                         if not df_filtered_donvi.empty:
-                            # Tính KPI trung bình hàng năm cho đơn vị đó
-                            # Có thể điều chỉnh để lấy KPI tổng hoặc trung bình theo tháng nếu cần
-                            df_kpi_yearly = df_filtered_donvi.groupby(nam_col)[kpi_col].mean().reset_index()
-                            df_kpi_yearly.columns = ['Năm', 'Điểm KPI trung bình']
-                            df_kpi_yearly = df_kpi_yearly.sort_values(by='Năm')
+                            # Lấy các năm có dữ liệu cho đơn vị này, bao gồm năm mục tiêu và các năm trước đó
+                            # Lấy tối đa 4 năm gần nhất bao gồm năm mục tiêu
+                            years_to_plot = sorted(df_filtered_donvi[nam_col].dropna().unique().tolist(), reverse=True)
+                            years_to_plot = [y for y in years_to_plot if y <= target_year][:4] # Giới hạn 4 năm gần nhất
+                            years_to_plot.sort() # Sắp xếp lại theo thứ tự tăng dần để vẽ biểu đồ
 
-                            st.subheader(f"📊 KPI trung bình hàng năm của {target_donvi}")
-                            # DEBUGGING: Hiển thị DataFrame chứa dữ liệu KPI hàng năm
-                            st.write(f"DEBUG: Dữ liệu KPI hàng năm cho {target_donvi}:")
-                            st.dataframe(df_kpi_yearly)
+                            if not years_to_plot:
+                                st.warning(f"❗ Không có dữ liệu KPI cho đơn vị '{target_donvi}' trong các năm gần đây.")
+                                is_handled = True
+                                # continue # This continue is for a loop, but here it's inside an if, so it would break the flow.
+                            else:
+                                # Create a DataFrame for plotting, including only relevant columns
+                                plot_df = df_filtered_donvi[df_filtered_donvi[nam_col].isin(years_to_plot)][[nam_col, thang_col, kpi_col]].copy()
+                                plot_df = plot_df.dropna(subset=[kpi_col, thang_col, nam_col])
+                                plot_df[thang_col] = plot_df[thang_col].astype(int)
+                                plot_df[nam_col] = plot_df[nam_col].astype(int)
+                                
+                                # Sort by year and month for correct line plotting
+                                plot_df = plot_df.sort_values(by=[nam_col, thang_col])
 
-                            plt.figure(figsize=(10, 6))
-                            ax = sns.lineplot(data=df_kpi_yearly, x='Năm', y='Điểm KPI trung bình', marker='o')
-                            plt.title(f"So sánh KPI của {target_donvi} qua các năm")
-                            plt.xlabel("Năm")
-                            plt.ylabel("Điểm KPI trung bình")
-                            plt.xticks(rotation=45, ha='right')
-                            plt.grid(True, linestyle='--', alpha=0.7)
+                                st.subheader(f"📊 So sánh KPI của {target_donvi} qua các tháng")
+                                # DEBUGGING: Hiển thị DataFrame chứa dữ liệu để vẽ biểu đồ
+                                st.write(f"DEBUG: Dữ liệu KPI theo tháng cho {target_donvi} qua các năm:")
+                                st.dataframe(plot_df)
 
-                            # Hiển thị giá trị trên các điểm của đường
-                            for x, y in zip(df_kpi_yearly['Năm'], df_kpi_yearly['Điểm KPI trung bình']):
-                                ax.annotate(f'{y:.2f}', (x, y), textcoords="offset points", xytext=(0,10), ha='center', fontsize=10)
+                                plt.figure(figsize=(12, 7))
+                                
+                                # Plot each year as a separate line
+                                for year in years_to_plot:
+                                    year_data = plot_df[plot_df[nam_col] == year].copy()
+                                    
+                                    # For the target year, only plot up to the last available month
+                                    if year == target_year:
+                                        if not year_data.empty:
+                                            max_month_current_year = year_data[thang_col].max()
+                                            year_data = year_data[year_data[thang_col] <= max_month_current_year]
+                                        else:
+                                            st.warning(f"❗ Không có dữ liệu KPI cho năm {target_year} của đơn vị '{target_donvi}'.")
+                                            continue # Skip plotting for this year if no data
 
-                            plt.tight_layout()
-                            st.pyplot(plt)
-                            plt.close()
+                                    if not year_data.empty:
+                                        sns.lineplot(data=year_data, x=thang_col, y=kpi_col, marker='o', label=str(year))
+                                        
+                                        # Add annotations for all years plotted
+                                        for x_val, y_val in zip(year_data[thang_col], year_data[kpi_col]):
+                                            plt.text(x_val, y_val, f'{y_val:.2f}', ha='center', va='bottom', fontsize=9)
+
+
+                                plt.title(f"So sánh KPI của {target_donvi} qua các tháng theo năm")
+                                plt.xlabel("Tháng")
+                                plt.ylabel("Điểm KPI")
+                                plt.xticks(range(1, 13)) # Ensure x-axis shows months 1-12
+                                plt.xlim(0.5, 12.5) # Set x-axis limits to clearly show months 1-12
+                                plt.grid(True, linestyle='--', alpha=0.7)
+                                plt.legend(title="Năm")
+                                plt.tight_layout()
+                                st.pyplot(plt)
+                                plt.close()
                         else:
                             st.warning(f"❗ Không tìm thấy dữ liệu KPI cho đơn vị '{target_donvi}'. Vui lòng kiểm tra lại tên đơn vị.")
                     else:
