@@ -365,13 +365,105 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     
     # Hàm để xử lý câu hỏi về CBCNV
     def handle_cbcnv(question):
-        if "cbcnv" in normalize_text(question) or "cán bộ công nhân viên" in normalize_text(question):
+        normalized_question = normalize_text(question)
+        st.write(f"DEBUG: handle_cbcnv được gọi với câu hỏi: {normalized_question}") # Debug 1
+        if "cbcnv" in normalized_question or "cán bộ công nhân viên" in normalized_question:
             try:
                 sheet_cbcnv = all_data.get("CBCNV")
-                if sheet_cbcnv is not None and not sheet_cbcnv.empty:
+                if sheet_cbcnv is None or sheet_cbcnv.empty:
+                    st.warning("⚠️ Không tìm thấy sheet 'CBCNV' hoặc sheet rỗng.")
+                    return True # Đã xử lý nhưng không có dữ liệu
+
+                df = pd.DataFrame(sheet_cbcnv)
+                st.write("DEBUG: Dữ liệu CBCNV đã tải thành công.") # Debug 2
+
+                # --- CBCNV: Biểu đồ theo trình độ chuyên môn ---
+                if "trình độ chuyên môn" in normalized_question:
+                    st.write("DEBUG: Phát hiện yêu cầu 'trình độ chuyên môn'.") # Debug 3
+                    tdcm_col = find_column_name(df, ['Trình độ chuyên môn', 'Trình độ', 'S'])
+                    
+                    if tdcm_col:
+                        st.write(f"DEBUG: Cột 'Trình độ chuyên môn' được tìm thấy: {tdcm_col}") # Debug 4
+                        # Nhóm "Kỹ sư" và "Thạc sỹ" vào cùng một nhóm "Kỹ sư & Thạc sỹ"
+                        df['Nhóm Trình độ'] = df[tdcm_col].replace(['Thạc sỹ'], 'Kỹ sư & Thạc sỹ')
+                        df['Nhóm Trình độ'] = df['Nhóm Trình độ'].replace(['Kỹ sư'], 'Kỹ sư & Thạc sỹ')
+                        
+                        df_grouped = df['Nhóm Trình độ'].value_counts().reset_index()
+                        df_grouped.columns = ['Trình độ chuyên môn', 'Số lượng']
+
+                        st.subheader("📊 Phân bố CBCNV theo trình độ chuyên môn")
+                        st.dataframe(df_grouped)
+
+                        plt.figure(figsize=(10, 6))
+                        ax = sns.barplot(data=df_grouped, x='Trình độ chuyên môn', y='Số lượng', palette='viridis')
+
+                        plt.title("Phân bố CBCNV theo Trình độ Chuyên môn", fontsize=16)
+                        plt.xlabel("Trình độ Chuyên môn", fontsize=14)
+                        plt.ylabel("Số lượng", fontsize=14)
+                        
+                        for p in ax.patches:
+                            ax.annotate(f'{int(p.get_height())}', 
+                                        (p.get_x() + p.get_width() / 2., p.get_height()), 
+                                        ha='center', 
+                                        va='center', 
+                                        xytext=(0, 10), 
+                                        textcoords='offset points',
+                                        fontsize=12,
+                                        fontweight='bold')
+
+                        st.pyplot(plt)
+                        plt.close()
+                        return True
+                    else:
+                        st.warning("❗ Không tìm thấy cột 'Trình độ chuyên môn' trong sheet CBCNV.")
+                        return True
+
+                # --- CBCNV: Biểu đồ theo độ tuổi ---
+                elif "độ tuổi" in normalized_question:
+                    st.write("DEBUG: Phát hiện yêu cầu 'độ tuổi'.") # Debug 5
+                    tuoi_col = find_column_name(df, ['Độ tuổi', 'Tuổi', 'Q'])
+
+                    if tuoi_col:
+                        st.write(f"DEBUG: Cột 'Độ tuổi' được tìm thấy: {tuoi_col}") # Debug 6
+                        df[tuoi_col] = pd.to_numeric(df[tuoi_col], errors='coerce')
+                        bins = [0, 30, 40, 50, 100]
+                        labels = ['<30', '30-39', '40-49', '≥50']
+                        df['Nhóm tuổi'] = pd.cut(df[tuoi_col], bins=bins, labels=labels, right=False)
+                        df_grouped = df['Nhóm tuổi'].value_counts().sort_index().reset_index()
+                        df_grouped.columns = ['Nhóm tuổi', 'Số lượng']
+
+                        st.subheader("📊 Phân bố CBCNV theo độ tuổi")
+                        st.dataframe(df_grouped)
+
+                        plt.figure(figsize=(10, 6))
+                        ax = sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='magma')
+                        
+                        plt.title("Phân bố CBCNV theo độ tuổi", fontsize=16)
+                        plt.xlabel("Nhóm tuổi", fontsize=14)
+                        plt.ylabel("Số lượng", fontsize=14)
+                        
+                        for p in ax.patches:
+                            ax.annotate(f'{int(p.get_height())}',
+                                        (p.get_x() + p.get_width() / 2., p.get_height()),
+                                        ha='center',
+                                        va='center',
+                                        xytext=(0, 10),
+                                        textcoords='offset points',
+                                        fontsize=12,
+                                        fontweight='bold')
+
+                        plt.tight_layout()
+                        st.pyplot(plt)
+                        plt.close()
+                        return True
+                    else:
+                        st.warning("❗ Không tìm thấy cột 'Độ tuổi' trong sheet CBCNV")
+                        return True
+                else: # Nếu chỉ hỏi thông tin chung về CBCNV
+                    st.write("DEBUG: Chỉ hiển thị danh sách CBCNV.") # Debug 7
                     st.subheader("👨‍👩‍👧‍👦 Danh sách Cán bộ Công nhân viên")
-                    st.dataframe(sheet_cbcnv.reset_index(drop=True))
-                return True
+                    st.dataframe(df.reset_index(drop=True))
+                    return True
             except Exception as e:
                 st.error(f"Lỗi khi xử lý dữ liệu CBCNV: {e}")
                 return True
@@ -725,7 +817,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     is_handled = True
                 elif handle_tba(user_msg):
                     is_handled = True
-                elif handle_cbcnv(user_msg):
+                elif handle_cbcnv(user_msg): # Gọi hàm handle_cbcnv ở đây
                     is_handled = True
                 elif not qa_df.empty:
                     # Kiểm tra và lấy câu trả lời từ Google Sheets
