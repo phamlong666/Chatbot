@@ -14,3 +14,4 @@ SpeechRecognition
 audio-recorder-streamlit
 numpy
 oauth2client
+xlsxwriter
