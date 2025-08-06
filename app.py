@@ -65,7 +65,8 @@ if "gdrive_service_account" in st.secrets:
 
         creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         client = gspread.authorize(creds)
-        st.success("✅ Đã kết nối Google Sheets thành công!")
+        # Đã xóa dòng hiển thị thông báo kết nối thành công
+        # st.success("✅ Đã kết nối Google Sheets thành công!")
 
     except Exception as e:
         st.error(f"❌ Lỗi khi giải mã hoặc kết nối Google Sheets: {e}. Vui lòng kiểm tra lại cấu hình secrets.toml.")
@@ -500,8 +501,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     # --- DEBUGGING END ---
 
                     if kpi_col and nam_col and thang_col and donvi_col:
-                        # Đã thay đổi: Thêm decimal=',' để xử lý dấu phẩy làm dấu thập phân
-                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce', decimal=',')
+                        # Chuyển đổi dấu phẩy thành dấu chấm trước khi chuyển sang số
+                        df[kpi_col] = df[kpi_col].astype(str).str.replace(',', '.', regex=False)
+                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
                         df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
                         df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
 
@@ -547,102 +549,65 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 else:
                     st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
-                
-            # --- CBCNV: Biểu đồ theo chuyên môn ---
-            # Câu hỏi: Lấy biểu đồ phân bố CBCNV theo trình độ chuyên môn, nhóm Kỹ sư và Thạc sỹ, và hiển thị giá trị trên cột.
-            if "cbcnv" in normalized_user_msg and "trình độ chuyên môn" in normalized_user_msg:
-                sheet_name = "CBCNV"
+            
+            # --- NEW: Xử lý câu hỏi so sánh KPI theo năm cho một đơn vị cụ thể ---
+            kpi_compare_match = re.search(r'kpi năm (\d{4}) của ([\w\s]+) so sánh với các năm trước', normalized_user_msg)
+            if kpi_compare_match:
+                target_year = int(kpi_compare_match.group(1))
+                target_donvi = kpi_compare_match.group(2).strip()
+
+                sheet_name = "KPI"
                 sheet_data = get_sheet_data(sheet_name)
                 if sheet_data:
                     df = pd.DataFrame(sheet_data)
-                    tdcm_col = find_column_name(df, ['Trình độ chuyên môn', 'Trình độ', 'S'])
-                    
-                    if tdcm_col:
-                        # Nhóm "Kỹ sư" và "Thạc sỹ" vào cùng một nhóm "Kỹ sư & Thạc sỹ"
-                        # Thêm một cột mới để tránh thay đổi dữ liệu gốc
-                        df['Nhóm Trình độ'] = df[tdcm_col].replace(['Thạc sỹ'], 'Kỹ sư & Thạc sỹ')
-                        df['Nhóm Trình độ'] = df['Nhóm Trình độ'].replace(['Kỹ sư'], 'Kỹ sư & Thạc sỹ')
+                    kpi_col = find_column_name(df, ['Điểm KPI', 'KPI'])
+                    nam_col = find_column_name(df, ['Năm'])
+                    thang_col = find_column_name(df, ['Tháng'])
+                    donvi_col = find_column_name(df, ['Đơn vị'])
+
+                    if kpi_col and nam_col and thang_col and donvi_col:
+                        # Chuẩn hóa dữ liệu KPI
+                        df[kpi_col] = df[kpi_col].astype(str).str.replace(',', '.', regex=False)
+                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
+                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
+                        df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
+
+                        # Lọc dữ liệu cho đơn vị mục tiêu và các năm liên quan
+                        df_filtered_donvi = df[df[donvi_col].str.lower() == target_donvi.lower()].copy()
                         
-                        # Đếm số lượng theo nhóm mới
-                        df_grouped = df['Nhóm Trình độ'].value_counts().reset_index()
-                        df_grouped.columns = ['Trình độ chuyên môn', 'Số lượng']
+                        if not df_filtered_donvi.empty:
+                            # Tính KPI trung bình hàng năm cho đơn vị đó
+                            # Có thể điều chỉnh để lấy KPI tổng hoặc trung bình theo tháng nếu cần
+                            df_kpi_yearly = df_filtered_donvi.groupby(nam_col)[kpi_col].mean().reset_index()
+                            df_kpi_yearly.columns = ['Năm', 'Điểm KPI trung bình']
+                            df_kpi_yearly = df_kpi_yearly.sort_values(by='Năm')
 
-                        st.subheader("📊 Phân bố CBCNV theo trình độ chuyên môn")
-                        st.dataframe(df_grouped)
+                            st.subheader(f"📊 KPI trung bình hàng năm của {target_donvi}")
+                            st.dataframe(df_kpi_yearly.reset_index(drop=True))
 
-                        # Tạo biểu đồ cột đứng
-                        plt.figure(figsize=(10, 6))
-                        ax = sns.barplot(data=df_grouped, x='Trình độ chuyên môn', y='Số lượng', palette='viridis')
+                            plt.figure(figsize=(10, 6))
+                            ax = sns.lineplot(data=df_kpi_yearly, x='Năm', y='Điểm KPI trung bình', marker='o')
+                            plt.title(f"So sánh KPI của {target_donvi} qua các năm")
+                            plt.xlabel("Năm")
+                            plt.ylabel("Điểm KPI trung bình")
+                            plt.xticks(rotation=45, ha='right')
+                            plt.grid(True, linestyle='--', alpha=0.7)
 
-                        # Thêm tiêu đề và nhãn
-                        plt.title("Phân bố CBCNV theo Trình độ Chuyên môn", fontsize=16)
-                        plt.xlabel("Trình độ Chuyên môn", fontsize=14)
-                        plt.ylabel("Số lượng", fontsize=14)
-                        
-                        # Hiển thị giá trị trên đỉnh cột
-                        for p in ax.patches:
-                            ax.annotate(f'{int(p.get_height())}', 
-                                        (p.get_x() + p.get_width() / 2., p.get_height()), 
-                                        ha='center', 
-                                        va='center', 
-                                        xytext=(0, 10), 
-                                        textcoords='offset points',
-                                        fontsize=12,
-                                        fontweight='bold')
+                            # Hiển thị giá trị trên các điểm của đường
+                            for x, y in zip(df_kpi_yearly['Năm'], df_kpi_yearly['Điểm KPI trung bình']):
+                                ax.annotate(f'{y:.2f}', (x, y), textcoords="offset points", xytext=(0,10), ha='center', fontsize=10)
 
-                        st.pyplot(plt)
+                            plt.tight_layout()
+                            st.pyplot(plt)
+                            plt.close()
+                        else:
+                            st.warning(f"❗ Không tìm thấy dữ liệu KPI cho đơn vị '{target_donvi}'. Vui lòng kiểm tra lại tên đơn vị.")
                     else:
-                        st.warning("❗ Không tìm thấy cột 'Trình độ chuyên môn' trong sheet CBCNV.")
+                        st.warning(f"❗ Không tìm thấy đầy đủ cột (Năm, Tháng, Đơn vị, Điểm KPI) trong sheet {sheet_name}.")
                 else:
-                    st.warning("❗ Sheet 'CBCNV' không có dữ liệu hoặc không thể đọc được.")
+                    st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
-
-            # --- CBCNV: Biểu đồ theo độ tuổi ---
-            if "cbcnv" in normalized_user_msg and "độ tuổi" in normalized_user_msg:
-                sheet_name = "CBCNV"
-                sheet_data = get_sheet_data(sheet_name)
-                if sheet_data:
-                    df = pd.DataFrame(sheet_data)
-                    tuoi_col = find_column_name(df, ['Độ tuổi', 'Tuổi', 'Q'])
-
-                    if tuoi_col:
-                        df[tuoi_col] = pd.to_numeric(df[tuoi_col], errors='coerce')
-                        bins = [0, 30, 40, 50, 100]
-                        labels = ['<30', '30-39', '40-49', '≥50']
-                        df['Nhóm tuổi'] = pd.cut(df[tuoi_col], bins=bins, labels=labels, right=False)
-                        df_grouped = df['Nhóm tuổi'].value_counts().sort_index().reset_index()
-                        df_grouped.columns = ['Nhóm tuổi', 'Số lượng']
-
-                        st.subheader("📊 Phân bố CBCNV theo độ tuổi")
-                        st.dataframe(df_grouped)
-
-                        plt.figure(figsize=(10, 6))
-                        ax = sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='magma')
-                        
-                        # Thêm tiêu đề và nhãn
-                        plt.title("Phân bố CBCNV theo độ tuổi", fontsize=16)
-                        plt.xlabel("Nhóm tuổi", fontsize=14)
-                        plt.ylabel("Số lượng", fontsize=14)
-                        
-                        # Hiển thị giá trị trên đỉnh cột
-                        for p in ax.patches:
-                            ax.annotate(f'{int(p.get_height())}',
-                                        (p.get_x() + p.get_width() / 2., p.get_height()),
-                                        ha='center',
-                                        va='center',
-                                        xytext=(0, 10),
-                                        textcoords='offset points',
-                                        fontsize=12,
-                                        fontweight='bold')
-
-                        plt.tight_layout()
-                        st.pyplot(plt)
-                        plt.close()
-                    else:
-                        st.warning("❗ Không tìm thấy cột 'Độ tuổi' trong sheet CBCNV")
-                else:
-                    st.warning("❗ Sheet 'CBCNV' không có dữ liệu hoặc không thể đọc được.")
-                is_handled = True
+            # --- END NEW LOGIC ---
 
             # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI KHÁC ---
             if not is_handled:
