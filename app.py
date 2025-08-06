@@ -482,8 +482,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.warning(f"❗ Không tìm thấy các cột cần thiết trong sheet {sheet_name}.")
                         is_handled = True
             
-            # --- ĐOẠN MÃ XỬ LÝ CÁC CÂU HỎI CỐ ĐỊNH TRƯỚC ĐÓ ---
-            # Câu hỏi: Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần
+            # --- Xử lý câu hỏi KPI tháng cụ thể (ví dụ: tháng 6 năm 2025) ---
             if "lấy thông tin kpi của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet_name = "KPI"
                 sheet_data = get_sheet_data(sheet_name)
@@ -550,7 +549,72 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
             
-            # --- NEW: Xử lý câu hỏi so sánh KPI theo năm cho một đơn vị cụ thể ---
+            # --- NEW: Xử lý câu hỏi KPI lũy kế theo năm ---
+            kpi_cumulative_match = re.search(r'kpi của các đơn vị lũy kế năm (\d{4}) và sắp xếp theo thứ tự giảm dần', normalized_user_msg)
+            if kpi_cumulative_match:
+                target_year = int(kpi_cumulative_match.group(1))
+
+                sheet_name = "KPI"
+                sheet_data = get_sheet_data(sheet_name)
+                if sheet_data:
+                    df = pd.DataFrame(sheet_data)
+                    kpi_col = find_column_name(df, ['Điểm KPI', 'KPI'])
+                    nam_col = find_column_name(df, ['Năm'])
+                    thang_col = find_column_name(df, ['Tháng'])
+                    donvi_col = find_column_name(df, ['Đơn vị'])
+
+                    if kpi_col and nam_col and thang_col and donvi_col:
+                        # Chuẩn hóa dữ liệu KPI
+                        df[kpi_col] = df[kpi_col].astype(str).str.replace(',', '.', regex=False)
+                        df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
+                        df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
+                        df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
+
+                        # Lọc dữ liệu cho năm mục tiêu
+                        df_filtered_year = df[(df[nam_col] == target_year)].copy()
+                        
+                        if not df_filtered_year.empty:
+                            # Tính KPI lũy kế (tổng các tháng) cho mỗi đơn vị trong năm đó
+                            df_kpi_cumulative = df_filtered_year.groupby(donvi_col)[kpi_col].sum().reset_index()
+                            df_kpi_cumulative.columns = ['Đơn vị', 'Điểm KPI Lũy kế']
+                            df_kpi_cumulative = df_kpi_cumulative.sort_values(by='Điểm KPI Lũy kế', ascending=False)
+
+                            st.subheader(f"📊 KPI lũy kế năm {target_year} của các đơn vị")
+                            st.dataframe(df_kpi_cumulative.reset_index(drop=True))
+
+                            plt.figure(figsize=(12, 7))
+                            # Sử dụng palette để mỗi cột có màu riêng biệt
+                            ax = sns.barplot(data=df_kpi_cumulative, x='Đơn vị', y='Điểm KPI Lũy kế', palette='hls')
+                            plt.title(f"KPI lũy kế năm {target_year} theo đơn vị", fontsize=16)
+                            plt.xlabel("Đơn vị", fontsize=14)
+                            plt.ylabel("Điểm KPI Lũy kế", fontsize=14)
+                            plt.xticks(rotation=45, ha='right') # Xoay nhãn trục x để dễ đọc
+                            plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+                            # Hiển thị giá trị trên đỉnh cột
+                            for p in ax.patches:
+                                ax.annotate(f'{p.get_height():.2f}', 
+                                            (p.get_x() + p.get_width() / 2., p.get_height()), 
+                                            ha='center', 
+                                            va='center', 
+                                            xytext=(0, 10), 
+                                            textcoords='offset points',
+                                            fontsize=10,
+                                            fontweight='bold')
+
+                            plt.tight_layout()
+                            st.pyplot(plt)
+                            plt.close()
+                        else:
+                            st.warning(f"❗ Không tìm thấy dữ liệu KPI cho năm {target_year}. Vui lòng kiểm tra lại dữ liệu trong sheet.")
+                    else:
+                        st.warning(f"❗ Không tìm thấy đầy đủ cột (Năm, Tháng, Đơn vị, Điểm KPI) trong sheet {sheet_name}.")
+                else:
+                    st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
+                is_handled = True
+            # --- END NEW LOGIC ---
+
+            # --- Xử lý câu hỏi so sánh KPI theo năm cho một đơn vị cụ thể ---
             kpi_compare_match = re.search(r'kpi năm (\d{4}) của ([\w\s]+) so sánh với các năm trước', normalized_user_msg)
             if kpi_compare_match:
                 target_year = int(kpi_compare_match.group(1))
@@ -583,7 +647,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             df_kpi_yearly = df_kpi_yearly.sort_values(by='Năm')
 
                             st.subheader(f"📊 KPI trung bình hàng năm của {target_donvi}")
-                            st.dataframe(df_kpi_yearly.reset_index(drop=True))
+                            # DEBUGGING: Hiển thị DataFrame chứa dữ liệu KPI hàng năm
+                            st.write(f"DEBUG: Dữ liệu KPI hàng năm cho {target_donvi}:")
+                            st.dataframe(df_kpi_yearly)
 
                             plt.figure(figsize=(10, 6))
                             ax = sns.lineplot(data=df_kpi_yearly, x='Năm', y='Điểm KPI trung bình', marker='o')
