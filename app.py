@@ -112,8 +112,8 @@ def get_sheet_data(sheet_name):
     try:
         sheet = client.open_by_url(spreadsheet_url).worksheet(sheet_name)
         
-        # Sửa đổi logic để xử lý sheet KPI dựa trên cấu trúc mới
-        if sheet_name == "KPI":
+        # Sửa đổi logic để xử lý sheet KPI và Tên các TBA dựa trên cấu trúc mới
+        if sheet_name == "KPI" or sheet_name == "Tên các TBA": # Apply this logic for "Tên các TBA" as well
             all_values = sheet.get_all_values()
             if all_values:
                 headers = all_values[0]
@@ -163,10 +163,12 @@ def load_all_sheets():
     data = {}
     for name in sheet_names:
         try:
-            records = spreadsheet.worksheet(name).get_all_records()
+            # Use get_sheet_data to handle specific sheet types
+            records = get_sheet_data(name) 
             data[name] = pd.DataFrame(records)
-        except:
-            data[name] = pd.DataFrame()
+        except Exception as e: # Catch any error during DataFrame creation
+            st.warning(f"⚠️ Lỗi khi tải sheet '{name}': {e}. Đang bỏ qua sheet này.")
+            data[name] = pd.DataFrame() # Ensure an empty DataFrame is returned on error
     return data
 
 all_data = load_all_sheets()
@@ -370,13 +372,13 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
     def handle_tba(question):
         if "tba" in normalize_text(question) and "đường dây" in normalize_text(question):
             try:
-                sheet_tba = all_data.get("Tên các TBA")
-                if sheet_tba is None or sheet_tba.empty:
+                sheet_tba_df = all_data.get("Tên các TBA") # Get the DataFrame directly
+                if sheet_tba_df is None or sheet_tba_df.empty:
                     st.warning("⚠️ Không tìm thấy sheet 'Tên các TBA' hoặc sheet rỗng.")
                     return True
 
                 # Use find_column_name to get the correct column name for 'STT đường dây'
-                stt_duong_day_col = find_column_name(sheet_tba, ['STT đường dây', 'Đường dây', 'C'])
+                stt_duong_day_col = find_column_name(sheet_tba_df, ['STT đường dây', 'Đường dây', 'C'])
                 
                 if not stt_duong_day_col:
                     st.warning("❗ Không tìm thấy cột 'STT đường dây' trong sheet 'Tên các TBA'. Vui lòng kiểm tra lại tên cột.")
@@ -385,7 +387,10 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 match = re.search(r'(\d{3}E6\.22)', question.upper())
                 if match:
                     dd = match.group(1)
-                    df_dd = sheet_tba[sheet_tba[stt_duong_day_col].astype(str).str.contains(dd)]
+                    # Use .str.contains with regex=False for exact string matching if needed, or regex=True for patterns
+                    # Assuming '471E6.22' is an exact string to match, so regex=False is safer.
+                    df_dd = sheet_tba_df[sheet_tba_df[stt_duong_day_col].astype(str).str.contains(dd, case=False, na=False)]
+                    
                     if not df_dd.empty:
                         st.success(f"📄 Danh sách TBA trên đường dây {dd}")
                         st.dataframe(df_dd.reset_index(drop=True))
