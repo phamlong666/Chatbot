@@ -173,22 +173,21 @@ all_data = load_all_sheets()
 # Hàm để đọc câu hỏi từ file JSON
 def load_sample_questions(file_path="sample_questions.json"):
     try:
-        # Thay vì đọc file, sử dụng danh sách cố định
-        questions_data = [
-            "Lấy thông tin KPI của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần",
-            "Lấy biểu đồ phân bố CBCNV theo trình độ chuyên môn, nhóm Kỹ sư và Thạc sỹ, và hiển thị giá trị trên cột.",
-            "Lấy biểu đồ phân bố CBCNV theo độ tuổi.",
-            "Lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo đường dây",
-            "Lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo tính chất",
-            "Lấy thông tin sự cố tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo loại sự cố",
-            "Lấy thông tin sự cố lũy kế đến tháng 7 năm 2025 so sánh với cùng kỳ, vẽ biểu đồ theo đường dây"
-        ]
+        # Đã thay đổi: Đọc file JSON thay vì sử dụng danh sách cố định
+        with open(file_path, "r", encoding="utf-8") as f:
+            questions_data = json.load(f)
         return questions_data
+    except FileNotFoundError:
+        st.error(f"❌ Lỗi: Không tìm thấy file câu hỏi mẫu tại đường dẫn: {file_path}. Vui lòng đảm bảo file 'sample_questions.json' nằm cùng thư mục với file app.py của bạn khi triển khai.")
+        return []
+    except json.JSONDecodeError:
+        st.error(f"❌ Lỗi: File '{file_path}' không phải là định dạng JSON hợp lệ. Vui lòng kiểm tra lại nội dung file.")
+        return []
     except Exception as e:
-        st.error("Lỗi khi tạo danh sách câu hỏi mẫu.")
+        st.error(f"❌ Lỗi khi đọc danh sách câu hỏi mẫu từ file: {e}")
         return []
 
-# Tải các câu hỏi mẫu khi ứng dụng khởi động (giữ lại hàm, nhưng sẽ dùng options cứng cho selectbox)
+# Tải các câu hỏi mẫu khi ứng dụng khởi động
 sample_questions_from_file = load_sample_questions()
 
 
@@ -410,9 +409,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                 st.dataframe(combined_df.reset_index(drop=True))
 
                 plt.figure(figsize=(14, 8))
-                
-                # Sử dụng palette tùy chỉnh với màu xanh và vàng
-                ax = sns.barplot(data=combined_df, x=chart_type, y='Số lượng sự cố', hue='Năm', palette=['#1f77b4', '#ffbf00'])
+                ax = sns.barplot(data=combined_df, x=chart_type, y='Số lượng sự cố', hue='Năm', palette='viridis')
                 
                 plt.title(chart_title, fontsize=16)
                 plt.xlabel(chart_type, fontsize=14)
@@ -496,30 +493,54 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     thang_col = find_column_name(df, ['Tháng'])
                     donvi_col = find_column_name(df, ['Đơn vị'])
 
+                    # --- DEBUGGING START ---
+                    st.write(f"DEBUG: Tên cột KPI tìm thấy: {kpi_col}")
+                    if kpi_col:
+                        st.write(f"DEBUG: 5 giá trị đầu tiên của cột '{kpi_col}' trước chuyển đổi: {df[kpi_col].head().tolist()}")
+                    # --- DEBUGGING END ---
+
                     if kpi_col and nam_col and thang_col and donvi_col:
                         df[kpi_col] = pd.to_numeric(df[kpi_col], errors='coerce')
                         df[nam_col] = pd.to_numeric(df[nam_col], errors='coerce')
                         df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
+
+                        # --- DEBUGGING START ---
+                        if kpi_col:
+                            st.write(f"DEBUG: 5 giá trị đầu tiên của cột '{kpi_col}' sau chuyển đổi: {df[kpi_col].head().tolist()}")
+                            st.write(f"DEBUG: Số lượng giá trị NaN trong cột '{kpi_col}' sau chuyển đổi: {df[kpi_col].isnull().sum()}")
+                        # --- DEBUGGING END ---
 
                         # Lọc dữ liệu
                         df_filtered = df[(df[nam_col] == 2025) & (df[thang_col] == 6)]
                         donvi_can_vẽ = ["Định Hóa", "Đồng Hỷ", "Đại Từ", "Phú Bình", "Phú Lương", "Phổ Yên", "Sông Công", "Thái Nguyên", "Võ Nhai"]
                         df_filtered = df_filtered[df_filtered[donvi_col].isin(donvi_can_vẽ)]
 
-                        # Sắp xếp và hiển thị
-                        df_sorted = df_filtered.sort_values(by=kpi_col, ascending=False)
-                        st.subheader("📊 KPI các đơn vị tháng 6 năm 2025")
-                        st.dataframe(df_sorted.reset_index(drop=True))
+                        # --- DEBUGGING START ---
+                        st.write(f"DEBUG: DataFrame sau khi lọc cho tháng 6/2025 và đơn vị: {df_filtered.shape[0]} hàng")
+                        if not df_filtered.empty:
+                            st.dataframe(df_filtered)
+                        else:
+                            st.warning("DEBUG: DataFrame lọc rỗng. Có thể không có dữ liệu cho tháng 6/2025 hoặc các đơn vị được chỉ định.")
+                        # --- DEBUGGING END ---
 
-                        plt.figure(figsize=(10, 6))
-                        # Giữ nguyên palette crest cho KPI
-                        sns.barplot(data=df_sorted, x=kpi_col, y=donvi_col, palette="crest")
-                        plt.title("KPI tháng 6/2025 theo đơn vị")
-                        plt.xlabel("Điểm KPI")
-                        plt.ylabel("Đơn vị")
-                        plt.tight_layout()
-                        st.pyplot(plt)
-                        plt.close()
+                        # Sắp xếp và hiển thị
+                        if not df_filtered.empty: # Only proceed if df_filtered is not empty
+                            df_sorted = df_filtered.sort_values(by=kpi_col, ascending=False)
+                            st.subheader("📊 KPI các đơn vị tháng 6 năm 2025")
+                            st.dataframe(df_sorted.reset_index(drop=True))
+
+                            plt.figure(figsize=(10, 6))
+                            # Đã thay đổi: x là đơn vị, y là điểm KPI
+                            ax = sns.barplot(data=df_sorted, x=donvi_col, y=kpi_col, palette="crest")
+                            plt.title("KPI tháng 6/2025 theo đơn vị")
+                            plt.xlabel("Đơn vị") # Đã thay đổi nhãn trục x
+                            plt.ylabel("Điểm KPI") # Đã thay đổi nhãn trục y
+                            plt.xticks(rotation=45, ha='right') # Xoay nhãn trục x
+                            plt.tight_layout()
+                            st.pyplot(plt)
+                            plt.close()
+                        else:
+                            st.warning("❗ Không có dữ liệu KPI nào để hiển thị cho tháng 6 năm 2025 và các đơn vị đã chọn.")
                     else:
                         st.warning(f"❗ Không tìm thấy đầy đủ cột (Năm, Tháng, Đơn vị, Điểm KPI) trong sheet {sheet_name}.")
                 else:
@@ -550,8 +571,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                         # Tạo biểu đồ cột đứng
                         plt.figure(figsize=(10, 6))
-                        # Đổi màu biểu đồ sang một dải màu xanh
-                        ax = sns.barplot(data=df_grouped, x='Trình độ chuyên môn', y='Số lượng', palette='Blues_d')
+                        ax = sns.barplot(data=df_grouped, x='Trình độ chuyên môn', y='Số lượng', palette='viridis')
 
                         # Thêm tiêu đề và nhãn
                         plt.title("Phân bố CBCNV theo Trình độ Chuyên môn", fontsize=16)
@@ -596,8 +616,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                         st.dataframe(df_grouped)
 
                         plt.figure(figsize=(10, 6))
-                        # Đổi màu biểu đồ sang một dải màu vàng-cam
-                        ax = sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='YlOrRd')
+                        ax = sns.barplot(data=df_grouped, x='Nhóm tuổi', y='Số lượng', palette='magma')
                         
                         # Thêm tiêu đề và nhãn
                         plt.title("Phân bố CBCNV theo độ tuổi", fontsize=16)
