@@ -416,7 +416,9 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         
         # --- SỬA LỖI TẠI ĐÂY ---
         # Chuyển đổi cột 'Số vụ sự cố' sang kiểu số
-        grp['Số vụ sự cố'] = pd.to_numeric(grp['Số vụ sự cố'], errors='coerce').fillna(0).astype(int)
+        grp['Số vụ sự cố'] = pd.to_numeric(grp['Số vụ sự cố'], errors='coerce').fillna(0)
+        # Loại bỏ các dòng có giá trị NaN trong cột tên đường dây
+        grp = grp.dropna(subset=[col_line])
         
         st.success(f"✅ Dữ liệu sự cố theo đường dây – Năm {year}")
         
