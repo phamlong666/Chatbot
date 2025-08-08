@@ -298,21 +298,20 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         """Khởi tạo gspread client từ st.secrets['gdrive_service_account'].
         Tự động sửa \n trong private_key.
         """
-        try:
-            gsa = dict(st.secrets["gdrive_service_account"])  # copy
-        except KeyError:
+        if "gdrive_service_account" not in st.secrets:
             st.error("❌ Không tìm thấy 'gdrive_service_account' trong Streamlit Secrets.")
             return None
 
-        # Chuẩn hoá private_key
-        if "private_key" in gsa and isinstance(gsa["private_key"], str):
-            gsa["private_key"] = gsa["private_key"].replace("\\n", "\n")
-
-        scope = [
-            "https://www.googleapis.com/auth/spreadsheets.readonly",
-            "https://www.googleapis.com/auth/drive.readonly",
-        ]
         try:
+            gsa = dict(st.secrets["gdrive_service_account"])  # copy
+            # Chuẩn hoá private_key
+            if "private_key" in gsa and isinstance(gsa["private_key"], str):
+                gsa["private_key"] = gsa["private_key"].replace("\\n", "\n")
+
+            scope = [
+                "https://www.googleapis.com/auth/spreadsheets.readonly",
+                "https://www.googleapis.com/auth/drive.readonly",
+            ]
             credentials = ServiceAccountCredentials.from_json_keyfile_dict(gsa, scope)
             gc = gspread.authorize(credentials)
             return gc
@@ -353,6 +352,16 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
             st.error(f"❌ Lỗi khi mở worksheet: {e}")
             return None
 
+    def normalize_text(text):
+        """Hàm chuẩn hóa văn bản, loại bỏ dấu và chuyển về chữ thường."""
+        # This function was missing, so I'm adding a simple implementation to prevent errors.
+        # It's good practice to have this since it was used in handle_qa_matching
+        import unicodedata
+        if not isinstance(text, str):
+            return ""
+        text = text.lower()
+        text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+        return text
 
     def handle_incident_by_line_year(user_query, gc_client=None):
         """
@@ -404,7 +413,11 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
         grp = df_filtered.groupby(col_line).size().reset_index(name='Số vụ sự cố')
         grp = grp.sort_values(by='Số vụ sự cố', ascending=False)
-
+        
+        # --- SỬA LỖI TẠI ĐÂY ---
+        # Chuyển đổi cột 'Số vụ sự cố' sang kiểu số
+        grp['Số vụ sự cố'] = pd.to_numeric(grp['Số vụ sự cố'], errors='coerce').fillna(0).astype(int)
+        
         st.success(f"✅ Dữ liệu sự cố theo đường dây – Năm {year}")
         
         # Bảng số liệu
