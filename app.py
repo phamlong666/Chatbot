@@ -138,13 +138,6 @@ def get_sheet_data(sheet_name):
         st.error(f"❌ Lỗi khi mở Google Sheet '{sheet_name}': {e}. Vui lòng kiểm tra định dạng tiêu đề của sheet. Nếu có tiêu đề trùng lặp, hãy đảm bảo chúng là duy nhất.")
         return pd.DataFrame()
 
-# Hàm chuẩn hóa chuỗi để so sánh chính xác hơn (loại bỏ dấu cách thừa, chuyển về chữ thường)
-def normalize_text(text):
-    if isinstance(text, str):
-        # Chuyển về chữ thường, loại bỏ dấu cách thừa ở đầu/cuối và thay thế nhiều dấu cách bằng một dấu cách
-        return re.sub(r'\s+', ' ', text).strip().lower()
-    return ""
-
 # Tải dữ liệu từ sheet "Hỏi-Trả lời" một lần khi ứng dụng khởi động
 qa_data = get_sheet_data("Hỏi-Trả lời")
 qa_df = pd.DataFrame(qa_data) if qa_data is not None else pd.DataFrame() # Ensure qa_data is not None
@@ -649,7 +642,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         st.success("✅ Đã xóa nội dung chat.")
         st.rerun()
 
-    # Xử lý OCR
+    # --- Phần xử lý OCR ảnh duy nhất ---
     def extract_text_from_image(image_path):
         reader = easyocr.Reader(['vi'])
         result = reader.readtext(image_path, detail=0)
@@ -681,6 +674,7 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         finally:
             if temp_image_path.exists():
                 os.remove(temp_image_path)
+    # --- Kết thúc phần xử lý OCR ảnh duy nhất ---
 
     # Hiển thị kết quả QA nếu có
     if st.session_state.qa_results and not st.session_state.current_qa_display:
@@ -701,36 +695,3 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         
         if len(st.session_state.qa_results) and len(st.session_state.qa_results) > 1:
             st.info("Đã hiển thị tất cả các câu trả lời tương tự.")
-
-
-    def extract_text_from_image(image_path):
-        reader = easyocr.Reader(['vi'])
-        result = reader.readtext(image_path, detail=0)
-        text = " ".join(result)
-        return text
-
-    st.markdown("### 📸 Hoặc tải ảnh chứa câu hỏi (nếu có)")
-    uploaded_image = st.file_uploader("Tải ảnh câu hỏi", type=["jpg", "png", "jpeg"])
-
-    if uploaded_image is not None:
-        temp_image_path = Path("temp_uploaded_image.jpg")
-        try:
-            with open(temp_image_path, "wb") as f:
-                f.write(uploaded_image.getbuffer())
-            
-            with st.spinner("⏳ Đang xử lý ảnh và trích xuất văn bản..."):
-                extracted_text = extract_text_from_image(str(temp_image_path))
-            
-            if extracted_text:
-                st.info("Văn bản được trích xuất từ ảnh:")
-                st.code(extracted_text, language="text")
-                st.session_state.user_input_value = extracted_text
-                st.success("✅ Đã điền văn bản vào ô nhập liệu. Bạn có thể chỉnh sửa và nhấn 'Gửi'.")
-                st.rerun()
-            else:
-                st.warning("⚠️ Không thể trích xuất văn bản từ ảnh. Vui lòng thử lại với ảnh rõ hơn.")
-        except Exception as e:
-            st.error(f"❌ Lỗi khi xử lý ảnh: {e}")
-        finally:
-            if temp_image_path.exists():
-                os.remove(temp_image_path)
