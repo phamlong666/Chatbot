@@ -501,6 +501,79 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                 df = sheet_cbcnv # Already a DataFrame from load_all_sheets
 
+                # --- CBCNV: Biểu đồ theo bộ phận + nút "Chọn bộ phận" ---
+                if ("bieu do" in normalized_question or "biểu đồ" in normalized_question) and ("bo phan" in normalized_question or "bộ phận" in normalized_question):
+                    dept_col = find_column_name(df, ['Bộ phận công tác', 'Bộ phận', 'Bộ phận/người phụ trách'])
+                    if not dept_col:
+                        st.warning("❗ Không tìm thấy cột 'Bộ phận công tác' trong sheet 'CBCNV'.")
+                        return True
+
+                    # Làm sạch dữ liệu bộ phận
+                    df[dept_col] = df[dept_col].astype(str).str.strip()
+                    df_valid = df[df[dept_col].str.len() > 0].copy()
+
+                    # Nút toggle chọn bộ phận
+                    state_key = "cbcnv_show_dept_filter"
+                    if state_key not in st.session_state:
+                        st.session_state[state_key] = False
+
+                    col_btn, col_sp = st.columns([1, 4])
+                    with col_btn:
+                        if st.button("Chọn bộ phận", key="btn_chon_bo_phan"):
+                            st.session_state[state_key] = not st.session_state[state_key]
+
+                    # Danh sách bộ phận
+                    dept_options = sorted(df_valid[dept_col].dropna().unique().tolist())
+                    selected_depts = dept_options
+                    if st.session_state[state_key]:
+                        selected_depts = st.multiselect("Chọn bộ phận", dept_options, default=dept_options, key="ms_dept")
+
+                    # Lọc theo lựa chọn
+                    df_filtered = df_valid[df_valid[dept_col].isin(selected_depts)].copy()
+
+                    # Hiển thị bảng danh sách
+                    st.subheader("📄 Danh sách CBCNV (lọc theo bộ phận)")
+                    st.dataframe(df_filtered.reset_index(drop=True))
+
+                    # Nhóm theo bộ phận
+                    counts = df_filtered[dept_col].value_counts().sort_values(ascending=False)
+                    if counts.empty:
+                        st.warning("⚠️ Không có dữ liệu để vẽ biểu đồ.")
+                        return True
+
+                    # Biểu đồ cột
+                    fig1, ax1 = plt.subplots(figsize=(12, 6))
+                    bars = ax1.bar(counts.index.astype(str), counts.values)
+                    ax1.set_title("Phân bố CBCNV theo bộ phận (cột)")
+                    ax1.set_xlabel("Bộ phận")
+                    ax1.set_ylabel("Số lượng")
+                    ax1.tick_params(axis='x', rotation=45)
+
+                    # Gắn nhãn số lên cột
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax1.annotate(f"{int(height)}",
+                                     (bar.get_x() + bar.get_width() / 2, height),
+                                     ha="center", va="bottom", xytext=(0, 3),
+                                     textcoords="offset points", fontsize=10, fontweight="bold")
+
+                    st.pyplot(fig1)
+                    plt.close(fig1)
+
+                    # Biểu đồ tròn
+                    fig2, ax2 = plt.subplots(figsize=(8, 8))
+                    def _autopct(pct):
+                        total = counts.sum()
+                        val = int(round(pct * total / 100.0))
+                        return f"{val} ({pct:.1f}%)"
+                    ax2.pie(counts.values, labels=counts.index.astype(str), autopct=_autopct, startangle=90, counterclock=False)
+                    ax2.set_title("Phân bố CBCNV theo bộ phận (tròn)")
+                    ax2.axis('equal')
+                    st.pyplot(fig2)
+                    plt.close(fig2)
+
+                    return True
+
                 # --- CBCNV: Biểu đồ theo trình độ chuyên môn ---
                 if "trình độ chuyên môn" in normalized_question:
                     tdcm_col = find_column_name(df, ['Trình độ chuyên môn', 'Trình độ', 'S'])
