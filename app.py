@@ -1175,3 +1175,18 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
         finally:
             if temp_image_path.exists():
                 os.remove(temp_image_path)
+
+
+
+# --- Auto re-render for interactive CBCNV department filter ---
+try:
+    _last_msg = st.session_state.get("last_processed_user_msg", "")
+    _has_dept_toggle = "cbcnv_show_dept_filter" in st.session_state
+    if _has_dept_toggle and _last_msg:
+        _norm_last = normalize_text(_last_msg)
+        if ("cbcnv" in _norm_last or "cán bộ công nhân viên" in _norm_last) and ("bieu do" in _norm_last or "biểu đồ" in _norm_last or "bo phan" in _norm_last or "bộ phận" in _norm_last):
+            # Re-run the CBCNV handler so that toggling "Chọn bộ phận" still renders charts
+            handle_cbcnv(_last_msg)
+except Exception as _e:
+    # fail-safe: don't break the app due to rerender hook
+    pass
