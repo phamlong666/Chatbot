@@ -187,6 +187,96 @@ def load_sample_questions(file_path="sample_questions.json"):
 # Tải các câu hỏi mẫu khi ứng dụng khởi động
 sample_questions_from_file = load_sample_questions()
 
+# --- Handler tổng quát: KPI các đơn vị tháng mm/năm yyyy (giảm dần) ---
+def handle_kpi_monthly(question: str) -> bool:
+    # Bắt câu: 'Lấy thông tin KPI của các đơn vị tháng mm năm yyyy và sắp xếp theo thứ tự giảm dần'.
+    # Trả về True nếu đã xử lý (kể cả khi không có dữ liệu), False nếu không khớp.
+    try:
+        normalized = normalize_text(question)
+        # Cho phép có/không cụm 'và sắp xếp theo thứ tự giảm dần'
+        pattern = r"lấy thông tin kpi của các đơn vị tháng\s*(\d{1,2})\s*năm\s*(\d{4})(?:.*?sắp xếp theo thứ tự giảm dần|.*?)$"
+        m = re.search(pattern, normalized)
+        if not m:
+            return False
+
+        month = int(m.group(1))
+        year = int(m.group(2))
+        if month < 1 or month > 12:
+            st.warning("❗ Tháng không hợp lệ. Vui lòng nhập tháng từ 1–12.")
+            return True
+
+        sheet_name = "KPI"
+        sheet_data = all_data.get(sheet_name)
+        if sheet_data is None or sheet_data.empty:
+            st.warning(f"⚠️ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
+            return True
+
+        df = sheet_data.copy()
+
+        # Tìm tên cột linh hoạt
+        kpi_col   = find_column_name(df, ['Điểm KPI', 'KPI'])
+        nam_col   = find_column_name(df, ['Năm'])
+        thang_col = find_column_name(df, ['Tháng'])
+        donvi_col = find_column_name(df, ['Đơn vị', 'Đơn vị/Địa bàn'])
+
+        if not all([kpi_col, nam_col, thang_col, donvi_col]):
+            st.warning(f"❗ Không tìm thấy đầy đủ cột (Năm, Tháng, Đơn vị, Điểm KPI) trong sheet {sheet_name}.")
+            return True
+
+        # Chuẩn hóa số
+        df[kpi_col]   = df[kpi_col].astype(str).str.replace(',', '.', regex=False)
+        df[kpi_col]   = pd.to_numeric(df[kpi_col], errors='coerce')
+        df[nam_col]   = pd.to_numeric(df[nam_col], errors='coerce')
+        df[thang_col] = pd.to_numeric(df[thang_col], errors='coerce')
+
+        # Lọc dữ liệu tháng/năm
+        df_filtered = df[(df[nam_col] == year) & (df[thang_col] == month)].copy()
+
+        if df_filtered.empty:
+            st.warning(f"⚠️ Không có dữ liệu KPI cho tháng {month:02d}/{year}.")
+            return True
+
+        # Sắp xếp giảm dần theo KPI
+        df_sorted = df_filtered.sort_values(by=kpi_col, ascending=False)
+
+        st.subheader(f"📊 KPI các đơn vị tháng {month:02d}/{year} (sắp xếp giảm dần)")
+        st.dataframe(df_sorted[[donvi_col, thang_col, nam_col, kpi_col]].reset_index(drop=True))
+
+        # Vẽ biểu đồ theo đúng thứ tự đã sắp
+        plt.figure(figsize=(12, 7))
+        import seaborn as sns  # đảm bảo có sns trong phạm vi hàm
+        ax = sns.barplot(
+            data=df_sorted,
+            x=donvi_col,
+            y=kpi_col,
+            order=df_sorted[donvi_col].tolist(),
+            palette="tab10"
+        )
+        plt.title(f"KPI tháng {month:02d}/{year} theo đơn vị (giảm dần)")
+        plt.xlabel("Đơn vị")
+        plt.ylabel("Điểm KPI")
+        plt.xticks(rotation=45, ha='right')
+
+        # Ghi nhãn giá trị trên cột
+        for p in ax.patches:
+            height = p.get_height()
+            ax.annotate(f'{height:.2f}',
+                        (p.get_x() + p.get_width()/2., height),
+                        ha='center', va='center',
+                        xytext=(0, 10), textcoords='offset points',
+                        fontsize=10, fontweight='bold')
+
+        plt.tight_layout()
+        st.pyplot(plt)
+        plt.close()
+
+        return True
+    except Exception as e:
+        st.error(f"❌ Lỗi khi xử lý KPI tháng mm/năm yyyy: {e}")
+        return True
+
+
+
 
 # --- Bắt đầu bố cục mới: Logo ở trái, phần còn lại của chatbot căn giữa ---
 
@@ -620,7 +710,12 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.warning(f"❗ Sheet '{sheet_name}' không có dữ liệu hoặc không thể đọc được.")
                 is_handled = True
             
-            # --- Xử lý câu hỏi KPI tháng cụ thể (ví dụ: tháng 6 năm 2025) ---
+            
+            # --- KPI tháng mm/năm yyyy (tổng quát, chạy trước block cứng 6/2025) ---
+            if not is_handled and handle_kpi_monthly(user_msg):
+                is_handled = True
+
+# --- Xử lý câu hỏi KPI tháng cụ thể (ví dụ: tháng 6 năm 2025) ---
             if "lấy thông tin kpi của các đơn vị tháng 6 năm 2025 và sắp xếp theo thứ tự giảm dần" in normalized_user_msg:
                 sheet_name = "KPI"
                 sheet_data = all_data.get(sheet_name) # Get DataFrame directly
