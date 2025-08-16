@@ -9,6 +9,7 @@ import matplotlib.cm as cm
 import re
 import os
 from pathlib import Path
+import unicodedata
 import fuzzywuzzy.fuzz as fuzz
 import datetime
 import easyocr
@@ -523,7 +524,14 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                             st.session_state[state_key] = not st.session_state[state_key]
 
                     # Danh sách bộ phận
-                    dept_options = sorted(df_valid[dept_col].dropna().unique().tolist())
+                    # Danh sách bộ phận (đã SORT, bỏ dấu để so sánh nhưng giữ nguyên hiển thị)
+                    dept_options_raw = df_valid[dept_col].dropna().unique().tolist()
+                    def _strip_accents(s):
+                        try:
+                            return ''.join(c for c in unicodedata.normalize('NFKD', str(s)) if not unicodedata.combining(c))
+                        except Exception:
+                            return str(s)
+                    dept_options = sorted(dept_options_raw, key=lambda s: _strip_accents(s).lower())
                     selected_depts = dept_options
                     if st.session_state[state_key]:
                         selected_depts = st.multiselect("Chọn bộ phận", dept_options, default=dept_options, key="ms_dept")
@@ -537,13 +545,16 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
 
                     # Nhóm theo bộ phận
                     counts = df_filtered[dept_col].value_counts().sort_values(ascending=False)
+                    n = len(counts)
+                    cmap = cm.get_cmap('tab20', n if n > 1 else 2)
+                    colors = [cmap(i) for i in range(n)]
                     if counts.empty:
                         st.warning("⚠️ Không có dữ liệu để vẽ biểu đồ.")
                         return True
 
                     # Biểu đồ cột
                     fig1, ax1 = plt.subplots(figsize=(12, 6))
-                    bars = ax1.bar(counts.index.astype(str), counts.values)
+                    bars = ax1.bar(counts.index.astype(str), counts.values, color=colors)
                     ax1.set_title("Phân bố CBCNV theo bộ phận (cột)")
                     ax1.set_xlabel("Bộ phận")
                     ax1.set_ylabel("Số lượng")
@@ -560,17 +571,30 @@ with col_main_content: # Tất cả nội dung chatbot sẽ nằm trong cột n�
                     st.pyplot(fig1)
                     plt.close(fig1)
 
-                    # Biểu đồ tròn
-                    fig2, ax2 = plt.subplots(figsize=(8, 8))
-                    def _autopct(pct):
-                        total = counts.sum()
-                        val = int(round(pct * total / 100.0))
-                        return f"{val} ({pct:.1f}%)"
-                    ax2.pie(counts.values, labels=counts.index.astype(str), autopct=_autopct, startangle=90, counterclock=False)
+                    # Biểu đồ tròn: tránh chồng chữ bằng cách đưa tên + số lượng ra LEGEND và chỉ hiển thị số trên lát
+                    total = int(counts.sum())
+                    fig2, ax2 = plt.subplots(figsize=(10, 8))
+                    wedges, _texts, autotexts = ax2.pie(
+                        counts.values,
+                        labels=None,
+                        autopct=lambda p: f"{int(round(p*total/100.0))} ({p:.1f}%)" if p > 0 else "",
+                        startangle=90,
+                        counterclock=False,
+                        colors=colors,
+                        pctdistance=0.75
+                    )
                     ax2.set_title("Phân bố CBCNV theo bộ phận (tròn)")
                     ax2.axis('equal')
+                    # Legend bên phải
+                    legend_labels = []
+                    for name, val in counts.items():
+                        pct = (val/total)*100 if total > 0 else 0
+                        legend_labels.append(f"{name}: {val} ({pct:.1f}%)")
+                    fig2.subplots_adjust(right=0.8)
+                    ax2.legend(wedges, legend_labels, loc='center left', bbox_to_anchor=(1.02, 0.5), frameon=False)
                     st.pyplot(fig2)
                     plt.close(fig2)
+                    
 
                     return True
 
